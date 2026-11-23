@@ -23,7 +23,7 @@ struct SFTPPacket {
 
 /// SFTP v3 消息类型。
 enum SFTPMessage {
-    static let init: UInt8 = 1
+    static let initialize: UInt8 = 1
     static let version: UInt8 = 2
     static let open: UInt8 = 3
     static let close: UInt8 = 4

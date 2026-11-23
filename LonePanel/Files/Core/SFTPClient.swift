@@ -62,7 +62,7 @@ final class SFTPClient {
     // MARK: - 握手与读循环
 
     private func handshake() async throws {
-        let packet = SFTPPacket(type: SFTPMessage.init, payload: SFTPWire.be32(3))
+        let packet = SFTPPacket(type: SFTPMessage.initialize, payload: SFTPWire.be32(3))
         try await withCheckedThrowingContinuation { continuation in
             lock.lock()
             initContinuation = continuation
