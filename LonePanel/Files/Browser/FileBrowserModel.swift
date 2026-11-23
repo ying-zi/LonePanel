@@ -14,6 +14,8 @@ final class FileBrowserModel: ObservableObject {
     @Published private(set) var connectionFailed = false
     /// 每次成功（重）连接自增，供各目录页监听后刷新列表。
     @Published private(set) var refreshToken = 0
+    /// 回前台后的静默重连进行中：界面保持快照，仅由顶栏下进度条提示。
+    @Published private(set) var isBackgroundReconnecting = false
     /// 设置里是否已配置并选中服务器。
     var hasConfiguredServer: Bool { ServerSession.shared.currentServer != nil }
 
@@ -95,6 +97,38 @@ final class FileBrowserModel: ObservableObject {
     }
 
     func reconnect() async { await connectIfNeeded(force: true) }
+
+    /// 回前台静默重连：不调用 clearSession、不改动 isConnected，
+    /// 因此界面保留切出去时的快照，不会全屏切到「正在连接服务器」。
+    /// 新连接成功后原子替换 client 并递增 refreshToken 触发各目录页刷新列表。
+    func reconnectSilently() async {
+        guard let info = ServerSession.shared.currentServer, isConnected else { return }
+        isBackgroundReconnecting = true
+        defer { isBackgroundReconnecting = false }
+        do {
+            let secret = try KeychainStore.load(info.credentialKey)
+            let credential: SSHAuthCredential
+            switch info.authKind {
+            case .password: credential = .password(secret)
+            case .privateKey: credential = .privateKey(secret)
+            }
+            let ssh = try await SSHSession(
+                host: info.host,
+                port: info.port,
+                username: info.username,
+                credential: credential
+            )
+            let newClient = try await SFTPClient.connect(session: ssh)
+            // 成功后再替换：整个过程中 isConnected 保持 true，界面不闪断。
+            client?.close()
+            self.client = newClient
+            self.connectedServerID = info.id
+            self.refreshToken &+= 1
+        } catch {
+            // 静默失败：保留快照界面，仅在下次操作时按断连处理；不弹全屏错误。
+            errorMessage = SSHSession.describe(error)
+        }
+    }
 
     // MARK: - 目录列表与排序
 

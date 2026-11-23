@@ -53,12 +53,12 @@ struct FileBrowserView: View {
         .onChange(of: session.currentServer?.id) { _, _ in
             Task { await model.reconnect(); resetToRoot() }
         }
-        // 离开 App 较久后返回：自动重连并刷新当前列表（保留导航层级）。
+        // 离开 App 较久后返回：静默重连并刷新当前列表（保留导航层级与界面快照）。
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, model.hasConfiguredServer else { return }
             Task {
-                await model.reconnect()
-                // reconnect 成功会递增 refreshToken，各 DirectoryPage 监听后刷新当前目录。
+                await model.reconnectSilently()
+                // 成功后递增 refreshToken，各 DirectoryPage 监听后刷新当前目录。
             }
         }
         // 单击当前文件 Tab：回默认目录入口（清导航栈、清剪贴板）。
@@ -75,6 +75,30 @@ struct FileBrowserView: View {
         }
         // 批量传输进度：多文件/大文件夹粘贴、移动、复制时显示原生磨砂 HUD。
         .overlay { batchProgressHUD }
+        // 回前台静默重连：在导航栏下边缘显示彩色不确定进度条，不遮挡界面快照。
+        .overlay(alignment: .top) { reconnectIndicator }
+    }
+
+    /// 静默重连指示条：贴在系统导航栏下边缘的彩色不确定进度条。
+    /// 用 GeometryReader 读取顶部安全区 + 导航栏高度来精确定位，
+    /// 覆盖在界面之上但不拦截触摸，保留切出去时的屏幕快照。
+    private var reconnectIndicator: some View {
+        GeometryReader { geo in
+            if model.isBackgroundReconnecting {
+                VStack(spacing: 0) {
+                    // 顶部留白 = 状态栏安全区 + 导航栏高度(44)，把进度条压到导航栏下边缘。
+                    Spacer().frame(height: geo.safeAreaInsets.top + 44)
+                    ProgressView()
+                        .progressViewStyle(.linear)
+                        .tint(Color.accentColor)
+                        .frame(height: 3)
+                    Spacer(minLength: 0)
+                }
+                .allowsHitTesting(false)
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: model.isBackgroundReconnecting)
     }
 
     /// 批量操作进度浮层。
@@ -474,6 +498,9 @@ private struct DirectoryPage: View {
                 HStack(spacing: 12) {
                     searchField
                     Button("取消") { closeSearch() }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                        .controlSize(.small)
                 }
                     .opacity(isSearching ? 1 : 0)
                     .offset(x: isSearching ? 0 : 32)
@@ -484,8 +511,13 @@ private struct DirectoryPage: View {
         }
         ToolbarItem(placement: .topBarTrailing) {
             if isSelecting {
+                // 完成按钮：蓝色圆角矩形底 + 白色大勾，不用圆圈包勾。
                 Button { resetSelection() } label: {
-                    Image(systemName: "checkmark.circle.fill").font(.title3)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 32, height: 32)
+                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 9))
                 }
             } else if isSearching {
                 // 取消按钮已随搜索框同组放于 .principal，此处留空避免重复。
@@ -701,8 +733,9 @@ private struct DirectoryPage: View {
     /// 多选底部工具条：图标 + 文字标签的大按钮，均分宽度、约 60pt 高，方便拇指点击。
     private var batchActionBar: some View {
         HStack(spacing: 4) {
-            // 共享仅对选中的文件有效（目录无法作为单文件分享）。
-            if selectedFiles.contains(where: { !$0.isDirectory }) {
+            // 共享仅对「选中项全部是文件」有效：只要勾选了文件夹就不显示
+            // （目录无法作为单文件分享，混选时也不宜把文件夹静默丢掉）。
+            if !selectedFiles.isEmpty && selectedFiles.allSatisfy({ !$0.isDirectory }) {
                 batchIcon("square.and.arrow.up", title: "共享") { shareSelected() }
             }
             batchIcon("arrow.right", title: "移动") { beginTransfer(.move, files: selectedFiles) }
