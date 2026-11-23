@@ -1,0 +1,383 @@
+import Foundation
+
+/// 基于 SSHSubsystemChannel 的 SFTP v3 客户端。
+/// 只依赖根 Core 的 SSH 传输能力；不认识任何服务器业务对象。
+final class SFTPClient {
+    private let transport: SSHSubsystemChannel
+    /// 强持有连接，确保通道与 event loop 组在会话期间存活。
+    private let session: SSHSession
+
+    private let lock = NSLock()
+    private var nextRequestID: UInt32 = 1
+    private var pending: [UInt32: Pending] = [:]
+    private var initContinuation: CheckedContinuation<SFTPPacket, Error>?
+    private var buffer: [UInt8] = []
+    private var readerTask: Task<Void, Never>?
+    private var closed = false
+
+    private final class Pending {
+        let continuation: CheckedContinuation<SFTPPacket, Error>
+        let timeout: DispatchWorkItem
+        init(continuation: CheckedContinuation<SFTPPacket, Error>, timeout: DispatchWorkItem) {
+            self.continuation = continuation
+            self.timeout = timeout
+        }
+    }
+
+    private init(transport: SSHSubsystemChannel, session: SSHSession) {
+        self.transport = transport
+        self.session = session
+    }
+
+    /// 在当前 SSH 连接上打开 sftp subsystem 并完成握手。
+    static func connect(session: SSHSession) async throws -> SFTPClient {
+        let transport = try await session.openSubsystem("sftp")
+        let client = SFTPClient(transport: transport, session: session)
+        client.startReading()
+        try await client.handshake()
+        return client
+    }
+
+    deinit {
+        close()
+    }
+
+    func close() {
+        lock.lock()
+        if closed { lock.unlock(); return }
+        closed = true
+        let all = Array(pending.values)
+        let initWaiter = initContinuation
+        pending.removeAll()
+        initContinuation = nil
+        lock.unlock()
+
+        readerTask?.cancel()
+        all.forEach { $0.timeout.cancel() }
+        all.forEach { $0.continuation.resume(throwing: SFTPError.notConnected) }
+        initWaiter?.resume(throwing: SFTPError.notConnected)
+        transport.close()
+    }
+
+    // MARK: - 握手与读循环
+
+    private func handshake() async throws {
+        let packet = SFTPPacket(type: SFTPMessage.init, payload: SFTPWire.be32(3))
+        try await withCheckedThrowingContinuation { continuation in
+            lock.lock()
+            initContinuation = continuation
+            lock.unlock()
+            transport.send(packet.framed)
+        }
+    }
+
+    private func startReading() {
+        readerTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                do {
+                    let chunk = try await transport.receive()
+                    ingest(chunk)
+                } catch {
+                    failAll(error)
+                    return
+                }
+            }
+        }
+    }
+
+    private func ingest(_ chunk: [UInt8]) {
+        lock.lock()
+        buffer.append(contentsOf: chunk)
+        var packets: [SFTPPacket] = []
+        while buffer.count >= 4 {
+            let bodyLength = Int(try? SFTPWire.uint32(buffer, at: 0) ?? 0)
+            guard bodyLength > 0 else { buffer.removeAll(); break }
+            let total = 4 + bodyLength
+            guard buffer.count >= total else { break }
+            let body = Array(buffer[4..<total])
+            buffer.removeFirst(total)
+            guard let type = body.first else { continue }
+            packets.append(SFTPPacket(type: type, payload: Array(body.dropFirst())))
+        }
+        lock.unlock()
+
+        for packet in packets { dispatch(packet) }
+    }
+
+    private func dispatch(_ packet: SFTPPacket) {
+        if packet.type == SFTPMessage.version {
+            lock.lock()
+            let waiter = initContinuation
+            initContinuation = nil
+            lock.unlock()
+            waiter?.resume(returning: packet)
+            return
+        }
+
+        guard let requestID = try? SFTPWire.uint32(packet.payload, at: 0) else { return }
+        lock.lock()
+        let entry = pending.removeValue(forKey: requestID)
+        lock.unlock()
+        entry?.timeout.cancel()
+        entry?.continuation.resume(returning: packet)
+    }
+
+    private func failAll(_ error: Error) {
+        lock.lock()
+        let all = Array(pending.values)
+        let initWaiter = initContinuation
+        pending.removeAll()
+        initContinuation = nil
+        lock.unlock()
+        all.forEach { $0.timeout.cancel() }
+        all.forEach { $0.continuation.resume(throwing: error) }
+        initWaiter?.resume(throwing: error)
+    }
+
+    // MARK: - 请求/响应
+
+    private func request(type: UInt8, payload: [UInt8] = [], timeoutSeconds: Double = 25) async throws -> SFTPPacket {
+        lock.lock()
+        let id = nextRequestID
+        nextRequestID &+= 1
+        lock.unlock()
+
+        var body = PayloadWriter()
+        body.uint32(id)
+        body.raw(payload)
+        let packet = SFTPPacket(type: type, payload: body.bytes)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.lock.lock()
+                let entry = self.pending.removeValue(forKey: id)
+                self.lock.unlock()
+                entry?.continuation.resume(throwing: SFTPError.malformed("服务器响应超时"))
+            }
+            lock.lock()
+            if closed {
+                lock.unlock()
+                continuation.resume(throwing: SFTPError.notConnected)
+                return
+            }
+            pending[id] = Pending(continuation: continuation, timeout: workItem)
+            lock.unlock()
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeoutSeconds, execute: workItem)
+            transport.send(packet.framed)
+        }
+    }
+
+    /// 期望一个 STATUS(OK) 响应，否则抛出人话错误。
+    private func expectOK(_ packet: SFTPPacket) throws {
+        guard packet.type == SFTPMessage.status else {
+            throw SFTPError.malformed("期望状态响应")
+        }
+        var reader = PayloadReader(packet.payload)
+        _ = try reader.uint32() // request id
+        let code = try reader.uint32()
+        let message = try reader.string()
+        if code != SFTPStatusCode.ok {
+            throw SFTPError.status(code: code, message: message)
+        }
+    }
+
+    // MARK: - 公开操作
+
+    /// 取服务器的真实（绝对）路径，用于定位默认访问目录的起点。
+    func canonicalize(_ path: String = ".") async throws -> String {
+        var payload = PayloadWriter()
+        payload.string(path)
+        let response = try await request(type: SFTPMessage.realpath, payload: payload.bytes)
+        guard response.type == SFTPMessage.name else { try expectOK(response); return path }
+        var reader = PayloadReader(response.payload)
+        _ = try reader.uint32() // request id
+        let count = try reader.uint32()
+        guard count > 0 else { return path }
+        let resolved = try reader.string() // filename 即真实路径
+        return resolved
+    }
+
+    /// 规范化路径：把 "/" 拼接成合法绝对路径。
+    func joined(_ base: String, _ name: String) -> String {
+        if base == "/" { return "/" + name }
+        return base + "/" + name
+    }
+
+    func listDirectory(_ path: String) async throws -> [RemoteFile] {
+        var open = PayloadWriter()
+        open.string(path)
+        open.uint32(SFTPOpenFlag.read)
+        open.raw(FileAttributes().encoded)
+        let opened = try await request(type: SFTPMessage.opendir, payload: open.bytes)
+        guard opened.type == SFTPMessage.handle else {
+            try expectOK(opened)
+            return []
+        }
+        var handleReader = PayloadReader(opened.payload)
+        _ = try handleReader.uint32()
+        let handle = try handleReader.data()
+
+        defer { closeHandle(handle) }
+
+        var result: [RemoteFile] = []
+        while true {
+            var read = PayloadWriter()
+            read.string(handle)
+            let response = try await request(type: SFTPMessage.readdir, payload: read.bytes)
+
+            if response.type == SFTPMessage.status {
+                var statusReader = PayloadReader(response.payload)
+                _ = try statusReader.uint32()
+                let code = try statusReader.uint32()
+                let message = try statusReader.string()
+                if code == SFTPStatusCode.eof { break }
+                throw SFTPError.status(code: code, message: message)
+            }
+            guard response.type == SFTPMessage.name else {
+                throw SFTPError.malformed("期望目录列表响应")
+            }
+
+            var reader = PayloadReader(response.payload)
+            _ = try reader.uint32() // request id
+            let count = try reader.uint32()
+            for _ in 0..<count {
+                let name = try reader.string()
+                _ = try reader.string() // longname
+                let attrs = try reader.attributes()
+                let mode = attrs.permissions ?? 0
+                let fileType = mode & 0o170000
+                let isDir = fileType == 0o040000
+                let isLink = fileType == 0o120000
+                if name == "." || name == ".." { continue }
+                result.append(RemoteFile(
+                    name: name,
+                    path: joined(path, name),
+                    isDirectory: isDir,
+                    isSymlink: isLink,
+                    size: Int64(clamping: attrs.size ?? 0),
+                    modified: attrs.mtime.map { Date(timeIntervalSince1970: Double($0)) },
+                    permissions: mode
+                ))
+            }
+        }
+        return result
+    }
+
+    func makeDirectory(_ path: String) async throws {
+        var payload = PayloadWriter()
+        payload.string(path)
+        payload.raw(FileAttributes().encoded)
+        try expectOK(try await request(type: SFTPMessage.mkdir, payload: payload.bytes))
+    }
+
+    func removeDirectory(_ path: String) async throws {
+        var payload = PayloadWriter()
+        payload.string(path)
+        try expectOK(try await request(type: SFTPMessage.rmdir, payload: payload.bytes))
+    }
+
+    func removeFile(_ path: String) async throws {
+        var payload = PayloadWriter()
+        payload.string(path)
+        try expectOK(try await request(type: SFTPMessage.remove, payload: payload.bytes))
+    }
+
+    func rename(from oldPath: String, to newPath: String) async throws {
+        var payload = PayloadWriter()
+        payload.string(oldPath)
+        payload.string(newPath)
+        try expectOK(try await request(type: SFTPMessage.rename, payload: payload.bytes))
+    }
+
+    func readFile(_ path: String) async throws -> Data {
+        var open = PayloadWriter()
+        open.string(path)
+        open.uint32(SFTPOpenFlag.read)
+        open.raw(FileAttributes().encoded)
+        let opened = try await request(type: SFTPMessage.open, payload: open.bytes)
+        guard opened.type == SFTPMessage.handle else {
+            try expectOK(opened)
+            return Data()
+        }
+        var handleReader = PayloadReader(opened.payload)
+        _ = try handleReader.uint32()
+        let handle = try handleReader.data()
+
+        defer { closeHandle(handle) }
+
+        var data = Data()
+        var offset: UInt64 = 0
+        let chunkSize: UInt32 = 32 * 1024
+        while true {
+            var read = PayloadWriter()
+            read.string(handle)
+            read.uint64(offset)
+            read.uint32(chunkSize)
+            let response = try await request(type: SFTPMessage.read, payload: read.bytes)
+
+            if response.type == SFTPMessage.status {
+                var statusReader = PayloadReader(response.payload)
+                _ = try statusReader.uint32()
+                let code = try statusReader.uint32()
+                if code == SFTPStatusCode.eof { break }
+                let message = try statusReader.string()
+                throw SFTPError.status(code: code, message: message)
+            }
+            guard response.type == SFTPMessage.data else {
+                throw SFTPError.malformed("期望文件数据响应")
+            }
+            var reader = PayloadReader(response.payload)
+            _ = try reader.uint32()
+            let chunk = try reader.data()
+            if chunk.isEmpty { break }
+            data.append(contentsOf: chunk)
+            offset += UInt64(chunk.count)
+        }
+        return data
+    }
+
+    func writeFile(_ path: String, data: Data) async throws {
+        var open = PayloadWriter()
+        open.string(path)
+        open.uint32(SFTPOpenFlag.write | SFTPOpenFlag.trunc | SFTPOpenFlag.creat)
+        open.raw(FileAttributes().encoded)
+        let opened = try await request(type: SFTPMessage.open, payload: open.bytes)
+        guard opened.type == SFTPMessage.handle else {
+            try expectOK(opened)
+            return
+        }
+        var handleReader = PayloadReader(opened.payload)
+        _ = try handleReader.uint32()
+        let handle = try handleReader.data()
+
+        defer { closeHandle(handle) }
+
+        let chunkSize = 32 * 1024
+        let bytes = [UInt8](data)
+        var offset = 0
+        while offset < bytes.count {
+            let length = min(chunkSize, bytes.count - offset)
+            let chunk = Array(bytes[offset..<(offset + length)])
+            var write = PayloadWriter()
+            write.string(handle)
+            write.uint64(UInt64(offset))
+            write.blob(chunk) // 4 字节长度 + 原始字节，可承载二进制
+            try expectOK(try await request(type: SFTPMessage.write, payload: write.bytes))
+            offset += length
+        }
+    }
+
+    /// fire-and-forget 关闭句柄：响应回来时按 request id 在 dispatch 中找不到 pending，自然丢弃。
+    private func closeHandle(_ handle: [UInt8]) {
+        lock.lock()
+        let id = nextRequestID
+        nextRequestID &+= 1
+        lock.unlock()
+        var body = PayloadWriter()
+        body.uint32(id)
+        body.string(handle)
+        transport.send(SFTPPacket(type: SFTPMessage.close, payload: body.bytes).framed)
+    }
+}
