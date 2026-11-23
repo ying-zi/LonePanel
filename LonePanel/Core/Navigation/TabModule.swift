@@ -8,17 +8,22 @@ struct TabModule: Identifiable {
     let symbolName: String
     /// 类型擦除，使 App 层无需知道具体视图类型。
     let view: AnyView
+    /// 模块启动钩子：只由模块自己提供，App 层统一调用。
+    /// 删除模块时连同注册表那一行一起删，项目仍可编译。
+    let configure: () -> Void
 
     init(
         id: String,
         title: String,
         symbolName: String,
-        view: AnyView
+        view: AnyView,
+        configure: @escaping () -> Void = {}
     ) {
         self.id = id
         self.title = title
         self.symbolName = symbolName
         self.view = view
+        self.configure = configure
     }
 
     /// 便捷构造：接受任意 View，内部做类型擦除。
@@ -26,8 +31,15 @@ struct TabModule: Identifiable {
         id: String,
         title: String,
         symbolName: String,
+        configure: @escaping () -> Void = {},
         @ViewBuilder content: () -> Content
     ) {
-        self.init(id: id, title: title, symbolName: symbolName, view: AnyView(content()))
+        self.init(
+            id: id,
+            title: title,
+            symbolName: symbolName,
+            view: AnyView(content()),
+            configure: configure
+        )
     }
 }

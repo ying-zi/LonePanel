@@ -7,6 +7,10 @@ enum SettingsTab {
         id: "settings",
         title: "设置",
         symbolName: "gearshape",
-        view: AnyView(SettingsView())
+        view: AnyView(SettingsView()),
+        configure: {
+            // 模块自行把具体实现注入根 Core 的会话单例；App 层不认识 SettingsServerSession。
+            SettingsServerSession.install()
+        }
     )
 }
