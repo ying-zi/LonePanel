@@ -294,9 +294,21 @@ final class SFTPClient {
         try expectOK(try await request(type: SFTPMessage.rename, payload: payload.bytes))
     }
 
-    /// 纯 SFTP 移动：rename 到目标目录（同名）。不依赖远端 exec 通道。
+    /// 纯 SFTP 移动：优先 rename；失败时回退为「复制 + 删除」，兼容跨设备/目标已存在。
+    /// 全程不依赖远端 exec 通道。
     func move(_ file: RemoteFile, toDirectory target: String) async throws {
-        try await rename(from: file.path, to: joined(target, file.name))
+        let destination = joined(target, file.name)
+        let parent = (file.path as NSString).deletingLastPathComponent
+        if (parent as NSString).standardizingPath == (target as NSString).standardizingPath { return }
+        if file.path == destination { return }
+        do {
+            try await rename(from: file.path, to: destination)
+        } catch {
+            // rename 在某些服务端会拒绝跨文件系统或同名覆盖，回退到复制 + 删除。
+            try await copyItem(file, to: destination)
+            if file.isDirectory { try await removeDirectory(file.path) }
+            else { try await removeFile(file.path) }
+        }
     }
 
     /// 纯 SFTP 复制：文件走 read+write；目录递归创建并复制子项。不依赖远端 exec 通道。
@@ -323,7 +335,9 @@ final class SFTPClient {
         try await session.execute(command)
     }
 
-    func readFile(_ path: String) async throws -> Data {
+    /// 读取文件。expectedSize 与 onProgress 配合，向 UI 汇报 0...1 的下载进度。
+    func readFile(_ path: String, expectedSize: Int64 = 0,
+                  onProgress: ((Double) -> Void)? = nil) async throws -> Data {
         var open = PayloadWriter()
         open.string(path)
         open.uint32(SFTPOpenFlag.read)
@@ -366,7 +380,11 @@ final class SFTPClient {
             if chunk.isEmpty { break }
             data.append(contentsOf: chunk)
             offset += UInt64(chunk.count)
+            if let onProgress, expectedSize > 0 {
+                onProgress(min(1, Double(data.count) / Double(expectedSize)))
+            }
         }
+        onProgress?(1)
         return data
     }
 

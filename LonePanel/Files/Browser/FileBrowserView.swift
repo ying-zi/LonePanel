@@ -96,9 +96,11 @@ private struct DirectoryPage: View {
     @State private var entries: [RemoteFile] = []
     @State private var isLoading = false
     @State private var searchText = ""
-    @State private var isSearching = false
-    @FocusState private var searchFocused: Bool
+    /// 系统 .searchable 的搜索态：由系统管理搜索框外观、位置与展开/收起动画。
+    @Environment(\.isSearching) private var isSearching
     @State private var isSelecting = false
+    /// 不支持在线预览的文件给出提示，并继续走下载 + 系统分享。
+    @State private var previewNotice: String?
     @State private var selectedIDs: Set<RemoteFile.ID> = []
 
     // 操作弹窗状态
@@ -115,12 +117,15 @@ private struct DirectoryPage: View {
     @State private var targetOperation: BatchOperation?
     @State private var targetFiles: [RemoteFile] = []
 
-    /// 是否处于根页（navPath 为空且当前节点是入口）。根页不显示系统返回箭头，子层级显示。
-    private var isRootPage: Bool { navPath.isEmpty }
-
     var body: some View {
         pageContent
             .navigationBarTitleDisplayMode(.inline)
+            // 系统原生搜索：点击工具栏放大镜后从标题位展开，系统负责居中与过渡动画。
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic),
+                        prompt: Text("搜索"))
+            .onChange(of: isSearching) { _, active in
+                if !active { searchText = "" }
+            }
             .refreshable { await load() }
             .task { await load() }
             .toolbar { toolbarContent }
@@ -128,13 +133,6 @@ private struct DirectoryPage: View {
             .navigationBarBackButtonHidden(isSelecting)
             .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
             .background(dialogHost)
-    }
-
-    /// 退出搜索：清空关键词并收起标题位的输入框。
-    private func closeSearch() {
-        searchText = ""
-        searchFocused = false
-        isSearching = false
     }
 
     /// 所有弹窗集中在独立宿主，避免 body 的 modifier 链过长导致 type-check 超时。
@@ -179,13 +177,25 @@ private struct DirectoryPage: View {
         } message: {
             Text("所选内容位于系统关键目录（如 /etc、/usr）。删除可能导致系统异常，请务必确认你清楚后果。")
         }
+        .alert("无法在线预览", isPresented: noticeBinding) {
+            Button("知道了", role: .cancel) { previewNotice = nil }
+        } message: {
+            Text(previewNotice ?? "")
+        }
         .sheet(item: $infoFile) { file in
             FileInfoSheet(file: file)
                 .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: targetPickerBinding) {
             TargetDirectorySheet(model: model, node: node, operation: targetOperation ?? .move) { target in
-                Task { await model.transfer(targetFiles, operation: targetOperation ?? .move, to: target); await load() }
+                // 必须在创建 Task 前捕获值：@State 在 Task 执行时才读取，
+                // 若先清空会在异步任务里拿到空数组，移动/复制变成空操作。
+                let filesToTransfer = targetFiles
+                let operationToApply = targetOperation ?? .move
+                Task {
+                    await model.transfer(filesToTransfer, operation: operationToApply, to: target)
+                    await load()
+                }
                 targetOperation = nil
                 targetFiles = []
                 resetSelection()
@@ -248,15 +258,18 @@ private struct DirectoryPage: View {
         Group {
             if isSelecting {
                 Button { toggleSelection(file) } label: {
-                    FileRow(file: file, isSelected: selectedIDs.contains(file.id), showsCheckmark: true)
+                    FileRow(file: file, isSelected: selectedIDs.contains(file.id), showsCheckmark: true,
+                            progress: model.transferProgress[file.path])
                 }
                 .buttonStyle(.plain)
             } else if file.isDirectory {
                 NavigationLink(value: FileNode(path: file.path, title: file.name)) {
-                    FileRow(file: file)
+                    FileRow(file: file, progress: model.transferProgress[file.path])
                 }
             } else {
-                Button { quickLook(file) } label: { FileRow(file: file) }
+                Button { quickLook(file) } label: {
+                    FileRow(file: file, progress: model.transferProgress[file.path])
+                }
                 .buttonStyle(.plain)
                 .foregroundStyle(.primary)
             }
@@ -297,16 +310,19 @@ private struct DirectoryPage: View {
         Group {
             if isSelecting {
                 Button { toggleSelection(file) } label: {
-                    GridFileCell(file: file, isSelected: selectedIDs.contains(file.id))
-                }
-                .buttonStyle(.plain)
-            } else if file.isDirectory {
-                NavigationLink(value: FileNode(path: file.path, title: file.name)) {
-                    GridFileCell(file: file)
-                }
-                .buttonStyle(.plain)
-            } else {
-                Button { quickLook(file) } label: { GridFileCell(file: file) }
+                GridFileCell(file: file, isSelected: selectedIDs.contains(file.id),
+                             progress: model.transferProgress[file.path])
+            }
+            .buttonStyle(.plain)
+        } else if file.isDirectory {
+            NavigationLink(value: FileNode(path: file.path, title: file.name)) {
+                GridFileCell(file: file, progress: model.transferProgress[file.path])
+            }
+            .buttonStyle(.plain)
+        } else {
+            Button { quickLook(file) } label: {
+                GridFileCell(file: file, progress: model.transferProgress[file.path])
+            }
                 .buttonStyle(.plain)
                 .foregroundStyle(.primary)
             }
@@ -340,9 +356,8 @@ private struct DirectoryPage: View {
         ToolbarItem(placement: .principal) {
             if isSelecting {
                 Text("\(selectedIDs.count) 项").font(.headline)
-            } else if isSearching {
-                searchField
-            } else {
+            } else if !isSearching {
+                // 搜索态由系统搜索框占据标题位，隐藏标题 Menu 避免重叠。
                 titleMenu
             }
         }
@@ -351,39 +366,11 @@ private struct DirectoryPage: View {
                 Button { resetSelection() } label: {
                     Image(systemName: "checkmark.circle.fill").font(.title3)
                 }
-            } else if isSearching {
-                Button("取消") { closeSearch() }
-            } else {
-                HStack(spacing: 14) {
-                    Button { isSearching = true; searchFocused = true } label: {
-                        Image(systemName: "magnifyingglass")
-                    }
-                    moreMenu
-                }
+            } else if !isSearching {
+                // 搜索态隐藏更多按钮，系统会自动在右侧显示「取消」。
+                moreMenu
             }
         }
-    }
-
-    /// 搜索态标题位输入框：替代原标题 Menu，自动聚焦，带一键清空。
-    private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            TextField("搜索", text: $searchText)
-                .textFieldStyle(.plain)
-                .focused($searchFocused)
-            if !searchText.isEmpty {
-                Button { searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(.quaternary.opacity(0.7), in: Capsule())
-        .frame(width: sizeClass == .compact ? 220 : 320)
     }
 
     /// 标题下拉：与右上 ⋯ 一致的系统原生 Menu，列出从根目录到当前的位置层级。
@@ -494,7 +481,10 @@ private struct DirectoryPage: View {
                 Label("重新连接", systemImage: "arrow.clockwise")
             }
         } label: {
-            Image(systemName: "ellipsis.circle")
+            // 系统文件 App 的更多按钮是裸三点，不套圆圈；左侧留白与搜索图标拉开距离。
+            Image(systemName: "ellipsis")
+                .font(.title3)
+                .padding(.leading, 10)
         }
     }
 
@@ -557,7 +547,7 @@ private struct DirectoryPage: View {
                 }
             } label: {
                 VStack(spacing: 4) {
-                    Image(systemName: "ellipsis.circle").font(.title3)
+                    Image(systemName: "ellipsis").font(.title3)
                     Text("更多").font(.caption2)
                 }
                 .frame(maxWidth: .infinity, minHeight: 52)
@@ -593,6 +583,12 @@ private struct DirectoryPage: View {
     // MARK: - 操作辅助
 
     private func quickLook(_ file: RemoteFile) {
+        if !FileKind.supportsQuickLook(file) {
+            // 归档/未知类型系统无法在线预览：提示后下载并交给系统分享面板。
+            previewNotice = "「\(file.name)」不支持在线预览，已下载并打开系统分享菜单。下载进度会显示在该文件下方。"
+            Task { if let url = await model.localURL(for: file, purpose: "share") { shareItem = ShareItem(url: url) } }
+            return
+        }
         Task { if let url = await model.localURL(for: file, purpose: "preview") { previewURL = url } }
     }
 
@@ -666,6 +662,9 @@ private struct DirectoryPage: View {
     private var targetPickerBinding: Binding<Bool> {
         Binding(get: { targetOperation != nil }, set: { if !$0 { targetOperation = nil; targetFiles = [] } })
     }
+    private var noticeBinding: Binding<Bool> {
+        Binding(get: { previewNotice != nil }, set: { if !$0 { previewNotice = nil } })
+    }
 }
 
 /// 单行文件条目：系统图标 + 名称 + 元信息；撑满整行使整行都可点。
@@ -673,27 +672,37 @@ private struct FileRow: View {
     let file: RemoteFile
     var isSelected = false
     var showsCheckmark = false
+    /// 下载进度（0...1），非 nil 时在行底部显示系统原生线性进度条。
+    var progress: Double?
 
     var body: some View {
-        HStack(spacing: 12) {
-            if showsCheckmark {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 12) {
+                if showsCheckmark {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                }
+                // 图标与右侧两行文字等高：系统文件 App 的列表图标约 34pt。
+                Image(systemName: FileKind(file: file).systemImage)
+                    .font(.system(size: 34))
+                    .frame(width: 34, alignment: .leading)
+                    .foregroundStyle(FileKind(file: file).tint)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(file.name)
+                        .font(.body)
+                        .lineLimit(1)
+                    Text(meta)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
             }
-            Image(systemName: FileKind(file: file).systemImage)
-                .font(.title3)
-                .foregroundStyle(FileKind(file: file).tint)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(file.name)
-                    .font(.body)
-                    .lineLimit(1)
-                Text(meta)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+            if let progress {
+                ProgressView(value: progress)
+                    .progressViewStyle(.linear)
             }
-            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -713,6 +722,7 @@ private struct FileRow: View {
 private struct GridFileCell: View {
     let file: RemoteFile
     var isSelected = false
+    var progress: Double?
 
     var body: some View {
         VStack(spacing: 6) {
@@ -732,6 +742,10 @@ private struct GridFileCell: View {
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+            if let progress {
+                ProgressView(value: progress)
+                    .progressViewStyle(.linear)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)

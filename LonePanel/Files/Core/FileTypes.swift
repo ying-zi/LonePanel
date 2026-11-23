@@ -50,24 +50,10 @@ enum FileKind {
             return
         }
         let ext = (file.name as NSString).pathExtension.lowercased()
-        let imageExts: Set<String> = [
-            "jpg", "jpeg", "png", "gif", "heic", "heif", "bmp", "webp", "tiff", "tif", "ico"
-        ]
-        let codeExts: Set<String> = [
-            "sh", "bash", "zsh", "py", "js", "ts", "jsx", "tsx", "swift", "c", "h", "cc",
-            "cpp", "hpp", "java", "go", "rs", "rb", "php", "html", "htm", "css", "json",
-            "yml", "yaml", "xml", "sql"
-        ]
-        let textExts: Set<String> = [
-            "txt", "md", "markdown", "log", "toml", "ini", "conf", "cfg", "csv", "env"
-        ]
-        let archiveExts: Set<String> = [
-            "zip", "tar", "gz", "bz2", "xz", "7z", "rar", "tgz"
-        ]
-        if imageExts.contains(ext) { self = .image }
-        else if codeExts.contains(ext) { self = .code }
-        else if textExts.contains(ext) { self = .text }
-        else if archiveExts.contains(ext) { self = .archive }
+        if Self.imageExts.contains(ext) { self = .image }
+        else if Self.codeExts.contains(ext) { self = .code }
+        else if Self.textExts.contains(ext) { self = .text }
+        else if Self.archiveExts.contains(ext) { self = .archive }
         else { self = .other }
     }
 
@@ -93,6 +79,31 @@ enum FileKind {
         case .other: return .secondary
         }
     }
+
+    /// 系统 QuickLook 能否直接预览。归档与未知二进制不支持，改走系统分享并在下载中显示进度。
+    static func supportsQuickLook(_ file: RemoteFile) -> Bool {
+        if file.isDirectory || file.isSymlink { return false }
+        let ext = (file.name as NSString).pathExtension.lowercased()
+        if Self.archiveExts.contains(ext) { return false }
+        let previewable = Self.imageExts ∪ Self.textExts ∪ Self.codeExts ∪
+            Set(["pdf", "rtf", "pages", "numbers", "key", "docx", "xlsx", "pptx"])
+        return previewable.contains(ext)
+    }
+
+    private static let imageExts: Set<String> = [
+        "jpg", "jpeg", "png", "gif", "heic", "heif", "bmp", "webp", "tiff", "tif", "ico"
+    ]
+    private static let codeExts: Set<String> = [
+        "sh", "bash", "zsh", "py", "js", "ts", "jsx", "tsx", "swift", "c", "h", "cc",
+        "cpp", "hpp", "java", "go", "rs", "rb", "php", "html", "htm", "css", "json",
+        "yml", "yaml", "xml", "sql"
+    ]
+    private static let textExts: Set<String> = [
+        "txt", "md", "markdown", "log", "toml", "ini", "conf", "cfg", "csv", "env"
+    ]
+    private static let archiveExts: Set<String> = [
+        "zip", "tar", "gz", "bz2", "xz", "7z", "rar", "tgz"
+    ]
 
     /// 排序用的稳定次序（目录已在排序时单独优先，这里排其余类型）。
     var sortRank: Int {

@@ -17,6 +17,9 @@ final class FileBrowserModel: ObservableObject {
     @Published var sortAscending = true
     @Published var showHiddenFiles = false
 
+    /// 正在下载的文件路径 → 进度(0...1)。用于列表行内显示原生进度条。
+    @Published var transferProgress: [String: Double] = [:]
+
     private var client: SFTPClient?
     private var connectedServerID: UUID?
 
@@ -210,8 +213,15 @@ final class FileBrowserModel: ObservableObject {
     /// 把远程文件下载到本地临时目录并返回 URL，保留扩展名以便系统识别类型。
     func localURL(for file: RemoteFile, purpose: String) async -> URL? {
         guard let client else { return nil }
+        transferProgress[file.path] = 0
+        defer { transferProgress[file.path] = nil }
         do {
-            let data = try await client.readFile(file.path)
+            let data = try await client.readFile(file.path, expectedSize: file.size) { [weak self] progress in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.transferProgress[file.path] = progress
+                }
+            }
             let dir = FileManager.default.temporaryDirectory
                 .appendingPathComponent("LonePanel-\(purpose)", isDirectory: true)
                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
