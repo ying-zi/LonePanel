@@ -86,18 +86,21 @@ struct FileInfoSheet: View {
     }
 }
 
-/// URL 的 Identifiable 包装，供系统分享面板的 .sheet(item:) 使用。
+/// 待分享内容的 Identifiable 包装，供系统分享面板的 .sheet(item:) 使用。
+/// 支持单个或多个文件（多选分享时一次分享多份）。
 struct ShareItem: Identifiable {
-    let url: URL
-    var id: String { url.absoluteString }
+    let urls: [URL]
+    var id: String { urls.map(\.absoluteString).joined(separator: "|") }
+    init(url: URL) { self.urls = [url] }
+    init(urls: [URL]) { self.urls = urls }
 }
 
 /// 系统原生分享面板（UIActivityViewController），对齐文件 App 的分享交互。
 struct ActivityShareSheet: UIViewControllerRepresentable {
-    let item: URL
+    let items: [URL]
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: [item], applicationActivities: nil)
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}

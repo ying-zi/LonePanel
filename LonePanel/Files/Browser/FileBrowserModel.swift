@@ -190,6 +190,24 @@ final class FileBrowserModel: ObservableObject {
         }
     }
 
+    // MARK: - 拷贝剪贴板（跨目录：在 A 目录拷贝，进入 B 目录粘贴）
+
+    /// 拷入剪贴板的源文件（均为绝对路径，跨目录有效）。由模型持有，所有层级页面共享。
+    @Published private(set) var clipboard: [RemoteFile] = []
+
+    func copyToClipboard(_ files: [RemoteFile]) {
+        guard !files.isEmpty else { return }
+        clipboard = files
+    }
+
+    func clearClipboard() { clipboard = [] }
+
+    /// 把剪贴板内容复制到目标目录（复用已认证连接的 cp -R）。粘贴后保留剪贴板，可连续粘贴。
+    func pasteClipboard(into target: String) async {
+        guard !clipboard.isEmpty else { return }
+        await transfer(clipboard, operation: .copy, to: target)
+    }
+
     func setAsDefaultDirectory(_ path: String) {
         guard let id = ServerSession.shared.currentServer?.id else { return }
         DefaultDirectoryStore.set(path, for: id)

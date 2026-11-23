@@ -2,39 +2,38 @@ import SwiftUI
 import QuickLook
 
 /// 对齐 iOS 26/27 系统「文件」App 的浏览器：
-/// - 逐层 push 导航，顶部为「返回/前进」胶囊，标题带下拉箭头可展开位置层级；
+/// - 逐层 push 导航，左上角沿用系统原生返回箭头（顶层不显示、子层级显示）；
+/// - 标题下拉为系统原生 Menu，列出从根目录到当前的层级，点击任一极跳转；
 /// - 列表 / 图标网格两种视图，系统默认行样式，每一个条目整行可点；
-/// - 长按上下文菜单（顶部快捷三连）、左滑操作、多选态浮动玻璃工具条；
-/// - 单击文件走系统 QuickLook，分享走系统分享面板。
+/// - 长按上下文菜单、左滑操作、多选态浮动玻璃工具条；
+/// - 单击文件走系统 QuickLook，分享走系统分享面板；拷贝→粘贴走共享剪贴板。
 struct FileBrowserView: View {
     @StateObject private var model = FileBrowserModel()
-    @StateObject private var history = NavigationHistory()
     @ObservedObject private var session = ServerSession.shared
 
+    /// NavigationStack 导航栈：根不进 path；回根即清空。系统原生返回由 NavigationStack 管理。
+    @State private var navPath: [FileNode] = []
     @State private var previewURL: URL?
     @State private var shareItem: ShareItem?
-
-    /// NavigationStack 的 path 由历史游标派生：根不进 path，返回/前进即游标移动。
-    private var navPath: Binding<[FileNode]> {
-        Binding(get: { history.path }, set: { history.sync(path: $0) })
-    }
 
     var body: some View {
         Group {
             if model.isConnected {
-                NavigationStack(path: navPath) {
+                NavigationStack(path: $navPath) {
                     DirectoryPage(
                         model: model,
                         node: FileNode(path: model.entryPath, title: model.serverName),
                         previewURL: $previewURL,
-                        shareItem: $shareItem
+                        shareItem: $shareItem,
+                        navPath: $navPath
                     )
                     .navigationDestination(for: FileNode.self) { node in
                         DirectoryPage(
                             model: model,
                             node: node,
                             previewURL: $previewURL,
-                            shareItem: $shareItem
+                            shareItem: $shareItem,
+                            navPath: $navPath
                         )
                     }
                 }
@@ -42,7 +41,6 @@ struct FileBrowserView: View {
                 disconnectedView
             }
         }
-        .environmentObject(history)
         .task {
             await model.connectIfNeeded()
             if model.isConnected { resetToRoot() }
@@ -50,13 +48,13 @@ struct FileBrowserView: View {
         .onChange(of: session.currentServer?.id) { _, _ in
             Task { await model.reconnect(); resetToRoot() }
         }
-        // 单击当前文件 Tab：回默认目录入口（清历史到根）。
+        // 单击当前文件 Tab：回默认目录入口（清导航栈、清剪贴板）。
         .onReceive(TabNavigationCenter.shared.$resetRequest) { request in
             guard let request, request.tabID == "files" else { return }
             resetToRoot()
         }
         .quickLookPreview($previewURL)
-        .sheet(item: $shareItem) { ActivityShareSheet(item: $0.url) }
+        .sheet(item: $shareItem) { ActivityShareSheet(items: $0.urls) }
         .alert("操作提示", isPresented: errorBinding) {
             Button("好", role: .cancel) { model.dismissError() }
         } message: {
@@ -76,7 +74,8 @@ struct FileBrowserView: View {
     }
 
     private func resetToRoot() {
-        history.reset(to: FileNode(path: model.entryPath, title: model.serverName))
+        navPath = []
+        model.clearClipboard()
         previewURL = nil
     }
 
@@ -85,56 +84,13 @@ struct FileBrowserView: View {
     }
 }
 
-/// 目录浏览历史：nodes[0] 为根，index 为当前层级。系统 NavigationStack 只有返回，
-/// 前进/后退胶囊由此游标驱动（系统无原生前进控件，属"系统没有的才自己写"）。
-final class NavigationHistory: ObservableObject {
-    @Published private(set) var nodes: [FileNode] = []
-    @Published private(set) var index: Int = 0
-
-    var canGoBack: Bool { index > 0 }
-    var canGoForward: Bool { index < nodes.count - 1 }
-
-    /// 传给 NavigationStack 的 path：不含根，长度等于当前深度。
-    var path: [FileNode] {
-        guard index > 0, nodes.count > 1 else { return [] }
-        return Array(nodes.dropFirst().prefix(index))
-    }
-
-    func reset(to root: FileNode) {
-        nodes = [root]
-        index = 0
-    }
-
-    /// 系统 push/pop 触发 path 变化时同步历史；push 新节点会截断此前的前进历史。
-    func sync(path newPath: [FileNode]) {
-        if newPath.count < index {
-            index = newPath.count
-        } else if newPath.count > index {
-            if nodes.count > index + 1 {
-                nodes = Array(nodes.prefix(index + 1))
-            }
-            for node in newPath.dropFirst(index) {
-                nodes.append(node)
-            }
-            index = newPath.count
-        }
-    }
-
-    func goBack() { if index > 0 { index -= 1 } }
-    func goForward() { if index < nodes.count - 1 { index += 1 } }
-    func jump(to target: Int) {
-        guard target >= 0, target < nodes.count else { return }
-        index = target
-    }
-}
-
 /// 单一目录层级页面。自己的条目、搜索、多选与弹窗状态互不干扰，返回上层天然保留。
 private struct DirectoryPage: View {
     @ObservedObject var model: FileBrowserModel
-    @EnvironmentObject private var history: NavigationHistory
     let node: FileNode
     @Binding var previewURL: URL?
     @Binding var shareItem: ShareItem?
+    @Binding var navPath: [FileNode]
 
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var entries: [RemoteFile] = []
@@ -142,7 +98,6 @@ private struct DirectoryPage: View {
     @State private var searchText = ""
     @State private var isSelecting = false
     @State private var selectedIDs: Set<RemoteFile.ID> = []
-    @State private var showPathMenu = false
 
     // 操作弹窗状态
     @State private var pendingCreateFolder = false
@@ -156,6 +111,9 @@ private struct DirectoryPage: View {
     @State private var targetOperation: BatchOperation?
     @State private var targetFiles: [RemoteFile] = []
 
+    /// 是否处于根页（navPath 为空且当前节点是入口）。根页不显示系统返回箭头，子层级显示。
+    private var isRootPage: Bool { navPath.isEmpty }
+
     var body: some View {
         pageContent
             .navigationBarTitleDisplayMode(.inline)
@@ -163,9 +121,9 @@ private struct DirectoryPage: View {
             .refreshable { await load() }
             .task { await load() }
             .toolbar { toolbarContent }
-            .navigationBarBackButtonHidden(true)
+            // 多选态隐藏系统返回键（左上角改放"全选"）；正常态保留系统原生返回箭头。
+            .navigationBarBackButtonHidden(isSelecting)
             .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
-            .overlay { pathMenuOverlay }
             .background(dialogHost)
     }
 
@@ -349,7 +307,7 @@ private struct DirectoryPage: View {
         }
     }
 
-    // MARK: - 顶部工具栏（返回/前进胶囊 · 标题下拉 · ⋯）
+    // MARK: - 顶部工具栏（系统返回箭头 · 标题原生 Menu · ⋯）
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
@@ -359,9 +317,8 @@ private struct DirectoryPage: View {
                     if allVisibleSelected { selectedIDs = [] }
                     else { selectedIDs = Set(visibleEntries.map(\.id)) }
                 }
-            } else {
-                navArrows
             }
+            // 非多选态不放置任何 leading item，让系统原生返回箭头显示（根页自动隐藏）。
         }
         ToolbarItem(placement: .principal) {
             if isSelecting {
@@ -381,84 +338,38 @@ private struct DirectoryPage: View {
         }
     }
 
-    /// 返回/前进胶囊（系统无原生前进，自己维护历史游标）。
-    private var navArrows: some View {
-        HStack(spacing: 0) {
-            Button { history.goBack() } label: {
-                Image(systemName: "chevron.left").font(.body.weight(.semibold))
-            }
-            .disabled(!history.canGoBack)
-            Divider().frame(height: 14)
-            Button { history.goForward() } label: {
-                Image(systemName: "chevron.right").font(.body.weight(.semibold))
-            }
-            .disabled(!history.canGoForward)
-        }
-        .buttonStyle(.plain)
-        .frame(width: 68, height: 30)
-        .background(.quaternary.opacity(0.6), in: Capsule())
-    }
-
-    /// 标题带下拉箭头，展开位置层级浮层。
+    /// 标题下拉：与右上 ⋯ 一致的系统原生 Menu，列出从根目录到当前的位置层级。
+    /// navPath 为根之后的逐级节点，故完整层级 = [根] + navPath。
     private var titleMenu: some View {
-        Button { withAnimation { showPathMenu.toggle() } } label: {
+        Menu {
+            ForEach(Array(levelNodes.enumerated()), id: \.offset) { idx, level in
+                Button {
+                    jumpToLevel(idx)
+                } label: {
+                    Label(level.title, systemImage: idx == currentLevel ? "checkmark" : (idx == 0 ? "folder" : "folder.fill"))
+                }
+            }
+        } label: {
             HStack(spacing: 4) {
                 Text(node.title).font(.headline).lineLimit(1)
                 Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
             }
             .foregroundStyle(.primary)
         }
-        .buttonStyle(.plain)
     }
 
-    /// 当前可跳转的层级（根到当前），供标题下拉浮层列出。
-    private var visibleLevels: [FileNode] {
-        Array(history.nodes.prefix(history.index + 1))
+    /// 从根到当前的完整层级节点（根 + navPath 中已 push 的各层）。
+    private var levelNodes: [FileNode] {
+        [FileNode(path: model.entryPath, title: model.serverName)] + navPath
     }
 
-    /// 标题下方展开的纵向位置层级：首行"根目录"，逐级列出，当前高亮，点击跳转。
-    @ViewBuilder
-    private var pathMenuOverlay: some View {
-        if showPathMenu {
-            ZStack(alignment: .top) {
-                Color.black.opacity(0.2)
-                    .ignoresSafeArea()
-                    .onTapGesture { withAnimation { showPathMenu = false } }
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(visibleLevels.enumerated()), id: \.offset) { idx, level in
-                        Button {
-                            history.jump(to: idx)
-                            withAnimation { showPathMenu = false }
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: idx == history.index ? "checkmark" : (idx == 0 ? "folder" : "folder.fill"))
-                                    .foregroundStyle(idx == history.index ? Color.accentColor : Color.secondary)
-                                Text(idx == 0 ? "根目录" : level.title)
-                                    .foregroundStyle(idx == history.index ? Color.accentColor : Color.primary)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        if idx != visibleLevels.count - 1 {
-                            Divider().padding(.leading, 40)
-                        }
-                    }
-                }
-                .frame(width: 260)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 0.5)
-                }
-                .shadow(radius: 12, y: 6)
-                .padding(.top, 46)
-                .frame(maxWidth: .infinity, alignment: .center)
-            }
-            .transition(.opacity.combined(with: .move(edge: .top)))
-        }
+    private var currentLevel: Int { navPath.count }
+
+    /// 跳到指定层级：截断 navPath 到该深度。idx=0（根目录）即清空导航栈。
+    private func jumpToLevel(_ idx: Int) {
+        guard idx < navPath.count else { return }
+        navPath = Array(navPath.prefix(idx))
+        model.clearClipboard()
     }
 
     private var moreMenu: some View {
@@ -474,6 +385,14 @@ private struct DirectoryPage: View {
                 pendingCreateFolder = true
             } label: {
                 Label("新建文件夹", systemImage: "folder.badge.plus")
+            }
+            // 粘贴：剪贴板非空时显示，把已拷贝的项目复制到当前目录。
+            if !model.clipboard.isEmpty {
+                Button {
+                    Task { await pasteHere() }
+                } label: {
+                    Label("粘贴（\(model.clipboard.count) 项）", systemImage: "doc.on.clipboard")
+                }
             }
             Divider()
             Menu {
@@ -530,28 +449,31 @@ private struct DirectoryPage: View {
     @ViewBuilder
     private func contextMenuItems(for file: RemoteFile) -> some View {
         ControlGroup {
-            Button { beginTransfer(.copy, files: [file]) } label: {
+            Button { model.copyToClipboard([file]) } label: {
                 Label("拷贝", systemImage: "doc.on.doc")
             }
             Button { beginTransfer(.move, files: [file]) } label: {
                 Label("移动", systemImage: "arrow.right")
             }
-            Button { share(file) } label: {
-                Label("共享", systemImage: "square.and.arrow.up")
+            // 共享需先把文件下载为本地文件；目录无法作为单文件分享，故仅对文件显示。
+            if !file.isDirectory {
+                Button { share(file) } label: {
+                    Label("共享", systemImage: "square.and.arrow.up")
+                }
             }
         }
         Divider()
+        // 快速查看（QuickLook）仅对文件有效，目录改用进入浏览（整行点击）。
         if !file.isDirectory {
             Button { quickLook(file) } label: { Label("快速查看", systemImage: "eye") }
         }
         Button { infoFile = file } label: { Label("获取信息", systemImage: "info.circle") }
         Button { renameTarget(file) } label: { Label("重命名", systemImage: "pencil") }
-        if !file.isDirectory {
-            Button {
-                Task { await model.compress([file], in: node.path); await load() }
-            } label: {
-                Label("压缩", systemImage: "doc.zipper")
-            }
+        // 压缩（zip -r）对文件与目录均可用。
+        Button {
+            Task { await model.compress([file], in: node.path); await load() }
+        } label: {
+            Label("压缩", systemImage: "doc.zipper")
         }
         Divider()
         Button(role: .destructive) { requestDelete([file]) } label: {
@@ -563,9 +485,12 @@ private struct DirectoryPage: View {
 
     private var batchActionBar: some View {
         HStack(spacing: 4) {
-            batchIcon("square.and.arrow.up") { shareFirstSelected() }
+            // 共享仅对选中的文件有效（目录无法作为单文件分享）。
+            if selectedFiles.contains(where: { !$0.isDirectory }) {
+                batchIcon("square.and.arrow.up") { shareSelected() }
+            }
             batchIcon("arrow.right") { beginTransfer(.move, files: selectedFiles) }
-            batchIcon("doc.on.doc") { beginTransfer(.copy, files: selectedFiles) }
+            batchIcon("doc.on.doc") { copySelected() }
             batchIcon("doc.zipper") {
                 Task { await model.compress(selectedFiles, in: node.path); await load(); resetSelection() }
             }
@@ -577,6 +502,13 @@ private struct DirectoryPage: View {
                     else { selectedIDs = Set(visibleEntries.map(\.id)) }
                 }
                 Button("新建文件夹") { newFolderName = ""; pendingCreateFolder = true }
+                if !model.clipboard.isEmpty {
+                    Button {
+                        Task { await pasteHere() }
+                    } label: {
+                        Label("粘贴（\(model.clipboard.count) 项）", systemImage: "doc.on.clipboard")
+                    }
+                }
                 Button("获取信息") {
                     if let first = selectedFiles.first { infoFile = first }
                 }
@@ -613,9 +545,27 @@ private struct DirectoryPage: View {
         Task { if let url = await model.localURL(for: file, purpose: "share") { shareItem = ShareItem(url: url) } }
     }
 
-    private func shareFirstSelected() {
-        guard let first = selectedFiles.first else { return }
-        share(first)
+    /// 多选共享：把选中的多个文件下载到本地，一次分享（目录无法作为单文件分享，自动跳过）。
+    private func shareSelected() {
+        Task {
+            var urls: [URL] = []
+            for file in selectedFiles where !file.isDirectory {
+                if let url = await model.localURL(for: file, purpose: "share") { urls.append(url) }
+            }
+            if !urls.isEmpty { shareItem = ShareItem(urls: urls) }
+        }
+    }
+
+    /// 拷贝选中项到共享剪贴板，退出多选态。
+    private func copySelected() {
+        model.copyToClipboard(selectedFiles)
+        resetSelection()
+    }
+
+    /// 把剪贴板内容粘贴到当前目录并刷新。
+    private func pasteHere() async {
+        await model.pasteClipboard(into: node.path)
+        await load()
     }
 
     private func toggleSelection(_ file: RemoteFile) {
