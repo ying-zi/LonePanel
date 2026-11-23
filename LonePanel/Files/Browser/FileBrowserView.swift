@@ -12,35 +12,7 @@ struct FileBrowserView: View {
 
     var body: some View {
         NavigationStack(path: $detailPath) {
-            Group {
-                if !model.isConnected {
-                    disconnectedView
-                } else {
-                    directoryList
-                }
-            }
-            .navigationDestination(for: RemoteFile.self) { file in
-                FileDetailView(
-                    model: model,
-                    file: file,
-                    onRename: { target in
-                        model.renaming = target
-                        model.renameText = target.name
-                    },
-                    onMove: { target in
-                        model.beginTransfer(.move, files: [target])
-                    },
-                    onDelete: { target in
-                        detailPath = NavigationPath()
-                        model.requestDelete([target])
-                    }
-                )
-            }
-            .overlay {
-                if model.showPathMenu {
-                    PathMenuOverlay(model: model)
-                }
-            }
+            stackContent
         }
         .task { await model.connectIfNeeded() }
         .onChange(of: session.currentServer?.id) { _, _ in
@@ -89,6 +61,44 @@ struct FileBrowserView: View {
         .sheet(isPresented: targetPickerBinding) {
             TargetDirectorySheet(model: model)
         }
+    }
+
+    /// 导航栈内容单独拆分，避免 body 表达式过重导致类型检查超时。
+    @ViewBuilder
+    private var stackContent: some View {
+        Group {
+            if !model.isConnected {
+                disconnectedView
+            } else {
+                directoryList
+            }
+        }
+        .navigationDestination(for: RemoteFile.self) { file in
+            detailDestination(for: file)
+        }
+        .overlay {
+            if model.showPathMenu {
+                PathMenuOverlay(model: model)
+            }
+        }
+    }
+
+    private func detailDestination(for file: RemoteFile) -> some View {
+        FileDetailView(
+            model: model,
+            file: file,
+            onRename: { target in
+                model.renaming = target
+                model.renameText = target.name
+            },
+            onMove: { target in
+                model.beginTransfer(.move, files: [target])
+            },
+            onDelete: { target in
+                detailPath = NavigationPath()
+                model.requestDelete([target])
+            }
+        )
     }
 
     private var disconnectedView: some View {

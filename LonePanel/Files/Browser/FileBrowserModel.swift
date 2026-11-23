@@ -27,6 +27,9 @@ final class FileBrowserModel: ObservableObject {
     @Published var editBuffer = ""
     @Published var showDiscardConfirm = false
 
+    // MARK: - 路径浮层
+    @Published var showPathMenu = false
+
     // MARK: - 多选与批量
     @Published var isSelecting = false
     @Published var selectedIDs: Set<RemoteFile.ID> = []

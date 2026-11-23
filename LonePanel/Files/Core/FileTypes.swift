@@ -15,7 +15,8 @@ enum FileTextEncoding: String, CaseIterable, Identifiable, Hashable {
         case .utf8: return .utf8
         case .utf16: return .utf16
         case .gb18030:
-            let cf = CFStringEncoding(CFStringEncodings.gb_18030_2000.rawValue)
+            // kCFStringEncodingGB_18030_2000 = 0x80000628
+            let cf = CFStringEncoding(UInt32(0x8000_0628))
             return String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(cf))
         case .latin1: return .isoLatin1
         }
