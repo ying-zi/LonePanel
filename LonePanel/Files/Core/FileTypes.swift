@@ -85,8 +85,10 @@ enum FileKind {
         if file.isDirectory || file.isSymlink { return false }
         let ext = (file.name as NSString).pathExtension.lowercased()
         if Self.archiveExts.contains(ext) { return false }
-        let previewable = Self.imageExts ∪ Self.textExts ∪ Self.codeExts ∪
-            Set(["pdf", "rtf", "pages", "numbers", "key", "docx", "xlsx", "pptx"])
+        let previewable = Self.imageExts
+            .union(Self.textExts)
+            .union(Self.codeExts)
+            .union(["pdf", "rtf", "pages", "numbers", "key", "docx", "xlsx", "pptx"])
         return previewable.contains(ext)
     }
 
