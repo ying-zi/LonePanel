@@ -24,7 +24,10 @@ struct FileBrowserView: View {
                 NavigationStack(path: $navPath) {
                     DirectoryPage(
                         model: model,
-                        node: FileNode(path: model.entryPath, title: model.serverName),
+                        // 根页固定是真正的根目录 "/"（标题显示服务器名）。
+                        // 默认目录不再充当根，而是展开成 navPath 的逐级节点，
+                        // 这样标题菜单与返回箭头都能到达默认目录的所有上级。
+                        node: FileNode(path: "/", title: model.serverName),
                         previewURL: $previewURL,
                         shareItem: $shareItem,
                         navPath: $navPath
@@ -75,30 +78,6 @@ struct FileBrowserView: View {
         }
         // 批量传输进度：多文件/大文件夹粘贴、移动、复制时显示原生磨砂 HUD。
         .overlay { batchProgressHUD }
-        // 回前台静默重连：在导航栏下边缘显示彩色不确定进度条，不遮挡界面快照。
-        .overlay(alignment: .top) { reconnectIndicator }
-    }
-
-    /// 静默重连指示条：贴在系统导航栏下边缘的彩色不确定进度条。
-    /// 用 GeometryReader 读取顶部安全区 + 导航栏高度来精确定位，
-    /// 覆盖在界面之上但不拦截触摸，保留切出去时的屏幕快照。
-    private var reconnectIndicator: some View {
-        GeometryReader { geo in
-            if model.isBackgroundReconnecting {
-                VStack(spacing: 0) {
-                    // 顶部留白 = 状态栏安全区 + 导航栏高度(44)，把进度条压到导航栏下边缘。
-                    Spacer().frame(height: geo.safeAreaInsets.top + 44)
-                    ProgressView()
-                        .progressViewStyle(.linear)
-                        .tint(Color.accentColor)
-                        .frame(height: 3)
-                    Spacer(minLength: 0)
-                }
-                .allowsHitTesting(false)
-                .transition(.opacity)
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: model.isBackgroundReconnecting)
     }
 
     /// 批量操作进度浮层。
@@ -169,9 +148,25 @@ struct FileBrowserView: View {
     }
 
     private func resetToRoot() {
-        navPath = []
+        // 冷启动/切服务器/单击 Tab：导航栈展开到默认目录的每一级祖先，
+        // 根页仍是 "/"，因此从标题菜单或返回箭头都能访问默认目录的上级。
+        navPath = Self.pathChain(for: model.entryPath)
         model.clearClipboard()
         previewURL = nil
+    }
+
+    /// 把默认目录绝对路径拆成从 "/home" 起的逐级节点（不含根 "/"）。
+    /// 例如 "/home/www" → [("/home","home"), ("/home/www","www")]；"/" → []。
+    private static func pathChain(for path: String) -> [FileNode] {
+        let clean = path.hasSuffix("/") ? String(path.dropLast()) : path
+        guard !clean.isEmpty, clean != "/" else { return [] }
+        var result: [FileNode] = []
+        var accumulated = ""
+        for part in clean.split(separator: "/") {
+            accumulated += "/" + part
+            result.append(FileNode(path: accumulated, title: String(part)))
+        }
+        return result
     }
 
     private var errorBinding: Binding<Bool> {
@@ -222,9 +217,11 @@ private struct DirectoryPage: View {
             // 断线重连成功后重新拉取当前目录（保留导航层级与选中态）。
             .onChange(of: model.refreshToken) { _, _ in Task { await load() } }
             .toolbar { toolbarContent }
-            // 多选 / 搜索态隐藏系统返回键：leading 留空后 .principal 才严格居中，
-            // 使搜索框在顶层与子层级位置一致、到「取消」距离恒定；正常态保留系统原生返回箭头。
-            .navigationBarBackButtonHidden(isSelecting || isSearching)
+            // 多选 / 搜索 / 后台静默重连态隐藏系统返回键：
+            // - 多选/搜索：leading 留空后 .principal 才严格居中，搜索框到「取消」距离恒定；
+            // - 静默重连：由 leading 原位的转圈接管，避免在返回箭头旁再叠一个指示器。
+            // 正常态保留系统原生返回箭头。
+            .navigationBarBackButtonHidden(isSelecting || isSearching || model.isBackgroundReconnecting)
             .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
             .background(dialogHost)
             // 搜索框展开动画结束后再聚焦，避免同帧设置 FocusState 被视图过渡重置。
@@ -473,13 +470,18 @@ private struct DirectoryPage: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            if isSelecting {
+            if model.isBackgroundReconnecting && !isSelecting && !isSearching {
+                // 后台切回前台静默重连：在返回按钮原位显示同等大小的转圈，
+                // 保留界面快照；连接是非确定过程，用循环动画而非线性进度条。
+                ProgressView()
+                    .frame(width: 24, height: 24)
+            } else if isSelecting {
                 Button(allVisibleSelected ? "取消全选" : "全选") {
                     if allVisibleSelected { selectedIDs = [] }
                     else { selectedIDs = Set(visibleEntries.map(\.id)) }
                 }
             }
-            // 非多选态不放置 leading item：系统原生返回箭头显示（根页自动隐藏）。
+            // 其余情况 leading 留空：系统原生返回箭头显示（根页自动隐藏）。
             // 搜索态同样留空，避免出现一个随返回箭头转场的透明占位白点。
         }
         ToolbarItem(placement: .principal) {
@@ -498,7 +500,7 @@ private struct DirectoryPage: View {
                 HStack(spacing: 12) {
                     searchField
                     Button("取消") { closeSearch() }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.glass)
                         .buttonBorderShape(.capsule)
                         .controlSize(.small)
                 }
@@ -597,9 +599,10 @@ private struct DirectoryPage: View {
         }
     }
 
-    /// 从根到当前的完整层级节点（根 + navPath 中已 push 的各层）。
+    /// 从根到当前的完整层级节点：第 0 项固定是根目录 "/"（标题为服务器名），
+    /// 其后是展开到默认目录的逐级节点。默认目录的上级因此始终出现在菜单里。
     private var levelNodes: [FileNode] {
-        [FileNode(path: model.entryPath, title: model.serverName)] + navPath
+        [FileNode(path: "/", title: model.serverName)] + navPath
     }
 
     private var currentLevel: Int { navPath.count }
