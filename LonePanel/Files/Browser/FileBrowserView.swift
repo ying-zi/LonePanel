@@ -1,6 +1,7 @@
 import SwiftUI
 import QuickLook
 import UIKit
+import UniformTypeIdentifiers
 
 /// 对齐 iOS 26/27 系统「文件」App 的浏览器：
 /// - 逐层 push 导航，左上角沿用系统原生返回箭头（顶层不显示、子层级显示）；
@@ -208,6 +209,8 @@ private struct DirectoryPage: View {
     @State private var infoFile: RemoteFile?
     @State private var targetOperation: BatchOperation?
     @State private var targetFiles: [RemoteFile] = []
+    /// 上传：系统文件选择器，选中后把本地文件上传到当前 node.path。
+    @State private var showFileImporter = false
 
     var body: some View {
         pageContent
@@ -224,13 +227,32 @@ private struct DirectoryPage: View {
             .navigationBarBackButtonHidden(isSelecting || isSearching || model.isBackgroundReconnecting)
             .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
             .background(dialogHost)
-            // 搜索框展开动画结束后再聚焦，避免同帧设置 FocusState 被视图过渡重置。
+            // 搜索框展开动画结束后再聚焦：用 asyncAfter 脱离 withAnimation 事务，
+            // FocusState 在干净事务里设置才不会被视图转场吞掉（Task.sleep 方案在真机上会失效）。
             .onChange(of: isSearching) { _, searching in
                 if searching {
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 300_000_000)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         // 守卫：若期间已点「取消」退出搜索，则不再聚焦。
-                        if isSearching { searchFocused = true }
+                        guard isSearching else { return }
+                        searchFocused = true
+                    }
+                } else {
+                    searchFocused = false
+                }
+            }
+            // 上传：系统文件选择器支持多选；选中后上传到当前目录并刷新。
+            .fileImporter(isPresented: $showFileImporter,
+                          allowedContentTypes: [.item],
+                          allowsMultipleSelection: true) { result in
+                switch result {
+                case .success(let urls):
+                    Task {
+                        await model.upload(files: urls, to: node.path)
+                        await load()
+                    }
+                case .failure(let error):
+                    Task { @MainActor in
+                        model.errorMessage = "选择文件失败：\(error.localizedDescription)"
                     }
                 }
             }
@@ -238,11 +260,13 @@ private struct DirectoryPage: View {
 
     /// 退出搜索：清空关键词并收起搜索框，带与展开一致的水平缓动过渡。
     private func closeSearch() {
-        withAnimation(.easeInOut(duration: 0.25)) {
-            searchText = ""
-            searchFocused = false
-            isSearching = false
-        }
+        // 焦点与键盘必须在动画外收起：包进 withAnimation 的事务会吞掉 FocusState 变更，
+        // 导致手动点输入框弹出键盘后，点「取消」键盘不关。
+        searchFocused = false
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        searchText = ""
+        withAnimation(.easeInOut(duration: 0.25)) { isSearching = false }
     }
 
     /// 所有弹窗集中在独立宿主，避免 body 的 modifier 链过长导致 type-check 超时。
@@ -308,7 +332,7 @@ private struct DirectoryPage: View {
             Text(previewNotice ?? "")
         }
         .sheet(item: $infoFile) { file in
-            FileInfoSheet(file: file)
+            FileInfoSheet(file: file, model: model)
                 .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: targetPickerBinding) {
@@ -499,10 +523,13 @@ private struct DirectoryPage: View {
                 // 因此顶层与子层级到取消按钮的距离完全一致，不受返回箭头影响。
                 HStack(spacing: 12) {
                     searchField
-                    Button("取消") { closeSearch() }
-                        .buttonStyle(.glass)
-                        .buttonBorderShape(.capsule)
-                        .controlSize(.small)
+                    // 取消用 iOS 26 原生液态玻璃按钮：label 内嵌 frame 撑起胶囊，
+                    // 不用 .controlSize(.small)（会把玻璃背景压得比「取消」二字还小）。
+                    Button { closeSearch() } label: {
+                        Text("取消").frame(minWidth: 44, minHeight: 30)
+                    }
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.capsule)
                 }
                     .opacity(isSearching ? 1 : 0)
                     .offset(x: isSearching ? 0 : 32)
@@ -635,6 +662,9 @@ private struct DirectoryPage: View {
                 pendingCreateFolder = true
             } label: {
                 Label("新建文件夹", systemImage: "folder.badge.plus")
+            }
+            Button { showFileImporter = true } label: {
+                Label("上传文件", systemImage: "square.and.arrow.up.on.square")
             }
             // 粘贴：剪贴板非空时显示，把已拷贝的项目复制到当前目录。
             if !model.clipboard.isEmpty {
@@ -903,9 +933,7 @@ private struct FileRow: View {
     private var meta: String {
         let date = file.modified?.formatted(date: .abbreviated, time: .omitted) ?? ""
         if file.isDirectory { return date.isEmpty ? "文件夹" : date }
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        let size = formatter.string(fromByteCount: file.size)
+        let size = FileBrowserModel.sizeText(file.size)
         return date.isEmpty ? size : "\(date) · \(size)"
     }
 }
