@@ -19,6 +19,8 @@ struct FileBrowserView: View {
     /// 系统原生返回由 NavigationStack 管理。
     @State private var previewURL: URL?
     @State private var shareItem: ShareItem?
+    /// 搜索框焦点：挂在 NavigationStack 上统一管理，各级目录页点放大镜时置位。
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         Group {
@@ -42,6 +44,22 @@ struct FileBrowserView: View {
                             shareItem: $shareItem,
                             navPath: $model.navPath
                         )
+                    }
+                }
+                // 搜索框挂在导航栈上只渲染一次：切层级不再有两级搜索框交替闪烁。
+                // 状态放单例 model，各级 DirectoryPage 共享同一关键词过滤各自条目。
+                .searchable(text: $model.searchText, isPresented: $model.isSearching, prompt: "搜索")
+                .searchFocused($searchFocused)
+                // iOS 26：搜索栏未聚焦时收缩，消除列表顶部常驻的灰色搜索条。
+                .searchToolbarBehavior(.minimize)
+                // 呈现搜索时主动聚焦（放大镜按钮只置 isPresented，焦点在此统一接管）；
+                // 关闭时清关键词并同步焦点，保证下次点放大镜是空搜索态。
+                .onChange(of: model.isSearching) { _, searching in
+                    if searching {
+                        searchFocused = true
+                    } else {
+                        model.searchText = ""
+                        searchFocused = false
                     }
                 }
             } else if model.hasConfiguredServer && !model.connectionFailed {
@@ -169,10 +187,6 @@ private struct DirectoryPage: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var entries: [RemoteFile] = []
     @State private var isLoading = false
-    @State private var searchText = ""
-    /// 搜索态由工具栏独立放大镜按钮触发；展开/收起走系统缓动过渡。
-    @State private var isSearching = false
-    @FocusState private var searchFocused: Bool
     @State private var isSelecting = false
     /// 不支持在线预览的文件给出提示，确认后再下载 + 系统分享。
     @State private var previewNotice: String?
@@ -202,18 +216,6 @@ private struct DirectoryPage: View {
             .task { await load() }
             // 断线重连成功后重新拉取当前目录（保留导航层级与选中态）。
             .onChange(of: model.refreshToken) { _, _ in Task { await load() } }
-            // 系统原生搜索：由导航容器接管顶栏切换（标题→搜索框、右侧系统「取消」），
-            // 键盘弹出、输入框聚焦全部交给系统，彻底消除自定义方案里聚焦时机不稳的问题。
-            .searchable(text: $searchText, isPresented: $isSearching, prompt: "搜索")
-            .searchFocused($searchFocused)
-            // 系统「取消」只关闭搜索栏、不清关键词；这里在关闭时清空，
-            // 保证下次点放大镜是空搜索态。纯状态清理，不触碰焦点，无时机问题。
-            .onChange(of: isSearching) { _, searching in
-                if !searching {
-                    searchText = ""
-                    searchFocused = false
-                }
-            }
             .toolbar { toolbarContent }
             // 多选 / 后台静默重连态隐藏系统返回键；搜索态的返回与「取消」交给系统接管。
             // 静默重连：由 leading 原位的转圈接管，避免在返回箭头旁再叠一个指示器。
@@ -348,7 +350,7 @@ private struct DirectoryPage: View {
     }
 
     private var visibleEntries: [RemoteFile] {
-        let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let keyword = model.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !keyword.isEmpty else { return entries }
         return entries.filter { $0.name.localizedCaseInsensitiveContains(keyword) }
     }
@@ -451,10 +453,10 @@ private struct DirectoryPage: View {
 
     private var emptyView: some View {
         ContentUnavailableView {
-            Label(searchText.isEmpty ? "文件夹为空" : "无搜索结果",
-                  systemImage: searchText.isEmpty ? "folder" : "magnifyingglass")
+            Label(model.searchText.isEmpty ? "文件夹为空" : "无搜索结果",
+                  systemImage: model.searchText.isEmpty ? "folder" : "magnifyingglass")
         } description: {
-            Text(searchText.isEmpty ? "此目录中没有内容" : "试试其他关键词")
+            Text(model.searchText.isEmpty ? "此目录中没有内容" : "试试其他关键词")
         }
     }
 
@@ -463,7 +465,7 @@ private struct DirectoryPage: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            if model.isBackgroundReconnecting && !isSelecting && !isSearching {
+            if model.isBackgroundReconnecting && !isSelecting && !model.isSearching {
                 // 后台切回前台静默重连：在返回按钮原位显示同等大小的转圈，
                 // 保留界面快照；连接是非确定过程，用循环动画而非线性进度条。
                 ProgressView()
@@ -480,7 +482,7 @@ private struct DirectoryPage: View {
         ToolbarItem(placement: .principal) {
             // 搜索态时系统会把标题位替换为原生搜索框，此处让位留空；
             // 多选态显示选中计数，其余显示标题层级 Menu。
-            if !isSearching {
+            if !model.isSearching {
                 ZStack {
                     titleMenu
                         .opacity(!isSelecting ? 1 : 0)
@@ -501,7 +503,7 @@ private struct DirectoryPage: View {
                         .frame(width: 32, height: 32)
                         .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 9))
                 }
-            } else if isSearching {
+            } else if model.isSearching {
                 // 搜索态：「取消」由系统搜索栏提供，此处留空避免重复。
                 EmptyView()
             } else {
@@ -509,10 +511,9 @@ private struct DirectoryPage: View {
                 HStack(spacing: 26) {
                     Button {
                         resetSelection()
-                        // 程序化激活系统搜索：设置 isPresented 呈现搜索栏，
-                        // 再由 .searchFocused 聚焦输入框并弹键盘（均由系统接管，时机可靠）。
-                        isSearching = true
-                        searchFocused = true
+                        // 程序化激活系统搜索：置 isPresented 呈现搜索栏。
+                        // 焦点由导航栈上的 .searchFocused 绑定接管，自动弹键盘。
+                        model.isSearching = true
                     } label: {
                         Image(systemName: "magnifyingglass")
                             .frame(width: 28, height: 32)
@@ -565,9 +566,8 @@ private struct DirectoryPage: View {
     private var moreMenu: some View {
         Menu {
             Button {
-                searchText = ""
-                searchFocused = false
-                isSearching = false
+                model.searchText = ""
+                model.isSearching = false
                 isSelecting = true
                 selectedIDs = []
             } label: {
