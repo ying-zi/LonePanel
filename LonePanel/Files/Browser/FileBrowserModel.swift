@@ -125,8 +125,9 @@ final class FileBrowserModel: ObservableObject {
             self.connectedServerID = info.id
             self.refreshToken &+= 1
         } catch {
-            // 静默失败：保留快照界面，仅在下次操作时按断连处理；不弹全屏错误。
-            errorMessage = SSHSession.describe(error)
+            // 静默重连失败：保留快照界面不闪断，但明确弹窗告知连接失败，
+            // 让用户知道当前会话可能已不可用、可手动重新连接。
+            errorMessage = "服务器连接失败：\(SSHSession.describe(error))"
         }
     }
 
