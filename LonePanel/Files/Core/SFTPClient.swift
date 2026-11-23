@@ -294,8 +294,31 @@ final class SFTPClient {
         try expectOK(try await request(type: SFTPMessage.rename, payload: payload.bytes))
     }
 
-    /// 在同一条已认证连接上执行远端命令。批量移动/复制/压缩等 SFTP 无原生原语的操作
-    /// 借此完成；命令串行执行，避免并发争用 SSH 通道。
+    /// 纯 SFTP 移动：rename 到目标目录（同名）。不依赖远端 exec 通道。
+    func move(_ file: RemoteFile, toDirectory target: String) async throws {
+        try rename(from: file.path, to: joined(target, file.name))
+    }
+
+    /// 纯 SFTP 复制：文件走 read+write；目录递归创建并复制子项。不依赖远端 exec 通道。
+    func copy(_ file: RemoteFile, toDirectory target: String) async throws {
+        try await copyItem(file, to: joined(target, file.name))
+    }
+
+    private func copyItem(_ file: RemoteFile, to dest: String) async throws {
+        if file.isDirectory {
+            try makeDirectory(dest)
+            let children = try await listDirectory(file.path)
+            for child in children {
+                try await copyItem(child, to: joined(dest, child.name))
+            }
+        } else {
+            let data = try await readFile(file.path)
+            try await writeFile(dest, data: data)
+        }
+    }
+
+    /// 在同一条已认证连接上执行远端命令（仅供连接的 exec 通道探测使用）。
+    /// 文件操作已全部改为纯 SFTP 原语，不再依赖此通道。
     func execute(_ command: String) async throws -> SSHExecResult {
         try await session.execute(command)
     }

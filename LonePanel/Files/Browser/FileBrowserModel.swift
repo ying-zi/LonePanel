@@ -154,39 +154,31 @@ final class FileBrowserModel: ObservableObject {
         }
     }
 
+    /// 移动/复制：全部走纯 SFTP 原语（rename / read+write 递归），不依赖远端 exec 通道。
+    /// 这样即便服务器禁用了 exec，只要 SFTP 可用，文件操作就可用。
     func transfer(_ files: [RemoteFile], operation: BatchOperation, to target: String) async {
         guard let client, !files.isEmpty else { return }
-        let sources = files.map { shellQuote($0.path) }.joined(separator: " ")
-        let command: String
-        switch operation {
-        case .move: command = "mv -f \(sources) \(shellQuote(target))"
-        case .copy: command = "cp -R -f \(sources) \(shellQuote(target))"
-        }
         do {
-            let result = try await client.execute(command)
-            if result.exitStatus != 0 {
-                throw SFTPError.malformed(result.stderr.isEmpty ? "命令执行失败" : result.stderr)
+            for file in files {
+                switch operation {
+                case .move: try await client.move(file, toDirectory: target)
+                case .copy: try await client.copy(file, toDirectory: target)
+                }
             }
         } catch {
             errorMessage = SSHSession.describe(error)
         }
     }
 
-    /// 压缩：返回生成的归档文件名，供视图在成功后刷新并定位。
-    func compress(_ files: [RemoteFile], in path: String) async -> String? {
-        guard let client, !files.isEmpty else { return nil }
-        let names = files.map { shellQuote($0.name) }.joined(separator: " ")
-        let archive = "archive-\(Int(Date().timeIntervalSince1970)).zip"
-        let command = "cd \(shellQuote(path)) && zip -r -q \(shellQuote(archive)) \(names)"
+    /// 新建空文件：SFTP 以 creat|trunc|write 打开后即关闭，得到一个 0 字节文件。
+    func makeFile(at path: String, named name: String) async {
+        guard let client else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
         do {
-            let result = try await client.execute(command)
-            if result.exitStatus != 0 {
-                throw SFTPError.malformed(result.stderr.isEmpty ? "压缩失败" : result.stderr)
-            }
-            return archive
+            try await client.writeFile(client.joined(path, trimmed), data: Data())
         } catch {
             errorMessage = SSHSession.describe(error)
-            return nil
         }
     }
 

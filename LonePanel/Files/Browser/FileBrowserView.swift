@@ -96,12 +96,16 @@ private struct DirectoryPage: View {
     @State private var entries: [RemoteFile] = []
     @State private var isLoading = false
     @State private var searchText = ""
+    @State private var isSearching = false
+    @FocusState private var searchFocused: Bool
     @State private var isSelecting = false
     @State private var selectedIDs: Set<RemoteFile.ID> = []
 
     // 操作弹窗状态
     @State private var pendingCreateFolder = false
     @State private var newFolderName = ""
+    @State private var pendingCreateFile = false
+    @State private var newFileName = ""
     @State private var renaming: RemoteFile?
     @State private var renameText = ""
     @State private var deleting: [RemoteFile] = []
@@ -117,7 +121,6 @@ private struct DirectoryPage: View {
     var body: some View {
         pageContent
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, prompt: "搜索")
             .refreshable { await load() }
             .task { await load() }
             .toolbar { toolbarContent }
@@ -125,6 +128,13 @@ private struct DirectoryPage: View {
             .navigationBarBackButtonHidden(isSelecting)
             .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
             .background(dialogHost)
+    }
+
+    /// 退出搜索：清空关键词并收起标题位的输入框。
+    private func closeSearch() {
+        searchText = ""
+        searchFocused = false
+        isSearching = false
     }
 
     /// 所有弹窗集中在独立宿主，避免 body 的 modifier 链过长导致 type-check 超时。
@@ -135,6 +145,13 @@ private struct DirectoryPage: View {
             Button("取消", role: .cancel) { newFolderName = "" }
             Button("创建") {
                 Task { await model.makeDirectory(at: node.path, named: newFolderName); newFolderName = ""; await load() }
+            }
+        }
+        .alert("新建文件", isPresented: $pendingCreateFile) {
+            TextField("文件名", text: $newFileName)
+            Button("取消", role: .cancel) { newFileName = "" }
+            Button("创建") {
+                Task { await model.makeFile(at: node.path, named: newFileName); newFileName = ""; await load() }
             }
         }
         .alert("重命名", isPresented: renameBinding) {
@@ -323,6 +340,8 @@ private struct DirectoryPage: View {
         ToolbarItem(placement: .principal) {
             if isSelecting {
                 Text("\(selectedIDs.count) 项").font(.headline)
+            } else if isSearching {
+                searchField
             } else {
                 titleMenu
             }
@@ -332,10 +351,39 @@ private struct DirectoryPage: View {
                 Button { resetSelection() } label: {
                     Image(systemName: "checkmark.circle.fill").font(.title3)
                 }
+            } else if isSearching {
+                Button("取消") { closeSearch() }
             } else {
-                moreMenu
+                HStack(spacing: 14) {
+                    Button { isSearching = true; searchFocused = true } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    moreMenu
+                }
             }
         }
+    }
+
+    /// 搜索态标题位输入框：替代原标题 Menu，自动聚焦，带一键清空。
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            TextField("搜索", text: $searchText)
+                .textFieldStyle(.plain)
+                .focused($searchFocused)
+            if !searchText.isEmpty {
+                Button { searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(.quaternary.opacity(0.7), in: Capsule())
+        .frame(width: sizeClass == .compact ? 220 : 320)
     }
 
     /// 标题下拉：与右上 ⋯ 一致的系统原生 Menu，列出从根目录到当前的位置层级。
@@ -385,6 +433,12 @@ private struct DirectoryPage: View {
                 pendingCreateFolder = true
             } label: {
                 Label("新建文件夹", systemImage: "folder.badge.plus")
+            }
+            Button {
+                newFileName = ""
+                pendingCreateFile = true
+            } label: {
+                Label("新建文件", systemImage: "doc.badge.plus")
             }
             // 粘贴：剪贴板非空时显示，把已拷贝的项目复制到当前目录。
             if !model.clipboard.isEmpty {
@@ -469,12 +523,6 @@ private struct DirectoryPage: View {
         }
         Button { infoFile = file } label: { Label("获取信息", systemImage: "info.circle") }
         Button { renameTarget(file) } label: { Label("重命名", systemImage: "pencil") }
-        // 压缩（zip -r）对文件与目录均可用。
-        Button {
-            Task { await model.compress([file], in: node.path); await load() }
-        } label: {
-            Label("压缩", systemImage: "doc.zipper")
-        }
         Divider()
         Button(role: .destructive) { requestDelete([file]) } label: {
             Label("删除", systemImage: "trash")
@@ -483,54 +531,61 @@ private struct DirectoryPage: View {
 
     // MARK: - 多选底部浮动玻璃工具条
 
+    /// 多选底部工具条：图标 + 文字标签的大按钮，均分宽度、约 60pt 高，方便拇指点击。
     private var batchActionBar: some View {
         HStack(spacing: 4) {
             // 共享仅对选中的文件有效（目录无法作为单文件分享）。
             if selectedFiles.contains(where: { !$0.isDirectory }) {
-                batchIcon("square.and.arrow.up") { shareSelected() }
+                batchIcon("square.and.arrow.up", title: "共享") { shareSelected() }
             }
-            batchIcon("arrow.right") { beginTransfer(.move, files: selectedFiles) }
-            batchIcon("doc.on.doc") { copySelected() }
-            batchIcon("doc.zipper") {
-                Task { await model.compress(selectedFiles, in: node.path); await load(); resetSelection() }
+            batchIcon("arrow.right", title: "移动") { beginTransfer(.move, files: selectedFiles) }
+            batchIcon("doc.on.doc", title: "拷贝") { copySelected() }
+            if !model.clipboard.isEmpty {
+                batchIcon("doc.on.clipboard", title: "粘贴") {
+                    Task { await pasteHere() }
+                }
             }
-            batchIcon("trash", role: .destructive) { requestDelete(selectedFiles) }
-            Divider().frame(height: 22)
+            batchIcon("trash", title: "删除", role: .destructive) { requestDelete(selectedFiles) }
             Menu {
                 Button(allVisibleSelected ? "取消全选" : "全选") {
                     if allVisibleSelected { selectedIDs = [] }
                     else { selectedIDs = Set(visibleEntries.map(\.id)) }
                 }
                 Button("新建文件夹") { newFolderName = ""; pendingCreateFolder = true }
-                if !model.clipboard.isEmpty {
-                    Button {
-                        Task { await pasteHere() }
-                    } label: {
-                        Label("粘贴（\(model.clipboard.count) 项）", systemImage: "doc.on.clipboard")
-                    }
-                }
                 Button("获取信息") {
                     if let first = selectedFiles.first { infoFile = first }
                 }
             } label: {
-                Image(systemName: "ellipsis.circle").font(.body)
+                VStack(spacing: 4) {
+                    Image(systemName: "ellipsis.circle").font(.title3)
+                    Text("更多").font(.caption2)
+                }
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .contentShape(Rectangle())
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(.regularMaterial, in: Capsule())
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
         .overlay {
-            Capsule().strokeBorder(Color.secondary.opacity(0.2), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 0.5)
         }
-        .shadow(radius: 12, y: 5)
+        .shadow(radius: 14, y: 6)
         .disabled(selectedIDs.isEmpty)
-        .padding(.horizontal)
-        .padding(.bottom, 6)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
     }
 
-    private func batchIcon(_ name: String, role: ButtonRole? = nil, action: @escaping () -> Void) -> some View {
+    /// 单个批量按钮：图标在上、文字在下，整块约 52pt 高可点。
+    private func batchIcon(_ name: String, title: String, role: ButtonRole? = nil, action: @escaping () -> Void) -> some View {
         Button(role: role, action: action) {
-            Image(systemName: name).font(.body)
+            VStack(spacing: 4) {
+                Image(systemName: name).font(.title3)
+                Text(title).font(.caption2)
+            }
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
