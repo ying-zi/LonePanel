@@ -66,8 +66,33 @@ struct RemoteFile: Identifiable, Hashable {
     let size: Int64
     let modified: Date?
     let permissions: UInt32
+    /// 属主 UID / GID（服务器提供时填充，供详情页属性展示）。
+    var uid: UInt32? = nil
+    var gid: UInt32? = nil
 
     var id: String { path }
+
+    /// 权限的文字表示，如 -rw-r--r--。
+    var permissionText: String {
+        let bits: [Character] = [
+            isDirectory ? "d" : (isSymlink ? "l" : "-"),
+            permissions & 0o400 != 0 ? "r" : "-",
+            permissions & 0o200 != 0 ? "w" : "-",
+            permissions & 0o100 != 0 ? "x" : "-",
+            permissions & 0o040 != 0 ? "r" : "-",
+            permissions & 0o020 != 0 ? "w" : "-",
+            permissions & 0o010 != 0 ? "x" : "-",
+            permissions & 0o004 != 0 ? "r" : "-",
+            permissions & 0o002 != 0 ? "w" : "-",
+            permissions & 0o001 != 0 ? "x" : "-",
+        ]
+        return String(bits)
+    }
+}
+
+/// 把任意路径安全包成 shell 单引号字符串，供远端命令使用，避免空格/特殊字符注入。
+func shellQuote(_ path: String) -> String {
+    "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
 }
 
 /// 文件属性（v3 ATTRS）。

@@ -42,6 +42,9 @@
 		D20000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000001 /* Assets.xcassets */; };
 		070000000000000000000001 /* NIOSSH in Frameworks */ = {isa = PBXBuildFile; productRef = 060000000000000000000001 /* NIOSSH */; };
 		070000000000000000000002 /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = 060000000000000000000002 /* Crypto */; };
+		D10000000000000000000033 /* TabNavigationCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000033 /* TabNavigationCenter.swift */; };
+		D10000000000000000000034 /* FileTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000034 /* FileTypes.swift */; };
+		D10000000000000000000035 /* FileDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000035 /* FileDetailView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -79,6 +82,9 @@
 		C10000000000000000000032 /* ServerFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerFormView.swift; sourceTree = "<group>"; };
 		C20000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F20000000000000000000001 /* LonePanel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LonePanel.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C10000000000000000000033 /* TabNavigationCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabNavigationCenter.swift; sourceTree = "<group>"; };
+		C10000000000000000000034 /* FileTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTypes.swift; sourceTree = "<group>"; };
+		C10000000000000000000035 /* FileDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDetailView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -144,6 +150,7 @@
 			isa = PBXGroup;
 			children = (
 				C10000000000000000000004 /* TabModule.swift */,
+				C10000000000000000000033 /* TabNavigationCenter.swift */,
 			);
 			path = Navigation;
 			sourceTree = "<group>";
@@ -258,6 +265,7 @@
 				C10000000000000000000021 /* SFTPProtocol.swift */,
 				C10000000000000000000022 /* SFTPClient.swift */,
 				C10000000000000000000023 /* DefaultDirectoryStore.swift */,
+				C10000000000000000000034 /* FileTypes.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -267,6 +275,7 @@
 			children = (
 				C10000000000000000000024 /* FileBrowserModel.swift */,
 				C10000000000000000000025 /* FileBrowserView.swift */,
+				C10000000000000000000035 /* FileDetailView.swift */,
 			);
 			path = Browser;
 			sourceTree = "<group>";
@@ -384,6 +393,9 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+				D10000000000000000000033 /* TabNavigationCenter.swift in Sources */,
+				D10000000000000000000034 /* FileTypes.swift in Sources */,
+				D10000000000000000000035 /* FileDetailView.swift in Sources */,
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */

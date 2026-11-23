@@ -259,7 +259,9 @@ final class SFTPClient {
                     isSymlink: isLink,
                     size: Int64(clamping: attrs.size ?? 0),
                     modified: attrs.mtime.map { Date(timeIntervalSince1970: Double($0)) },
-                    permissions: mode
+                    permissions: mode,
+                    uid: attrs.uid,
+                    gid: attrs.gid
                 ))
             }
         }
@@ -290,6 +292,12 @@ final class SFTPClient {
         payload.string(oldPath)
         payload.string(newPath)
         try expectOK(try await request(type: SFTPMessage.rename, payload: payload.bytes))
+    }
+
+    /// 在同一条已认证连接上执行远端命令。批量移动/复制/压缩等 SFTP 无原生原语的操作
+    /// 借此完成；命令串行执行，避免并发争用 SSH 通道。
+    func execute(_ command: String) async throws -> SSHExecResult {
+        try await session.execute(command)
     }
 
     func readFile(_ path: String) async throws -> Data {
