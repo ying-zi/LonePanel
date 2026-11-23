@@ -1,31 +1,19 @@
 import SwiftUI
 
-/// 应用根视图：iOS 26 Liquid Glass 风格的浮动 TabBar。
-/// 仅负责组装模块，不含任何业务逻辑。
+/// 应用根视图：遍历注册表装配 Tab，不硬编码任何具体模块视图。
+/// 采用 iOS 26 Liquid Glass 浮动标签栏。
 struct ContentView: View {
-    @State private var selection: AppTab = .website
+    @State private var selection: String = TabRegistry.modules.first?.id ?? ""
 
     var body: some View {
         TabView(selection: $selection) {
-            WebsiteView()
-                .tabItem { Label(AppTab.website.title, systemImage: AppTab.website.symbolName) }
-                .tag(AppTab.website)
-
-            DockerView()
-                .tabItem { Label(AppTab.docker.title, systemImage: AppTab.docker.symbolName) }
-                .tag(AppTab.docker)
-
-            DatabaseView()
-                .tabItem { Label(AppTab.database.title, systemImage: AppTab.database.symbolName) }
-                .tag(AppTab.database)
-
-            FilesView()
-                .tabItem { Label(AppTab.files.title, systemImage: AppTab.files.symbolName) }
-                .tag(AppTab.files)
-
-            SettingsView()
-                .tabItem { Label(AppTab.settings.title, systemImage: AppTab.settings.symbolName) }
-                .tag(AppTab.settings)
+            ForEach(TabRegistry.modules) { module in
+                module.view
+                    .tabItem {
+                        Label(module.title, systemImage: module.symbolName)
+                    }
+                    .tag(module.id)
+            }
         }
         // iOS 26：TabBar 在下滑时收起、上滑时展开，让内容成为主角。
         .tabBarMinimizeBehavior(.onScrollDown)

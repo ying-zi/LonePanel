@@ -9,14 +9,20 @@
 /* Begin PBXBuildFile section */
 		D10000000000000000000001 /* LonePanelApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000001 /* LonePanelApp.swift */; };
 		D10000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000002 /* ContentView.swift */; };
-		D10000000000000000000003 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000003 /* AppTheme.swift */; };
-		D10000000000000000000004 /* ModulePlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000004 /* ModulePlaceholder.swift */; };
-		D10000000000000000000005 /* AppTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000005 /* AppTab.swift */; };
-		D10000000000000000000006 /* WebsiteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000006 /* WebsiteView.swift */; };
-		D10000000000000000000007 /* DockerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000007 /* DockerView.swift */; };
-		D10000000000000000000008 /* DatabaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000008 /* DatabaseView.swift */; };
-		D10000000000000000000009 /* FilesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000009 /* FilesView.swift */; };
-		D10000000000000000000010 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000010 /* SettingsView.swift */; };
+		D10000000000000000000003 /* TabRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000003 /* TabRegistry.swift */; };
+		D10000000000000000000004 /* TabModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000004 /* TabModule.swift */; };
+		D10000000000000000000005 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000005 /* AppTheme.swift */; };
+		D10000000000000000000006 /* ModulePlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000006 /* ModulePlaceholder.swift */; };
+		D10000000000000000000007 /* WebsiteTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000007 /* WebsiteTab.swift */; };
+		D10000000000000000000008 /* WebsiteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000008 /* WebsiteView.swift */; };
+		D10000000000000000000009 /* DockerTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000009 /* DockerTab.swift */; };
+		D10000000000000000000010 /* DockerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000010 /* DockerView.swift */; };
+		D10000000000000000000011 /* DatabaseTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000011 /* DatabaseTab.swift */; };
+		D10000000000000000000012 /* DatabaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000012 /* DatabaseView.swift */; };
+		D10000000000000000000013 /* FilesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000013 /* FilesTab.swift */; };
+		D10000000000000000000014 /* FilesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000014 /* FilesView.swift */; };
+		D10000000000000000000015 /* SettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000015 /* SettingsTab.swift */; };
+		D10000000000000000000016 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000016 /* SettingsView.swift */; };
 		D20000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000001 /* Assets.xcassets */; };
 		070000000000000000000001 /* NIOSSH in Frameworks */ = {isa = PBXBuildFile; productRef = 060000000000000000000001 /* NIOSSH */; };
 /* End PBXBuildFile section */
@@ -24,14 +30,20 @@
 /* Begin PBXFileReference section */
 		C10000000000000000000001 /* LonePanelApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LonePanelApp.swift; sourceTree = "<group>"; };
 		C10000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		C10000000000000000000003 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
-		C10000000000000000000004 /* ModulePlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModulePlaceholder.swift; sourceTree = "<group>"; };
-		C10000000000000000000005 /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
-		C10000000000000000000006 /* WebsiteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebsiteView.swift; sourceTree = "<group>"; };
-		C10000000000000000000007 /* DockerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerView.swift; sourceTree = "<group>"; };
-		C10000000000000000000008 /* DatabaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseView.swift; sourceTree = "<group>"; };
-		C10000000000000000000009 /* FilesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesView.swift; sourceTree = "<group>"; };
-		C10000000000000000000010 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C10000000000000000000003 /* TabRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabRegistry.swift; sourceTree = "<group>"; };
+		C10000000000000000000004 /* TabModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabModule.swift; sourceTree = "<group>"; };
+		C10000000000000000000005 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		C10000000000000000000006 /* ModulePlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModulePlaceholder.swift; sourceTree = "<group>"; };
+		C10000000000000000000007 /* WebsiteTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebsiteTab.swift; sourceTree = "<group>"; };
+		C10000000000000000000008 /* WebsiteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebsiteView.swift; sourceTree = "<group>"; };
+		C10000000000000000000009 /* DockerTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerTab.swift; sourceTree = "<group>"; };
+		C10000000000000000000010 /* DockerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerView.swift; sourceTree = "<group>"; };
+		C10000000000000000000011 /* DatabaseTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseTab.swift; sourceTree = "<group>"; };
+		C10000000000000000000012 /* DatabaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseView.swift; sourceTree = "<group>"; };
+		C10000000000000000000013 /* FilesTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesTab.swift; sourceTree = "<group>"; };
+		C10000000000000000000014 /* FilesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesView.swift; sourceTree = "<group>"; };
+		C10000000000000000000015 /* SettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTab.swift; sourceTree = "<group>"; };
+		C10000000000000000000016 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		C20000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F20000000000000000000001 /* LonePanel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LonePanel.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -53,7 +65,11 @@
 			children = (
 				A40000000000000000000001 /* App */,
 				A50000000000000000000001 /* Core */,
-				A80000000000000000000001 /* Modules */,
+				B10000000000000000000001 /* Website */,
+				B10000000000000000000002 /* Docker */,
+				B10000000000000000000003 /* Database */,
+				B10000000000000000000004 /* Files */,
+				B10000000000000000000005 /* Settings */,
 				B20000000000000000000001 /* Resources */,
 				A30000000000000000000001 /* Products */,
 			);
@@ -73,6 +89,7 @@
 			children = (
 				C10000000000000000000001 /* LonePanelApp.swift */,
 				C10000000000000000000002 /* ContentView.swift */,
+				C10000000000000000000003 /* TabRegistry.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -80,45 +97,34 @@
 		A50000000000000000000001 /* Core */ = {
 			isa = PBXGroup;
 			children = (
-				A60000000000000000000001 /* Design */,
-				A70000000000000000000001 /* Navigation */,
+				A60000000000000000000001 /* Navigation */,
+				A70000000000000000000001 /* Theme */,
 			);
 			path = Core;
 			sourceTree = "<group>";
 		};
-		A60000000000000000000001 /* Design */ = {
+		A60000000000000000000001 /* Navigation */ = {
 			isa = PBXGroup;
 			children = (
-				C10000000000000000000003 /* AppTheme.swift */,
-				C10000000000000000000004 /* ModulePlaceholder.swift */,
-			);
-			path = Design;
-			sourceTree = "<group>";
-		};
-		A70000000000000000000001 /* Navigation */ = {
-			isa = PBXGroup;
-			children = (
-				C10000000000000000000005 /* AppTab.swift */,
+				C10000000000000000000004 /* TabModule.swift */,
 			);
 			path = Navigation;
 			sourceTree = "<group>";
 		};
-		A80000000000000000000001 /* Modules */ = {
+		A70000000000000000000001 /* Theme */ = {
 			isa = PBXGroup;
 			children = (
-				B10000000000000000000001 /* Website */,
-				B10000000000000000000002 /* Docker */,
-				B10000000000000000000003 /* Database */,
-				B10000000000000000000004 /* Files */,
-				B10000000000000000000005 /* Settings */,
+				C10000000000000000000005 /* AppTheme.swift */,
+				C10000000000000000000006 /* ModulePlaceholder.swift */,
 			);
-			path = Modules;
+			path = Theme;
 			sourceTree = "<group>";
 		};
 		B10000000000000000000001 /* Website */ = {
 			isa = PBXGroup;
 			children = (
-				C10000000000000000000006 /* WebsiteView.swift */,
+				C10000000000000000000007 /* WebsiteTab.swift */,
+				C10000000000000000000008 /* WebsiteView.swift */,
 			);
 			path = Website;
 			sourceTree = "<group>";
@@ -126,7 +132,8 @@
 		B10000000000000000000002 /* Docker */ = {
 			isa = PBXGroup;
 			children = (
-				C10000000000000000000007 /* DockerView.swift */,
+				C10000000000000000000009 /* DockerTab.swift */,
+				C10000000000000000000010 /* DockerView.swift */,
 			);
 			path = Docker;
 			sourceTree = "<group>";
@@ -134,7 +141,8 @@
 		B10000000000000000000003 /* Database */ = {
 			isa = PBXGroup;
 			children = (
-				C10000000000000000000008 /* DatabaseView.swift */,
+				C10000000000000000000011 /* DatabaseTab.swift */,
+				C10000000000000000000012 /* DatabaseView.swift */,
 			);
 			path = Database;
 			sourceTree = "<group>";
@@ -142,7 +150,8 @@
 		B10000000000000000000004 /* Files */ = {
 			isa = PBXGroup;
 			children = (
-				C10000000000000000000009 /* FilesView.swift */,
+				C10000000000000000000013 /* FilesTab.swift */,
+				C10000000000000000000014 /* FilesView.swift */,
 			);
 			path = Files;
 			sourceTree = "<group>";
@@ -150,7 +159,8 @@
 		B10000000000000000000005 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
-				C10000000000000000000010 /* SettingsView.swift */,
+				C10000000000000000000015 /* SettingsTab.swift */,
+				C10000000000000000000016 /* SettingsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -235,14 +245,20 @@
 			files = (
 				D10000000000000000000001 /* LonePanelApp.swift in Sources */,
 				D10000000000000000000002 /* ContentView.swift in Sources */,
-				D10000000000000000000003 /* AppTheme.swift in Sources */,
-				D10000000000000000000004 /* ModulePlaceholder.swift in Sources */,
-				D10000000000000000000005 /* AppTab.swift in Sources */,
-				D10000000000000000000006 /* WebsiteView.swift in Sources */,
-				D10000000000000000000007 /* DockerView.swift in Sources */,
-				D10000000000000000000008 /* DatabaseView.swift in Sources */,
-				D10000000000000000000009 /* FilesView.swift in Sources */,
-				D10000000000000000000010 /* SettingsView.swift in Sources */,
+				D10000000000000000000003 /* TabRegistry.swift in Sources */,
+				D10000000000000000000004 /* TabModule.swift in Sources */,
+				D10000000000000000000005 /* AppTheme.swift in Sources */,
+				D10000000000000000000006 /* ModulePlaceholder.swift in Sources */,
+				D10000000000000000000007 /* WebsiteTab.swift in Sources */,
+				D10000000000000000000008 /* WebsiteView.swift in Sources */,
+				D10000000000000000000009 /* DockerTab.swift in Sources */,
+				D10000000000000000000010 /* DockerView.swift in Sources */,
+				D10000000000000000000011 /* DatabaseTab.swift in Sources */,
+				D10000000000000000000012 /* DatabaseView.swift in Sources */,
+				D10000000000000000000013 /* FilesTab.swift in Sources */,
+				D10000000000000000000014 /* FilesView.swift in Sources */,
+				D10000000000000000000015 /* SettingsTab.swift in Sources */,
+				D10000000000000000000016 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

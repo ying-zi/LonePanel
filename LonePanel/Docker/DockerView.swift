@@ -4,8 +4,8 @@ import SwiftUI
 struct DockerView: View {
     var body: some View {
         ModulePlaceholder(
-            title: AppTab.docker.title,
-            systemImage: AppTab.docker.symbolName,
+            title: "Docker",
+            systemImage: "shippingbox",
             description: "Docker 容器管理"
         )
     }

@@ -10,26 +10,35 @@
 
 ## 当前状态
 
-项目骨架：5 个 Tab（网站 / Docker / 数据库 / 文件 / 设置）空壳页，无业务功能代码。
+项目骨架：五个 Tab（网站 / Docker / 数据库 / 文件 / 设置）空壳页，无业务功能代码。
 
 ## 目录结构
 
+根目录平铺 `Core` 与五个平级模块，无 `Modules` 中间层。每一层都遵循同一规则：一个 Core 全局目录 + 若干平级功能模块；Core 只放本层两个以上模块共用的东西，模块私有物留在模块内。
+
 ```
 LonePanel/
-├── LonePanelApp.swift          App 入口
-├── App/                        组装层（TabView 等）
-├── Core/                       全局层：所有模块共用
-│   ├── Design/                 设计令牌、共用占位视图
-│   └── Navigation/             Tab 定义
-└── Modules/                    功能模块，彼此不引用
-    ├── Website/
-    ├── Docker/
-    ├── Database/
-    ├── Files/
-    └── Settings/
+├── App/                          顶层组装层
+│   ├── LonePanelApp.swift        @main 入口
+│   ├── TabRegistry.swift         Tab 注册表（唯一登记具体模块处）
+│   └── ContentView.swift         遍历注册表装配 Tab
+├── Core/                         根级全局（五个 Tab 共用）
+│   ├── Navigation/TabModule.swift
+│   ├── Theme/                    主题、共用空壳视图
+│   ├── SSH/  SFTP/  Keychain/  Logging/   预留
+├── Website/                      模块出口 + 空壳 + 内部 Core 与子模块占位
+│   ├── WebsiteTab.swift / WebsiteView.swift
+│   └── Core/ PHP/ NodeJS/ ReverseProxy/ Certificate/ NginxEditor/
+├── Docker/    DockerTab/View + Core/ Containers/ Images/ Compose/
+├── Database/  DatabaseTab/View + Core/ MySQL/ PostgreSQL/ Redis/
+├── Files/     FilesTab/View + Core/ Browser/ Editor/
+├── Settings/  SettingsTab/View + Core/
+└── Resources/Assets.xcassets/
 ```
 
-约定：全局共用代码放 `Core`；仅某模块使用的代码放该模块目录内；模块之间不互相引用。
+**依赖方向**：功能模块 → 本层 Core → 根 Core；平级模块互不依赖；下层不反向依赖上层；根 Core 不依赖任何模块。App 层是唯一组装者。
+
+**可插拔**：删除任意模块目录 + 删除 `TabRegistry.modules` 中对应一行，项目仍可编译。
 
 ## 本地运行
 
@@ -51,6 +60,4 @@ open LonePanel.xcodeproj
 | `t` | `t1.0.0` | 测试构建 | pre-release |
 | `v` | `v1.0.0` | 正式构建 | 正式版本 |
 
-产物命名：`LonePanel-<版本>-<构建时间UTC>-<channel>-unsigned.ipa`，例如 `LonePanel-1.0.0-20261123-061500-testing-unsigned.ipa`。
-
-未签名 IPA 可通过 AltStore / SideStore 侧载安装。
+产物命名：`LonePanel-<版本>-<构建时间UTC>-<channel>-unsigned.ipa`。未签名 IPA 可通过 AltStore / SideStore 侧载安装。

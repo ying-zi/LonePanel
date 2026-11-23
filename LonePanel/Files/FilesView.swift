@@ -4,8 +4,8 @@ import SwiftUI
 struct FilesView: View {
     var body: some View {
         ModulePlaceholder(
-            title: AppTab.files.title,
-            systemImage: AppTab.files.symbolName,
+            title: "文件",
+            systemImage: "folder",
             description: "SFTP 文件管理"
         )
     }

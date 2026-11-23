@@ -4,8 +4,8 @@ import SwiftUI
 struct SettingsView: View {
     var body: some View {
         ModulePlaceholder(
-            title: AppTab.settings.title,
-            systemImage: AppTab.settings.symbolName,
+            title: "设置",
+            systemImage: "gearshape",
             description: "连接与偏好设置"
         )
     }
