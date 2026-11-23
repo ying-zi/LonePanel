@@ -316,9 +316,27 @@ final class SFTPClient {
         try await copyItem(file, to: joined(target, file.name))
     }
 
+    /// 路径是否存在（STAT 返回 ATTRS 即存在，返回 STATUS 即不存在）。
+    private func pathExists(_ path: String) async -> Bool {
+        var payload = PayloadWriter()
+        payload.string(path)
+        guard let response = try? await request(type: SFTPMessage.stat, payload: payload.bytes) else {
+            return false
+        }
+        return response.type == SFTPMessage.attrs
+    }
+
+    /// 递归复制单个条目。健壮性处理：
+    /// - 目标目录已存在时直接合并，不再 mkdir（MKDIR 对已存在目录会报错）；
+    /// - 跳过符号链接（readFile 一个指向目录的软链会失败并中断整个复制）；
+    /// - 复制到自身或自身子目录时跳过，避免 read+write 同一文件造成损坏/死循环。
     private func copyItem(_ file: RemoteFile, to dest: String) async throws {
+        let src = (file.path as NSString).standardizingPath
+        let dst = (dest as NSString).standardizingPath
+        if dst == src || dst.hasPrefix(src + "/") { return }
+        if file.isSymlink { return }
         if file.isDirectory {
-            try await makeDirectory(dest)
+            if !(await pathExists(dst)) { try await makeDirectory(dst) }
             let children = try await listDirectory(file.path)
             for child in children {
                 try await copyItem(child, to: joined(dest, child.name))

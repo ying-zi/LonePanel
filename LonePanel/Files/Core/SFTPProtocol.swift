@@ -29,6 +29,8 @@ enum SFTPMessage {
     static let close: UInt8 = 4
     static let read: UInt8 = 5
     static let write: UInt8 = 6
+    static let stat: UInt8 = 7
+    static let lstat: UInt8 = 8
     static let opendir: UInt8 = 11
     static let readdir: UInt8 = 12
     static let remove: UInt8 = 13

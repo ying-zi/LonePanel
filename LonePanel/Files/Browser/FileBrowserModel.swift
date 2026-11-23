@@ -10,6 +10,12 @@ final class FileBrowserModel: ObservableObject {
     @Published private(set) var isConnected = false
     @Published private(set) var isLoading = false
     @Published var errorMessage: String?
+    /// 最近一次连接是否失败（区分「正在连接」与「连接失败」，供加载态/重试态分流）。
+    @Published private(set) var connectionFailed = false
+    /// 每次成功（重）连接自增，供各目录页监听后刷新列表。
+    @Published private(set) var refreshToken = 0
+    /// 设置里是否已配置并选中服务器。
+    var hasConfiguredServer: Bool { ServerSession.shared.currentServer != nil }
 
     // MARK: - 全局视图偏好（系统「文件」App：各位置记住自己的视图，这里用全局简化）
     @Published var viewMode: FileViewMode = .list
@@ -43,6 +49,8 @@ final class FileBrowserModel: ObservableObject {
 
         clearSession()
         isLoading = true
+        connectionFailed = false
+        errorMessage = nil
         defer { isLoading = false }
         do {
             let secret = try KeychainStore.load(info.credentialKey)
@@ -60,8 +68,10 @@ final class FileBrowserModel: ObservableObject {
             self.client = try await SFTPClient.connect(session: ssh)
             self.connectedServerID = info.id
             self.isConnected = true
+            self.refreshToken &+= 1
         } catch {
             clearSession()
+            connectionFailed = true
             errorMessage = SSHSession.describe(error)
         }
     }

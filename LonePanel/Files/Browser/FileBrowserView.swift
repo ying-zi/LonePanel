@@ -10,6 +10,7 @@ import QuickLook
 struct FileBrowserView: View {
     @StateObject private var model = FileBrowserModel()
     @ObservedObject private var session = ServerSession.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     /// NavigationStack 导航栈：根不进 path；回根即清空。系统原生返回由 NavigationStack 管理。
     @State private var navPath: [FileNode] = []
@@ -37,6 +38,9 @@ struct FileBrowserView: View {
                         )
                     }
                 }
+            } else if model.hasConfiguredServer && !model.connectionFailed {
+                // 已配置服务器、正在连接（尚未失败）：显示原生加载动画。
+                ProgressView("正在连接服务器…")
             } else {
                 disconnectedView
             }
@@ -47,6 +51,14 @@ struct FileBrowserView: View {
         }
         .onChange(of: session.currentServer?.id) { _, _ in
             Task { await model.reconnect(); resetToRoot() }
+        }
+        // 离开 App 较久后返回：自动重连并刷新当前列表（保留导航层级）。
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, model.hasConfiguredServer else { return }
+            Task {
+                await model.reconnect()
+                // reconnect 成功会递增 refreshToken，各 DirectoryPage 监听后刷新当前目录。
+            }
         }
         // 单击当前文件 Tab：回默认目录入口（清导航栈、清剪贴板）。
         .onReceive(TabNavigationCenter.shared.$resetRequest) { request in
@@ -96,8 +108,9 @@ private struct DirectoryPage: View {
     @State private var entries: [RemoteFile] = []
     @State private var isLoading = false
     @State private var searchText = ""
-    /// 系统 .searchable 的搜索态：由系统管理搜索框外观、位置与展开/收起动画。
-    @Environment(\.isSearching) private var isSearching
+    /// 搜索态由工具栏独立放大镜按钮触发；展开/收起走系统缓动过渡。
+    @State private var isSearching = false
+    @FocusState private var searchFocused: Bool
     @State private var isSelecting = false
     /// 不支持在线预览的文件给出提示，并继续走下载 + 系统分享。
     @State private var previewNotice: String?
@@ -120,19 +133,24 @@ private struct DirectoryPage: View {
     var body: some View {
         pageContent
             .navigationBarTitleDisplayMode(.inline)
-            // 系统原生搜索：点击工具栏放大镜后从标题位展开，系统负责居中与过渡动画。
-            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic),
-                        prompt: Text("搜索"))
-            .onChange(of: isSearching) { _, active in
-                if !active { searchText = "" }
-            }
             .refreshable { await load() }
             .task { await load() }
+            // 断线重连成功后重新拉取当前目录（保留导航层级与选中态）。
+            .onChange(of: model.refreshToken) { _, _ in Task { await load() } }
             .toolbar { toolbarContent }
             // 多选态隐藏系统返回键（左上角改放"全选"）；正常态保留系统原生返回箭头。
             .navigationBarBackButtonHidden(isSelecting)
             .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
             .background(dialogHost)
+    }
+
+    /// 退出搜索：清空关键词并收起搜索框，带系统缓动过渡。
+    private func closeSearch() {
+        withAnimation(.easeInOut(duration: 0.22)) {
+            searchText = ""
+            searchFocused = false
+            isSearching = false
+        }
     }
 
     /// 所有弹窗集中在独立宿主，避免 body 的 modifier 链过长导致 type-check 超时。
@@ -354,23 +372,62 @@ private struct DirectoryPage: View {
             // 非多选态不放置任何 leading item，让系统原生返回箭头显示（根页自动隐藏）。
         }
         ToolbarItem(placement: .principal) {
-            if isSelecting {
-                Text("\(selectedIDs.count) 项").font(.headline)
-            } else if !isSearching {
-                // 搜索态由系统搜索框占据标题位，隐藏标题 Menu 避免重叠。
-                titleMenu
+            // 标题位：多选计数 / 搜索框 / 层级下拉，切换走系统缓动过渡。
+            Group {
+                if isSelecting {
+                    Text("\(selectedIDs.count) 项").font(.headline)
+                } else if isSearching {
+                    searchField
+                } else {
+                    titleMenu
+                }
             }
+            .animation(.easeInOut(duration: 0.22), value: isSearching)
+            .animation(.easeInOut(duration: 0.22), value: isSelecting)
         }
         ToolbarItem(placement: .topBarTrailing) {
             if isSelecting {
                 Button { resetSelection() } label: {
                     Image(systemName: "checkmark.circle.fill").font(.title3)
                 }
-            } else if !isSearching {
-                // 搜索态隐藏更多按钮，系统会自动在右侧显示「取消」。
-                moreMenu
+            } else if isSearching {
+                Button("取消") { closeSearch() }
+            } else {
+                // 独立的放大镜按钮，放在 ⋯ 左边；两者同处系统工具栏，用更大间距分隔。
+                HStack(spacing: 22) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.22)) { isSearching = true }
+                        searchFocused = true
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    moreMenu
+                }
             }
         }
+    }
+
+    /// 搜索态标题位输入框：系统原生胶囊外观，自动聚焦、一键清空。
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            TextField("搜索", text: $searchText)
+                .textFieldStyle(.plain)
+                .focused($searchFocused)
+            if !searchText.isEmpty {
+                Button { searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(.quaternary.opacity(0.7), in: Capsule())
+        .frame(width: sizeClass == .compact ? 220 : 320)
+        .transition(.opacity.combined(with: .scale(scale: 0.92)))
     }
 
     /// 标题下拉：与右上 ⋯ 一致的系统原生 Menu，列出从根目录到当前的位置层级。
@@ -481,10 +538,9 @@ private struct DirectoryPage: View {
                 Label("重新连接", systemImage: "arrow.clockwise")
             }
         } label: {
-            // 系统文件 App 的更多按钮是裸三点，不套圆圈；左侧留白与搜索图标拉开距离。
+            // 系统文件 App 的更多按钮是裸三点，不套圆圈。
             Image(systemName: "ellipsis")
                 .font(.title3)
-                .padding(.leading, 10)
         }
     }
 
@@ -536,23 +592,6 @@ private struct DirectoryPage: View {
                 }
             }
             batchIcon("trash", title: "删除", role: .destructive) { requestDelete(selectedFiles) }
-            Menu {
-                Button(allVisibleSelected ? "取消全选" : "全选") {
-                    if allVisibleSelected { selectedIDs = [] }
-                    else { selectedIDs = Set(visibleEntries.map(\.id)) }
-                }
-                Button("新建文件夹") { newFolderName = ""; pendingCreateFolder = true }
-                Button("获取信息") {
-                    if let first = selectedFiles.first { infoFile = first }
-                }
-            } label: {
-                VStack(spacing: 4) {
-                    Image(systemName: "ellipsis").font(.title3)
-                    Text("更多").font(.caption2)
-                }
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .contentShape(Rectangle())
-            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -677,7 +716,7 @@ private struct FileRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 12) {
+            HStack(spacing: 20) {
                 if showsCheckmark {
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                         .font(.title3)
