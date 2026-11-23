@@ -312,8 +312,14 @@ final class SFTPClient {
     }
 
     /// 纯 SFTP 复制：文件走 read+write；目录递归创建并复制子项。不依赖远端 exec 通道。
-    func copy(_ file: RemoteFile, toDirectory target: String) async throws {
-        try await copyItem(file, to: joined(target, file.name))
+    /// onProgress 汇报「本条 copy 已写入的总字节数」，供 UI 显示大文件/多文件进度。
+    func copy(_ file: RemoteFile, toDirectory target: String,
+              onProgress: ((Int64) -> Void)? = nil) async throws {
+        let counter = ByteCounter()
+        try await copyItem(file, to: joined(target, file.name)) { delta in
+            counter.value += delta
+            onProgress?(counter.value)
+        }
     }
 
     /// 路径是否存在（STAT 返回 ATTRS 即存在，返回 STATUS 即不存在）。
@@ -330,7 +336,8 @@ final class SFTPClient {
     /// - 目标目录已存在时直接合并，不再 mkdir（MKDIR 对已存在目录会报错）；
     /// - 跳过符号链接（readFile 一个指向目录的软链会失败并中断整个复制）；
     /// - 复制到自身或自身子目录时跳过，避免 read+write 同一文件造成损坏/死循环。
-    private func copyItem(_ file: RemoteFile, to dest: String) async throws {
+    private func copyItem(_ file: RemoteFile, to dest: String,
+                          onBytes: ((Int64) -> Void)? = nil) async throws {
         let src = (file.path as NSString).standardizingPath
         let dst = (dest as NSString).standardizingPath
         if dst == src || dst.hasPrefix(src + "/") { return }
@@ -339,11 +346,11 @@ final class SFTPClient {
             if !(await pathExists(dst)) { try await makeDirectory(dst) }
             let children = try await listDirectory(file.path)
             for child in children {
-                try await copyItem(child, to: joined(dest, child.name))
+                try await copyItem(child, to: joined(dest, child.name), onBytes: onBytes)
             }
         } else {
             let data = try await readFile(file.path)
-            try await writeFile(dest, data: data)
+            try await writeFile(dest, data: data, onBytes: onBytes)
         }
     }
 
@@ -406,7 +413,8 @@ final class SFTPClient {
         return data
     }
 
-    func writeFile(_ path: String, data: Data) async throws {
+    func writeFile(_ path: String, data: Data,
+                   onBytes: ((Int64) -> Void)? = nil) async throws {
         var open = PayloadWriter()
         open.string(path)
         open.uint32(SFTPOpenFlag.write | SFTPOpenFlag.trunc | SFTPOpenFlag.creat)
@@ -434,6 +442,7 @@ final class SFTPClient {
             write.blob(chunk) // 4 字节长度 + 原始字节，可承载二进制
             try expectOK(try await request(type: SFTPMessage.write, payload: write.bytes))
             offset += length
+            onBytes?(Int64(length))
         }
     }
 
@@ -448,4 +457,9 @@ final class SFTPClient {
         body.blob(handle)
         transport.send(SFTPPacket(type: SFTPMessage.close, payload: body.bytes).framed)
     }
+}
+
+/// 复制进度的字节累加器。作为引用类型被闭包捕获，规避值类型在并发闭包中的捕获限制。
+private final class ByteCounter {
+    var value: Int64 = 0
 }

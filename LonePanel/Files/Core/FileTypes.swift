@@ -125,3 +125,11 @@ enum BatchOperation: String {
     case move = "移动"
     case copy = "复制"
 }
+
+/// 批量传输的整体进度快照。total 为 0 时表示不确定进度（SSH 单命令回退场景）。
+struct BatchProgress {
+    let title: String
+    let completed: Int
+    let total: Int
+    let detail: String
+}

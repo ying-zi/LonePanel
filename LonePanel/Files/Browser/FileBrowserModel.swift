@@ -34,6 +34,9 @@ final class FileBrowserModel: ObservableObject {
     /// 正在下载的文件路径 → 进度(0...1)。用于列表行内显示原生进度条。
     @Published var transferProgress: [String: Double] = [:]
 
+    /// 批量操作（粘贴/移动/复制多个文件）的整体进度，nil 表示无进行中的批处理。
+    @Published var batchProgress: BatchProgress?
+
     private var client: SFTPClient?
     private var connectedServerID: UUID?
 
@@ -210,18 +213,40 @@ final class FileBrowserModel: ObservableObject {
 
     /// 移动/复制：先走纯 SFTP（不依赖 exec，兼容禁用命令执行的服务器）；
     /// 若 SFTP 原语失败，再回退 SSH mv/cp -R，提高跨设备、占名等场景的成功率。
+    /// 全程发布整体进度（已完成项/总项数），避免多文件或大文件夹粘贴时界面毫无变化。
     func transfer(_ files: [RemoteFile], operation: BatchOperation, to target: String) async {
         guard let client, !files.isEmpty else { return }
+        let title = operation == .copy ? "正在复制" : "正在移动"
+        batchProgress = BatchProgress(title: title, completed: 0, total: files.count,
+                                      detail: files.first?.name ?? "")
+        defer { batchProgress = nil }
+
         do {
-            for file in files {
+            for (index, file) in files.enumerated() {
+                batchProgress = BatchProgress(title: title, completed: index, total: files.count,
+                                              detail: file.name)
                 switch operation {
-                case .move: try await client.move(file, toDirectory: target)
-                case .copy: try await client.copy(file, toDirectory: target)
+                case .move:
+                    try await client.move(file, toDirectory: target)
+                case .copy:
+                    try await client.copy(file, toDirectory: target) { copied in
+                        Task { @MainActor [weak self] in
+                            let readable = ByteCountFormatter.string(fromByteCount: copied, countStyle: .file)
+                            self?.batchProgress = BatchProgress(
+                                title: title, completed: index, total: files.count,
+                                detail: "\(file.name) · 已传 \(readable)"
+                            )
+                        }
+                    }
                 }
             }
+            batchProgress = BatchProgress(title: title, completed: files.count, total: files.count,
+                                          detail: "完成")
             return
         } catch {
-            // 纯 SFTP 失败，继续尝试 SSH 命令回退。
+            // 纯 SFTP 失败，继续尝试 SSH 命令回退（单条命令无法细分，显示不确定进度）。
+            batchProgress = BatchProgress(title: "\(title)（服务器命令）", completed: 0,
+                                          total: 0, detail: files.first?.name ?? "")
         }
         let sources = files.map { shellQuote($0.path) }.joined(separator: " ")
         let directory = target.hasSuffix("/") ? target : target + "/"

@@ -72,6 +72,38 @@ struct FileBrowserView: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
+        // 批量传输进度：多文件/大文件夹粘贴、移动、复制时显示原生磨砂 HUD。
+        .overlay { batchProgressHUD }
+    }
+
+    /// 批量操作进度浮层：确定进度用线性条 + 完成项数，不确定进度用旋转指示器。
+    @ViewBuilder
+    private var batchProgressHUD: some View {
+        if let progress = model.batchProgress {
+            VStack(spacing: 12) {
+                if progress.total > 0 {
+                    ProgressView(value: Double(progress.completed), total: Double(progress.total))
+                        .progressViewStyle(.linear)
+                    Text("\(progress.title) \(progress.completed)/\(progress.total) 项")
+                        .font(.subheadline.weight(.medium))
+                } else {
+                    ProgressView()
+                    Text("\(progress.title)…")
+                        .font(.subheadline.weight(.medium))
+                }
+                Text(progress.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 18)
+            .frame(maxWidth: 280)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+            .shadow(radius: 12, y: 4)
+            .allowsHitTesting(false)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
     }
 
     private var disconnectedView: some View {
@@ -181,7 +213,7 @@ private struct DirectoryPage: View {
                 }
             }
         }
-        .confirmationDialog("删除所选项目？", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+        .alert("删除所选项目？", isPresented: $showDeleteConfirm) {
             Button("删除", role: .destructive) {
                 let filesToDelete = deleting
                 Task {
@@ -192,8 +224,10 @@ private struct DirectoryPage: View {
                 }
             }
             Button("取消", role: .cancel) { deleting = [] }
+        } message: {
+            Text("删除后无法恢复，请确认已备份重要数据。")
         }
-        .confirmationDialog("危险路径", isPresented: $showDangerConfirm, titleVisibility: .visible) {
+        .alert("危险路径", isPresented: $showDangerConfirm) {
             Button("我确认，继续删除", role: .destructive) {
                 showDangerConfirm = false
                 showDeleteConfirm = true
@@ -382,12 +416,9 @@ private struct DirectoryPage: View {
                     if allVisibleSelected { selectedIDs = [] }
                     else { selectedIDs = Set(visibleEntries.map(\.id)) }
                 }
-            } else if isSearching {
-                // 搜索态 trailing 只有一个「取消」按钮，leading 放等宽透明占位，
-                // 让 .principal 的搜索框在导航栏中严格居中，而不是向右/向左偏移。
-                Text("取消").opacity(0).disabled(true)
             }
-            // 普通态不放置 leading item，让系统原生返回箭头显示（根页自动隐藏）。
+            // 非多选态不放置 leading item：系统原生返回箭头显示（根页自动隐藏）。
+            // 搜索态同样留空，避免出现一个随返回箭头转场的透明占位白点。
         }
         ToolbarItem(placement: .principal) {
             // 标题 / 多选计数 / 搜索框叠放在同一位置，切换只做水平位移 + 淡入淡出：
@@ -430,6 +461,8 @@ private struct DirectoryPage: View {
                     moreMenu
                 }
                 .padding(.leading, 6)
+                // 让整组按钮与屏幕右边缘拉开距离，避免 ⋯ 贴边。
+                .padding(.trailing, 8)
             }
         }
     }
@@ -501,16 +534,16 @@ private struct DirectoryPage: View {
                 Label("选择", systemImage: "checkmark.circle")
             }
             Button {
-                newFolderName = ""
-                pendingCreateFolder = true
-            } label: {
-                Label("新建文件夹", systemImage: "folder.badge.plus")
-            }
-            Button {
                 newFileName = ""
                 pendingCreateFile = true
             } label: {
                 Label("新建文件", systemImage: "doc.badge.plus")
+            }
+            Button {
+                newFolderName = ""
+                pendingCreateFolder = true
+            } label: {
+                Label("新建文件夹", systemImage: "folder.badge.plus")
             }
             // 粘贴：剪贴板非空时显示，把已拷贝的项目复制到当前目录。
             if !model.clipboard.isEmpty {
