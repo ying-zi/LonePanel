@@ -1,0 +1,24 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+Package.resolved
+
+# macOS
+.DS_Store
+
+# CocoaPods / Carthage (预留)
+Pods/
+Carthage/Build/
+
+# 签名材料（禁止入库）
+*.p12
+*.mobileprovision
+*.p8

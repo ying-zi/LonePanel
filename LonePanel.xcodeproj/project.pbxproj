@@ -1,0 +1,388 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		D10000000000000000000001 /* LonePanelApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000001 /* LonePanelApp.swift */; };
+		D10000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000002 /* ContentView.swift */; };
+		D10000000000000000000003 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000003 /* AppTheme.swift */; };
+		D10000000000000000000004 /* ModulePlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000004 /* ModulePlaceholder.swift */; };
+		D10000000000000000000005 /* AppTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000005 /* AppTab.swift */; };
+		D10000000000000000000006 /* WebsiteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000006 /* WebsiteView.swift */; };
+		D10000000000000000000007 /* DockerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000007 /* DockerView.swift */; };
+		D10000000000000000000008 /* DatabaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000008 /* DatabaseView.swift */; };
+		D10000000000000000000009 /* FilesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000009 /* FilesView.swift */; };
+		D10000000000000000000010 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000010 /* SettingsView.swift */; };
+		D20000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000001 /* Assets.xcassets */; };
+		070000000000000000000001 /* NIOSSH in Frameworks */ = {isa = PBXBuildFile; productRef = 060000000000000000000001 /* NIOSSH */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		C10000000000000000000001 /* LonePanelApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LonePanelApp.swift; sourceTree = "<group>"; };
+		C10000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		C10000000000000000000003 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		C10000000000000000000004 /* ModulePlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModulePlaceholder.swift; sourceTree = "<group>"; };
+		C10000000000000000000005 /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
+		C10000000000000000000006 /* WebsiteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebsiteView.swift; sourceTree = "<group>"; };
+		C10000000000000000000007 /* DockerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerView.swift; sourceTree = "<group>"; };
+		C10000000000000000000008 /* DatabaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseView.swift; sourceTree = "<group>"; };
+		C10000000000000000000009 /* FilesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesView.swift; sourceTree = "<group>"; };
+		C10000000000000000000010 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C20000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F20000000000000000000001 /* LonePanel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LonePanel.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E20000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				070000000000000000000001 /* NIOSSH in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A20000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A40000000000000000000001 /* App */,
+				A50000000000000000000001 /* Core */,
+				A80000000000000000000001 /* Modules */,
+				B20000000000000000000001 /* Resources */,
+				A30000000000000000000001 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A30000000000000000000001 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F20000000000000000000001 /* LonePanel.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000001 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000001 /* LonePanelApp.swift */,
+				C10000000000000000000002 /* ContentView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A50000000000000000000001 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				A60000000000000000000001 /* Design */,
+				A70000000000000000000001 /* Navigation */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000001 /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000003 /* AppTheme.swift */,
+				C10000000000000000000004 /* ModulePlaceholder.swift */,
+			);
+			path = Design;
+			sourceTree = "<group>";
+		};
+		A70000000000000000000001 /* Navigation */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000005 /* AppTab.swift */,
+			);
+			path = Navigation;
+			sourceTree = "<group>";
+		};
+		A80000000000000000000001 /* Modules */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000001 /* Website */,
+				B10000000000000000000002 /* Docker */,
+				B10000000000000000000003 /* Database */,
+				B10000000000000000000004 /* Files */,
+				B10000000000000000000005 /* Settings */,
+			);
+			path = Modules;
+			sourceTree = "<group>";
+		};
+		B10000000000000000000001 /* Website */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000006 /* WebsiteView.swift */,
+			);
+			path = Website;
+			sourceTree = "<group>";
+		};
+		B10000000000000000000002 /* Docker */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000007 /* DockerView.swift */,
+			);
+			path = Docker;
+			sourceTree = "<group>";
+		};
+		B10000000000000000000003 /* Database */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000008 /* DatabaseView.swift */,
+			);
+			path = Database;
+			sourceTree = "<group>";
+		};
+		B10000000000000000000004 /* Files */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000009 /* FilesView.swift */,
+			);
+			path = Files;
+			sourceTree = "<group>";
+		};
+		B10000000000000000000005 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000010 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		B20000000000000000000001 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				C20000000000000000000001 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F10000000000000000000001 /* LonePanel */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 020000000000000000000001 /* Build configuration list for PBXNativeTarget "LonePanel" */;
+			buildPhases = (
+				E10000000000000000000001 /* Sources */,
+				E20000000000000000000001 /* Frameworks */,
+				E30000000000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LonePanel;
+			packageProductDependencies = (060000000000000000000001 /* NIOSSH */,);
+			productName = LonePanel;
+			productReference = F20000000000000000000001 /* LonePanel.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A10000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					F10000000000000000000001 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+				};
+			};
+			buildConfigurationList = 010000000000000000000001 /* Build configuration list for PBXProject "LonePanel" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A20000000000000000000001;
+			packageReferences = (050000000000000000000001 /* XCRemoteSwiftPackageReference "swift-nio-ssh" */,);
+			productRefGroup = A30000000000000000000001 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F10000000000000000000001 /* LonePanel */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E30000000000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D20000000000000000000001 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E10000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D10000000000000000000001 /* LonePanelApp.swift in Sources */,
+				D10000000000000000000002 /* ContentView.swift in Sources */,
+				D10000000000000000000003 /* AppTheme.swift in Sources */,
+				D10000000000000000000004 /* ModulePlaceholder.swift in Sources */,
+				D10000000000000000000005 /* AppTab.swift in Sources */,
+				D10000000000000000000006 /* WebsiteView.swift in Sources */,
+				D10000000000000000000007 /* DockerView.swift in Sources */,
+				D10000000000000000000008 /* DatabaseView.swift in Sources */,
+				D10000000000000000000009 /* FilesView.swift in Sources */,
+				D10000000000000000000010 /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		030000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		030000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		040000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = LonePanel;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lone.lonepanel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		040000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = LonePanel;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lone.lonepanel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		010000000000000000000001 /* Build configuration list for PBXProject "LonePanel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				030000000000000000000001 /* Debug */,
+				030000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		020000000000000000000001 /* Build configuration list for PBXNativeTarget "LonePanel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				040000000000000000000001 /* Debug */,
+				040000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		050000000000000000000001 /* XCRemoteSwiftPackageReference "swift-nio-ssh" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio-ssh.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.15.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		060000000000000000000001 /* NIOSSH */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 050000000000000000000001 /* XCRemoteSwiftPackageReference "swift-nio-ssh" */;
+			productName = NIOSSH;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A10000000000000000000001 /* Project object */;
+}

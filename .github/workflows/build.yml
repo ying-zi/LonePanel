@@ -1,0 +1,145 @@
+name: Build Unsigned IPA
+
+# 触发：推送以 t 或 v 开头的 tag
+#   t1.0.0 -> 测试构建，发布为 pre-release
+#   v1.0.0 -> 正式构建，发布为正式 release
+on:
+  push:
+    tags:
+      - 't*'
+      - 'v*'
+
+permissions:
+  contents: write   # 允许创建 release 与上传产物
+
+jobs:
+  build:
+    name: Build & Release
+    # macos-26 为最新 macOS（arm64），默认 Xcode 26，自带 iOS 26 SDK
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcode-select -p
+
+      - name: Resolve tag / version / build time
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          # 去掉首字母（t 或 v）得到纯版本号，如 t1.0.0 -> 1.0.0
+          VERSION="${TAG:1}"
+          BUILD_TIME="$(date -u +%Y%m%d-%H%M%S)"
+
+          case "$TAG" in
+            t*) CHANNEL="testing"; PRERELEASE="true" ;;
+            v*) CHANNEL="release"; PRERELEASE="false" ;;
+            *)  echo "Unsupported tag: $TAG" >&2; exit 1 ;;
+          esac
+
+          IPA_NAME="LonePanel-${VERSION}-${BUILD_TIME}-${CHANNEL}-unsigned.ipa"
+
+          echo "tag=${TAG}"           >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}"   >> "$GITHUB_OUTPUT"
+          echo "build_time=${BUILD_TIME}" >> "$GITHUB_OUTPUT"
+          echo "channel=${CHANNEL}"   >> "$GITHUB_OUTPUT"
+          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
+          echo "ipa_name=${IPA_NAME}" >> "$GITHUB_OUTPUT"
+
+          echo "Tag=${TAG} | Version=${VERSION} | Channel=${CHANNEL} | IPA=${IPA_NAME}"
+
+      - name: Install dependencies (Swift Package Manager)
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project LonePanel.xcodeproj \
+            -scheme LonePanel
+
+      - name: Build unsigned archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -project LonePanel.xcodeproj \
+            -scheme LonePanel \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "${PWD}/build/LonePanel.xcarchive" \
+            -quiet \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            DEVELOPMENT_TEAM=""
+
+      - name: Export unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$(find build/LonePanel.xcarchive/Products/Applications -maxdepth 1 -name '*.app' -print -quit)"
+          if [[ -z "$APP" ]]; then
+            echo "No .app found in xcarchive" >&2
+            exit 1
+          fi
+          rm -rf build/Payload
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/
+          cd build
+          zip -qry "${{ steps.meta.outputs.ipa_name }}" Payload
+          echo "IPA ready: build/${{ steps.meta.outputs.ipa_name }}"
+          ls -lh "${{ steps.meta.outputs.ipa_name }}"
+
+      - name: Upload artifact (for traceability)
+        uses: actions/upload-artifact@v4
+        with:
+          name: LonePanel-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.channel }}
+          path: build/${{ steps.meta.outputs.ipa_name }}
+          retention-days: 30
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          CHANNEL: ${{ steps.meta.outputs.channel }}
+          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+          IPA_PATH: build/${{ steps.meta.outputs.ipa_name }}
+          BUILD_TIME: ${{ steps.meta.outputs.build_time }}
+        run: |
+          set -euo pipefail
+          NOTES=$(cat <<EOF
+          LonePanel ${VERSION} (${CHANNEL})
+
+          - Version: ${VERSION}
+          - Channel: ${CHANNEL}
+          - Build time (UTC): ${BUILD_TIME}
+          - Artifact: unsigned IPA (sideload via AltStore/SideStore)
+          - Tag: ${TAG}
+          EOF
+          )
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$IPA_PATH" --clobber
+            if [ "$PRERELEASE" = "true" ]; then
+              gh release edit "$TAG" --prerelease --title "LonePanel ${VERSION} (${CHANNEL})" --notes "$NOTES"
+            else
+              gh release edit "$TAG" --title "LonePanel ${VERSION}" --notes "$NOTES"
+            fi
+          else
+            if [ "$PRERELEASE" = "true" ]; then
+              gh release create "$TAG" "$IPA_PATH" --prerelease --title "LonePanel ${VERSION} (${CHANNEL})" --notes "$NOTES"
+            else
+              gh release create "$TAG" "$IPA_PATH" --title "LonePanel ${VERSION}" --notes "$NOTES"
+            fi
+          fi
