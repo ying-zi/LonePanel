@@ -25,10 +25,17 @@ struct FileBrowserView: View {
                 NavigationStack(path: navPath) {
                     DirectoryPage(
                         model: model,
-                        node: FileNode(path: model.entryPath, title: model.serverName)
+                        node: FileNode(path: model.entryPath, title: model.serverName),
+                        previewURL: $previewURL,
+                        shareItem: $shareItem
                     )
                     .navigationDestination(for: FileNode.self) { node in
-                        DirectoryPage(model: model, node: node)
+                        DirectoryPage(
+                            model: model,
+                            node: node,
+                            previewURL: $previewURL,
+                            shareItem: $shareItem
+                        )
                     }
                 }
             } else {
@@ -126,6 +133,8 @@ private struct DirectoryPage: View {
     @ObservedObject var model: FileBrowserModel
     @EnvironmentObject private var history: NavigationHistory
     let node: FileNode
+    @Binding var previewURL: URL?
+    @Binding var shareItem: ShareItem?
 
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var entries: [RemoteFile] = []
