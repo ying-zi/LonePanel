@@ -114,28 +114,24 @@ private struct DirectoryPage: View {
     private var title: String { node.title }
 
     var body: some View {
-        Group {
-            if isLoading && entries.isEmpty {
-                ProgressView("加载中…")
-            } else if entries.isEmpty {
-                emptyView
-            } else if model.viewMode == .grid {
-                gridView
-            } else {
-                listView
+        pageContent
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.large)
+            .searchable(text: $searchText, prompt: "搜索")
+            .refreshable { await load() }
+            .task { await load() }
+            .toolbar { toolbarContent }
+            // 多选态底部系统工具栏
+            .safeAreaInset(edge: .bottom) {
+                if isSelecting { batchActionBar }
             }
-        }
-        .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $searchText, prompt: "搜索")
-        .refreshable { await load() }
-        .task { await load() }
-        .toolbar { toolbarContent }
-        // 多选态底部系统工具栏
-        .safeAreaInset(edge: .bottom) {
-            if isSelecting { batchActionBar }
-        }
-        // 弹窗
+        // 弹窗宿主挂到背景，拆开类型检查链
+        .background(dialogHost)
+    }
+
+    /// 所有弹窗集中在独立的轻量宿主上，避免 body 的 modifier 链过长导致 type-check 超时。
+    private var dialogHost: some View {
+        Color.clear.frame(width: 0, height: 0)
         .alert("新建文件夹", isPresented: $pendingCreateFolder) {
             TextField("文件夹名称", text: $newFolderName)
             Button("取消", role: .cancel) { newFolderName = "" }
@@ -179,6 +175,24 @@ private struct DirectoryPage: View {
                 targetFiles = []
                 resetSelection()
             }
+        }
+    }
+
+    /// 页面主体按状态分派，用 AnyView 抹平分支类型差异，避免 body 表达式过重。
+    private var pageContent: some View {
+        AnyView(contentForState)
+    }
+
+    @ViewBuilder
+    private var contentForState: some View {
+        if isLoading && entries.isEmpty {
+            ProgressView("加载中…")
+        } else if entries.isEmpty {
+            emptyView
+        } else if model.viewMode == .grid {
+            gridView
+        } else {
+            listView
         }
     }
 
