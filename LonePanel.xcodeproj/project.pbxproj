@@ -225,6 +225,7 @@
 				C10000000000000000000020 /* FilesView.swift */,
 				B50000000000000000000001 /* Core */,
 				B50000000000000000000002 /* Browser */,
+				B50000000000000000000003 /* Detail */,
 			);
 			path = Files;
 			sourceTree = "<group>";
@@ -275,9 +276,16 @@
 			children = (
 				C10000000000000000000024 /* FileBrowserModel.swift */,
 				C10000000000000000000025 /* FileBrowserView.swift */,
-				C10000000000000000000035 /* FileDetailView.swift */,
 			);
 			path = Browser;
+			sourceTree = "<group>";
+		};
+		B50000000000000000000003 /* Detail */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000035 /* FileDetailView.swift */,
+			);
+			path = Detail;
 			sourceTree = "<group>";
 		};
 		B20000000000000000000001 /* Resources */ = {
