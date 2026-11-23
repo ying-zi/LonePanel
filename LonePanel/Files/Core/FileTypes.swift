@@ -126,10 +126,15 @@ enum BatchOperation: String {
     case copy = "复制"
 }
 
-/// 批量传输的整体进度快照。total 为 0 时表示不确定进度（SSH 单命令回退场景）。
+/// 批量传输的整体进度快照。
+/// - total 为 0 时表示不确定进度（SSH 单命令回退场景）。
+/// - totalBytes > 0 时进度条按字节渲染（单文件/大文件粘贴才有连续反馈）；否则按项数。
+/// - transferredBytes 是当前文件已传字节，用于在文件名右侧显示 KB。
 struct BatchProgress {
     let title: String
     let completed: Int
     let total: Int
     let detail: String
+    let transferredBytes: Int64
+    let totalBytes: Int64
 }

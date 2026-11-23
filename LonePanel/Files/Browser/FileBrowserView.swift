@@ -1,5 +1,6 @@
 import SwiftUI
 import QuickLook
+import UIKit
 
 /// 对齐 iOS 26/27 系统「文件」App 的浏览器：
 /// - 逐层 push 导航，左上角沿用系统原生返回箭头（顶层不显示、子层级显示）；
@@ -76,29 +77,55 @@ struct FileBrowserView: View {
         .overlay { batchProgressHUD }
     }
 
-    /// 批量操作进度浮层：确定进度用线性条 + 完成项数，不确定进度用旋转指示器。
+    /// 批量操作进度浮层。
+    /// - 有准确总字节（单文件复制）：进度条按字节渲染，文件名左侧 + 已传 KB 右侧。
+    /// - 有总项数（多文件/目录）：进度条按项数渲染，同样在文件名右侧显示已传 KB。
+    /// - 都没有（SSH 回退）：旋转指示器 + 不确定文案。
     @ViewBuilder
     private var batchProgressHUD: some View {
         if let progress = model.batchProgress {
             VStack(spacing: 12) {
-                if progress.total > 0 {
+                HStack(spacing: 8) {
+                    Text(progress.title)
+                        .font(.subheadline.weight(.semibold))
+                    Spacer(minLength: 0)
+                    if progress.total > 0 {
+                        Text("\(progress.completed)/\(progress.total) 项")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if progress.totalBytes > 0 {
+                    // 字节级进度：这是用户能看到的连续进度，修复过去进度条一直空白的问题。
+                    ProgressView(value: Double(progress.transferredBytes),
+                                 total: Double(progress.totalBytes))
+                        .progressViewStyle(.linear)
+                } else if progress.total > 0 {
                     ProgressView(value: Double(progress.completed), total: Double(progress.total))
                         .progressViewStyle(.linear)
-                    Text("\(progress.title) \(progress.completed)/\(progress.total) 项")
-                        .font(.subheadline.weight(.medium))
                 } else {
                     ProgressView()
-                    Text("\(progress.title)…")
-                        .font(.subheadline.weight(.medium))
                 }
-                Text(progress.detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+
+                // 文件名在左，已传 KB 在右，实时刷新。
+                HStack(spacing: 8) {
+                    Text(progress.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if progress.transferredBytes > 0 {
+                        Text(ByteCountFormatter.string(fromByteCount: progress.transferredBytes,
+                                                       countStyle: .file))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .padding(.horizontal, 22)
             .padding(.vertical, 18)
-            .frame(maxWidth: 280)
+            .frame(maxWidth: 300)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
             .shadow(radius: 12, y: 4)
             .allowsHitTesting(false)
@@ -171,10 +198,21 @@ private struct DirectoryPage: View {
             // 断线重连成功后重新拉取当前目录（保留导航层级与选中态）。
             .onChange(of: model.refreshToken) { _, _ in Task { await load() } }
             .toolbar { toolbarContent }
-            // 多选态隐藏系统返回键（左上角改放"全选"）；正常态保留系统原生返回箭头。
-            .navigationBarBackButtonHidden(isSelecting)
+            // 多选 / 搜索态隐藏系统返回键：leading 留空后 .principal 才严格居中，
+            // 使搜索框在顶层与子层级位置一致、到「取消」距离恒定；正常态保留系统原生返回箭头。
+            .navigationBarBackButtonHidden(isSelecting || isSearching)
             .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
             .background(dialogHost)
+            // 搜索框展开动画结束后再聚焦，避免同帧设置 FocusState 被视图过渡重置。
+            .onChange(of: isSearching) { _, searching in
+                if searching {
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 300_000_000)
+                        // 守卫：若期间已点「取消」退出搜索，则不再聚焦。
+                        if isSearching { searchFocused = true }
+                    }
+                }
+            }
     }
 
     /// 退出搜索：清空关键词并收起搜索框，带与展开一致的水平缓动过渡。
@@ -431,7 +469,12 @@ private struct DirectoryPage: View {
                 Text("\(selectedIDs.count) 项").font(.headline)
                     .opacity(isSelecting ? 1 : 0)
                     .allowsHitTesting(isSelecting)
-                searchField
+                // 搜索框与「取消」同组居中：两者间距由 HStack 固定，
+                // 因此顶层与子层级到取消按钮的距离完全一致，不受返回箭头影响。
+                HStack(spacing: 12) {
+                    searchField
+                    Button("取消") { closeSearch() }
+                }
                     .opacity(isSearching ? 1 : 0)
                     .offset(x: isSearching ? 0 : 32)
                     .allowsHitTesting(isSearching)
@@ -445,14 +488,16 @@ private struct DirectoryPage: View {
                     Image(systemName: "checkmark.circle.fill").font(.title3)
                 }
             } else if isSearching {
-                Button("取消") { closeSearch() }
+                // 取消按钮已随搜索框同组放于 .principal，此处留空避免重复。
+                EmptyView()
             } else {
                 // 放大镜与裸三点更多各自独立，加大组内间距与按钮热区，避免贴边。
                 HStack(spacing: 26) {
                     Button {
                         resetSelection()
-                        isSearching = true
-                        searchFocused = true
+                        withAnimation(.easeInOut(duration: 0.25)) { isSearching = true }
+                        // 聚焦交给 onChange(isSearching) 在过渡结束后执行，
+                        // 同帧设置 FocusState 会被视图转场重置，导致键盘不弹出。
                     } label: {
                         Image(systemName: "magnifyingglass")
                             .frame(width: 28, height: 32)
@@ -465,6 +510,17 @@ private struct DirectoryPage: View {
                 .padding(.trailing, 8)
             }
         }
+    }
+
+    /// 搜索框宽度随屏幕自适应，使右边缘与「取消」按钮保持固定留白。
+    /// 搜索态已隐藏返回箭头，因此顶层与子层级的 toolbar 布局完全一致，
+    /// 搜索框位置不再因有无返回箭头而偏移。
+    private var searchFieldWidth: CGFloat {
+        let w = UIScreen.main.bounds.width
+        if sizeClass == .compact {
+            return max(180, w - 168)
+        }
+        return min(max(320, w - 260), 560)
     }
 
     /// 搜索态标题位输入框：系统原生胶囊外观，自动聚焦、一键清空。
@@ -486,7 +542,7 @@ private struct DirectoryPage: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .background(.quaternary.opacity(0.7), in: Capsule())
-        .frame(width: sizeClass == .compact ? 220 : 320)
+        .frame(width: searchFieldWidth)
     }
 
     /// 标题下拉：与右上 ⋯ 一致的系统原生 Menu，列出从根目录到当前的位置层级。

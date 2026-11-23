@@ -218,35 +218,39 @@ final class FileBrowserModel: ObservableObject {
         guard let client, !files.isEmpty else { return }
         let title = operation == .copy ? "正在复制" : "正在移动"
         batchProgress = BatchProgress(title: title, completed: 0, total: files.count,
-                                      detail: files.first?.name ?? "")
+                                      detail: files.first?.name ?? "", transferredBytes: 0, totalBytes: 0)
         defer { batchProgress = nil }
 
         do {
             for (index, file) in files.enumerated() {
+                // 单文件复制有准确总字节 → 字节进度条；目录/移动没有可靠总量 → 走项数进度。
+                let fileTotalBytes: Int64 = (operation == .copy && !file.isDirectory) ? file.size : 0
                 batchProgress = BatchProgress(title: title, completed: index, total: files.count,
-                                              detail: file.name)
+                                              detail: file.name, transferredBytes: 0,
+                                              totalBytes: fileTotalBytes)
                 switch operation {
                 case .move:
                     try await client.move(file, toDirectory: target)
                 case .copy:
                     try await client.copy(file, toDirectory: target) { copied in
                         Task { @MainActor [weak self] in
-                            let readable = ByteCountFormatter.string(fromByteCount: copied, countStyle: .file)
                             self?.batchProgress = BatchProgress(
                                 title: title, completed: index, total: files.count,
-                                detail: "\(file.name) · 已传 \(readable)"
+                                detail: file.name, transferredBytes: copied,
+                                totalBytes: fileTotalBytes
                             )
                         }
                     }
                 }
             }
             batchProgress = BatchProgress(title: title, completed: files.count, total: files.count,
-                                          detail: "完成")
+                                          detail: "完成", transferredBytes: 0, totalBytes: 0)
             return
         } catch {
             // 纯 SFTP 失败，继续尝试 SSH 命令回退（单条命令无法细分，显示不确定进度）。
             batchProgress = BatchProgress(title: "\(title)（服务器命令）", completed: 0,
-                                          total: 0, detail: files.first?.name ?? "")
+                                          total: 0, detail: files.first?.name ?? "",
+                                          transferredBytes: 0, totalBytes: 0)
         }
         let sources = files.map { shellQuote($0.path) }.joined(separator: " ")
         let directory = target.hasSuffix("/") ? target : target + "/"
