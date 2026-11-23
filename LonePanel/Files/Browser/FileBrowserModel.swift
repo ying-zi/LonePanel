@@ -34,6 +34,9 @@ final class FileBrowserModel: ObservableObject {
     @Published private(set) var refreshToken = 0
     /// 回前台后的静默重连进行中：界面保持快照，仅由顶栏下进度条提示。
     @Published private(set) var isBackgroundReconnecting = false
+    /// 正在通过系统文件选择器上传：选择期间 App 会短暂进后台，
+    /// 必须抑制回前台的静默重连，否则新连接替换并 close 掉正在上传的 client。
+    @Published private(set) var isFileOperationActive = false
     /// 设置里是否已配置并选中服务器。
     var hasConfiguredServer: Bool { ServerSession.shared.currentServer != nil }
 
@@ -147,10 +150,18 @@ final class FileBrowserModel: ObservableObject {
 
     func reconnect() async { await connectIfNeeded(force: true) }
 
+    /// 文件选择器打开/上传开始时调用，抑制回前台静默重连。
+    func beginFileOperation() { isFileOperationActive = true }
+    /// 文件操作结束时调用，恢复静默重连。
+    func endFileOperation() { isFileOperationActive = false }
+
     /// 回前台静默重连：不调用 clearSession、不改动 isConnected，
     /// 因此界面保留切出去时的快照，不会全屏切到「正在连接服务器」。
     /// 新连接成功后原子替换 client 并递增 refreshToken 触发各目录页刷新列表。
     func reconnectSilently() async {
+        // 上传进行中（含系统文件选择器打开期间）不重连：
+        // 否则新连接会 close 掉正在写入的 client，导致上传静默失败。
+        guard !isFileOperationActive else { return }
         guard let info = ServerSession.shared.currentServer, isConnected else { return }
         isBackgroundReconnecting = true
         defer { isBackgroundReconnecting = false }
@@ -441,12 +452,18 @@ final class FileBrowserModel: ObservableObject {
     /// 把系统文件选择器给出的本地文件逐个上传到目标目录，复用批量进度 HUD。
     /// 每个文件先读取 Data 再分块写回；失败只提示当前文件，不中断其余上传。
     func upload(files urls: [URL], to directory: String) async {
-        guard let client, !urls.isEmpty else { return }
+        guard !urls.isEmpty else { return }
+        // 标记上传期：抑制回前台静默重连，避免 client 被替换导致写入中断。
+        isFileOperationActive = true
+        defer { isFileOperationActive = false }
+        guard let client else {
+            errorMessage = "上传失败：未连接到服务器，请重新连接后重试"
+            return
+        }
+
         let title = "正在上传"
-        batchProgress = BatchProgress(title: title, completed: 0, total: urls.count,
-                                      detail: urls.first?.lastPathComponent ?? "",
-                                      transferredBytes: 0, totalBytes: 0)
-        defer { batchProgress = nil }
+        var succeeded = 0
+        var failures: [String] = []
 
         for (index, url) in urls.enumerated() {
             let name = url.lastPathComponent
@@ -465,12 +482,27 @@ final class FileBrowserModel: ObservableObject {
                         )
                     }
                 }
+                succeeded += 1
             } catch {
-                errorMessage = "上传「\(name)」失败：\(error.localizedDescription)"
+                failures.append("\(name)：\(SSHSession.describe(error))")
             }
         }
+
+        // 完成态停留约 0.8 秒让用户看清，再清除 HUD。
         batchProgress = BatchProgress(title: title, completed: urls.count, total: urls.count,
-                                      detail: "完成", transferredBytes: 0, totalBytes: 0)
+                                      detail: failures.isEmpty ? "完成" : "部分失败",
+                                      transferredBytes: 0, totalBytes: 0)
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        if batchProgress?.title == title { batchProgress = nil }
+
+        // 明确的成功/失败反馈——此前成功无任何提示、失败只在逐文件 catch 里，
+        // 小文件秒传时进度 HUD 一闪而过，用户感知就是「点了没反应」。
+        if failures.isEmpty {
+            errorMessage = succeeded == 1 ? "已上传 1 个文件" : "已上传 \(succeeded) 个文件"
+        } else {
+            let ok = succeeded > 0 ? "成功 \(succeeded) 个；" : ""
+            errorMessage = "上传结束：\(ok)失败 \(failures.count) 个。\(failures.joined(separator: "\n"))"
+        }
     }
 
     // MARK: - 预览与导出（QuickLook / 系统分享面板）

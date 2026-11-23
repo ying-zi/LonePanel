@@ -93,6 +93,14 @@ struct FileBrowserView: View {
             model.clearClipboard()
             previewURL = nil
         }
+        // push 到新目录时自动退出搜索态：isSearching 是全局单例状态，
+        // 若搜索态下点进文件夹，子页面工具栏会读到 true 而把按钮整片隐藏。
+        .onChange(of: model.navPath.count) { oldCount, newCount in
+            if newCount > oldCount, model.isSearching {
+                model.isSearching = false
+                model.searchText = ""
+            }
+        }
         .quickLookPreview($previewURL)
         .sheet(item: $shareItem) { ActivityShareSheet(items: $0.urls) }
         .alert("操作提示", isPresented: errorBinding) {
@@ -228,15 +236,27 @@ private struct DirectoryPage: View {
                           allowsMultipleSelection: true) { result in
                 switch result {
                 case .success(let urls):
-                    Task {
+                    Task { @MainActor in
+                        // 立即持锁：防止 showFileImporter 关闭的兜底复位与上传开始间出现空窗。
+                        model.beginFileOperation()
                         await model.upload(files: urls, to: node.path)
                         await load()
+                        model.endFileOperation()
                     }
                 case .failure(let error):
                     Task { @MainActor in
+                        model.endFileOperation()
+                        // 用户主动取消（NSUserCancelledError code=2）不弹错误打扰。
+                        if (error as NSError).code == 2 { return }
                         model.errorMessage = "选择文件失败：\(error.localizedDescription)"
                     }
                 }
+            }
+            // 点菜单项置位：选择器打开期间 App 进后台，抑制回前台静默重连。
+            // 复位统一交给 completion（success 上传结束 / failure 含用户取消）处理，
+            // 不在此处 on false 复位，避免与上传开始抢跑产生空窗。
+            .onChange(of: showFileImporter) { _, presenting in
+                if presenting { model.beginFileOperation() }
             }
     }
 
@@ -503,27 +523,13 @@ private struct DirectoryPage: View {
                         .frame(width: 32, height: 32)
                         .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 9))
                 }
-            } else if model.isSearching {
-                // 搜索态：「取消」由系统搜索栏提供，此处留空避免重复。
-                EmptyView()
             } else {
-                // 放大镜与裸三点更多各自独立，加大组内间距与按钮热区，避免贴边。
-                HStack(spacing: 26) {
-                    Button {
-                        resetSelection()
-                        // 程序化激活系统搜索：置 isPresented 呈现搜索栏。
-                        // 焦点由导航栈上的 .searchFocused 绑定接管，自动弹键盘。
-                        model.isSearching = true
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                            .frame(width: 28, height: 32)
-                            .contentShape(Rectangle())
-                    }
-                    moreMenu
-                }
-                .padding(.leading, 6)
-                // 让整组按钮与屏幕右边缘拉开距离，避免 ⋯ 贴边。
-                .padding(.trailing, 8)
+                // 搜索入口完全交给系统：.searchToolbarBehavior(.minimize) 会在工具栏
+                // 提供唯一的放大镜按钮（在 ⋯ 右侧）。这里只放裸三点更多，不再自定义
+                // 放大镜，避免首页出现两个搜索按钮。
+                // 更多按钮在正常态与搜索态都常驻，下级目录不会因搜索态残留而按钮全消失。
+                moreMenu
+                    .padding(.trailing, 8)
             }
         }
     }
