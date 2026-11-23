@@ -166,11 +166,44 @@ final class SSHSession {
 
     deinit { close() }
 
+    /// 把任意错误翻译成给用户看的中文提示，绝不暴露 NIO / NIOSSH / Posix 原始报错。
     static func describe(_ error: Error) -> String {
-        if let localized = error as? LocalizedError, let text = localized.errorDescription {
-            return text
+        switch error {
+        case let e as SSHConnectionError: return e.localizedDescription
+        case let e as PrivateKeyError: return e.localizedDescription
+        default: return mapUnderlying(String(describing: error))
         }
-        return String(describing: error)
+    }
+
+    /// 依据底层错误关键字，映射为具体、可读的中文原因。
+    private static func mapUnderlying(_ raw: String) -> String {
+        let text = raw.lowercased()
+        if text.contains("timed out") || text.contains("timeout") {
+            return "连接超时，请检查网络是否通畅、服务器是否在线"
+        }
+        if text.contains("connection refused") || text.contains("econnrefused") || text.contains("refused") {
+            return "服务器拒绝连接，请确认地址与端口正确、对方 SSH 服务已开启"
+        }
+        if text.contains("nodename nor servname") || text.contains("getaddrinfo") ||
+            text.contains("name or service not known") || text.contains("dns") {
+            return "无法解析服务器地址，请检查地址是否填写正确"
+        }
+        if text.contains("network is unreachable") || text.contains("no route to host") ||
+            text.contains("networkunreachable") {
+            return "网络不可达，请检查本机网络连接"
+        }
+        if text.contains("authentication") || text.contains("permission denied") || text.contains("authfail") {
+            return "认证失败，请检查用户名与密码或私钥是否正确"
+        }
+        if text.contains("host key") || text.contains("handshake") || text.contains("algorithm") ||
+            text.contains("kex") {
+            return "SSH 协商失败，服务器配置可能与本 App 不兼容"
+        }
+        if text.contains("reset by peer") || text.contains("broken pipe") || text.contains("eof") ||
+            text.contains("closed") {
+            return "连接被服务器中断，请稍后重试或检查服务器状态"
+        }
+        return "连接失败，请检查服务器地址、端口和网络后重试"
     }
 }
 

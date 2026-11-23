@@ -16,6 +16,7 @@ struct ServerFormView: View {
     @State private var privateKeyPEM: String = ""
     @State private var testing = false
     @State private var testResult: String?
+    @State private var testError: String?
     @State private var errorMessage: String?
 
     init(server: Server?, onSaved: @escaping () -> Void) {
@@ -101,6 +102,11 @@ struct ServerFormView: View {
             } message: {
                 Text(errorMessage ?? "")
             }
+            .alert("连接失败", isPresented: testErrorAlertBinding) {
+                Button("好", role: .cancel) { testError = nil }
+            } message: {
+                Text(testError ?? "")
+            }
         }
     }
 
@@ -141,6 +147,8 @@ struct ServerFormView: View {
         guard validate() else { return }
         guard let port else { return }
         testing = true
+        testResult = nil
+        testError = nil
         defer { testing = false }
 
         do {
@@ -153,7 +161,8 @@ struct ServerFormView: View {
             )
             testResult = message
         } catch {
-            testResult = "连接失败：\(SSHSession.describe(error))"
+            // 统一翻译成人话，用系统原生 alert 展示，不暴露底层报错。
+            testError = SSHSession.describe(error)
         }
     }
 
@@ -195,6 +204,13 @@ struct ServerFormView: View {
         Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
+        )
+    }
+
+    private var testErrorAlertBinding: Binding<Bool> {
+        Binding(
+            get: { testError != nil },
+            set: { if !$0 { testError = nil } }
         )
     }
 }
