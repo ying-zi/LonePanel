@@ -57,6 +57,7 @@
 				B20000000000000000000001 /* Resources */,
 				A30000000000000000000001 /* Products */,
 			);
+			path = LonePanel;
 			sourceTree = "<group>";
 		};
 		A30000000000000000000001 /* Products */ = {
