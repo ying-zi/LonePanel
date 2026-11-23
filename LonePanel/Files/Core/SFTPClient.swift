@@ -296,7 +296,7 @@ final class SFTPClient {
 
     /// 纯 SFTP 移动：rename 到目标目录（同名）。不依赖远端 exec 通道。
     func move(_ file: RemoteFile, toDirectory target: String) async throws {
-        try rename(from: file.path, to: joined(target, file.name))
+        try await rename(from: file.path, to: joined(target, file.name))
     }
 
     /// 纯 SFTP 复制：文件走 read+write；目录递归创建并复制子项。不依赖远端 exec 通道。
@@ -306,7 +306,7 @@ final class SFTPClient {
 
     private func copyItem(_ file: RemoteFile, to dest: String) async throws {
         if file.isDirectory {
-            try makeDirectory(dest)
+            try await makeDirectory(dest)
             let children = try await listDirectory(file.path)
             for child in children {
                 try await copyItem(child, to: joined(dest, child.name))
