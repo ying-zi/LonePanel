@@ -80,7 +80,7 @@ final class SSHSession {
         let hostKey = HostKeyDelegate()
 
         let bootstrap = ClientBootstrap(group: group)
-            .connectTimeout(.seconds(timeoutSeconds))
+            .connectTimeout(.seconds(Int64(timeoutSeconds)))
             .channelInitializer { channel in
                 channel.eventLoop.makeCompletedFuture {
                     let sync = channel.pipeline.syncOperations
@@ -349,7 +349,7 @@ private final class ExecCollector: ChannelDuplexHandler {
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let payload = unwrapInboundIn(data)
         guard case .byteBuffer(var buffer) = payload.data else { return }
-        let bytes = buffer.readBytes(buffer.readableBytes) ?? []
+        let bytes = buffer.readBytes(length: buffer.readableBytes) ?? []
         switch payload.type {
         case .channel: stdout.append(contentsOf: bytes)
         case .stdErr: stderr.append(contentsOf: bytes)
