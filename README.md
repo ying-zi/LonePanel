@@ -10,8 +10,9 @@
 
 ## 当前状态
 
-五个 Tab（网站 / Docker / 数据库 / 文件 / 设置）可切换；网站/Docker/数据库/文件仍为空壳。
+五个 Tab（网站 / Docker / 数据库 / 文件 / 设置）可切换；网站/Docker/数据库仍为空壳。
 设置模块已实现第一刀「我的服务器」：服务器列表、默认/当前标注、左滑编辑/设为默认/删除、添加/编辑表单、真实 SSH 测试连接、凭证存钥匙串、临时切换仅当前进程有效。
+文件模块已实现原生 SFTP 文件浏览器：层级导航、搜索、下拉刷新、新建/重命名/删除、Quick Look 预览、右上角「设为默认访问目录」；SFTP 基于已认证 SSH 连接开启 sftp subsystem，自实现 SFTP v3 协议，零新增依赖。
 
 ## 目录结构
 
@@ -27,15 +28,17 @@ LonePanel/
 │   ├── Navigation/TabModule.swift
 │   ├── Theme/                    主题、共用空壳视图
 │   ├── Session/                  ServerConnectionInfo / ServerSession（连接快照与单例）
-│   ├── SSH/                      SSHSession（真实握手与 exec）、私钥解析
+│   ├── SSH/                      SSHSession（真实握手与 exec）、私钥解析、subsystem 子通道
 │   ├── Keychain/                 凭证存取
-│   ├── SFTP/  Logging/           预留
+│   ├── Logging/                  预留
 ├── Website/                      模块出口 + 空壳 + 内部 Core 与子模块占位
 │   ├── WebsiteTab.swift / WebsiteView.swift
 │   └── Core/ PHP/ NodeJS/ ReverseProxy/ Certificate/ NginxEditor/
 ├── Docker/    DockerTab/View + Core/ Containers/ Images/ Compose/
 ├── Database/  DatabaseTab/View + Core/ MySQL/ PostgreSQL/ Redis/
-├── Files/     FilesTab/View + Core/ Browser/ Editor/
+├── Files/     FilesTab/View
+│   ├── Core/        SFTP v3 客户端与协议、默认访问目录持久化
+│   └── Browser/     原生文件浏览器（Model + View）
 ├── Settings/  SettingsTab/View
 │   ├── Core/       Server 模型、列表落盘、具体会话实现
 │   └── Servers/    我的服务器列表页、添加/编辑表单
