@@ -390,12 +390,12 @@
 				D10000000000000000000030 /* SettingsServerSession.swift in Sources */,
 				D10000000000000000000031 /* ServersView.swift in Sources */,
 				D10000000000000000000032 /* ServerFormView.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 				D10000000000000000000033 /* TabNavigationCenter.swift in Sources */,
 				D10000000000000000000034 /* FileTypes.swift in Sources */,
 				D10000000000000000000035 /* FileDetailView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
