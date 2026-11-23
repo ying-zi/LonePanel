@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// 导航层级节点：根或某一级目录。NavigationStack 的 path 使用，push 即进入子目录，
 /// 系统自带返回箭头回到上一级，与系统「文件」App 的逐层浏览一致。
@@ -78,6 +79,18 @@ enum FileKind {
         case .code: return "chevron.left.forwardslash.chevron.right"
         case .archive: return "doc.zipper"
         case .other: return "doc.fill"
+        }
+    }
+
+    /// 系统文件 App 的图标配色：文件夹蓝、图像紫、代码蓝绿、归档橙，其余灰。
+    var tint: Color {
+        switch self {
+        case .directory: return .blue
+        case .image: return .purple
+        case .text: return .secondary
+        case .code: return .teal
+        case .archive: return .orange
+        case .other: return .secondary
         }
     }
 

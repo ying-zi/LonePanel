@@ -1,42 +1,52 @@
 import SwiftUI
 import QuickLook
 
-/// 对齐 iOS 26 系统「文件」App 的浏览器：
-/// - NavigationStack 逐层 push 目录，子层级系统自带返回箭头；
-/// - 大标题 + 原生工具栏（视图切换 / 选择 / 更多）；
-/// - 列表 / 图标网格两种视图，系统默认行样式；
-/// - 长按上下文菜单、左滑操作、多选态系统底部工具栏；
+/// 对齐 iOS 26/27 系统「文件」App 的浏览器：
+/// - 逐层 push 导航，顶部为「返回/前进」胶囊，标题带下拉箭头可展开位置层级；
+/// - 列表 / 图标网格两种视图，系统默认行样式，每一个条目整行可点；
+/// - 长按上下文菜单（顶部快捷三连）、左滑操作、多选态浮动玻璃工具条；
 /// - 单击文件走系统 QuickLook，分享走系统分享面板。
 struct FileBrowserView: View {
     @StateObject private var model = FileBrowserModel()
+    @StateObject private var history = NavigationHistory()
     @ObservedObject private var session = ServerSession.shared
 
-    /// 目录导航栈：每 push 一层就是一个 FileNode，返回箭头由系统提供。
-    @State private var navPath: [FileNode] = []
-    /// QuickLook 预览的本地文件。
     @State private var previewURL: URL?
-    /// 系统分享面板的本地文件。
     @State private var shareItem: ShareItem?
+
+    /// NavigationStack 的 path 由历史游标派生：根不进 path，返回/前进即游标移动。
+    private var navPath: Binding<[FileNode]> {
+        Binding(get: { history.path }, set: { history.sync(path: $0) })
+    }
 
     var body: some View {
         Group {
             if model.isConnected {
-                browserStack
+                NavigationStack(path: navPath) {
+                    DirectoryPage(
+                        model: model,
+                        node: FileNode(path: model.entryPath, title: model.serverName)
+                    )
+                    .navigationDestination(for: FileNode.self) { node in
+                        DirectoryPage(model: model, node: node)
+                    }
+                }
             } else {
                 disconnectedView
             }
         }
-        .task { await model.connectIfNeeded() }
-        .onChange(of: session.currentServer?.id) { _, _ in
-            navPath = []
-            previewURL = nil
-            Task { await model.reconnect() }
+        .environmentObject(history)
+        .task {
+            await model.connectIfNeeded()
+            if model.isConnected { resetToRoot() }
         }
-        // 单击当前文件 Tab：清空导航栈回到默认目录入口。
+        .onChange(of: session.currentServer?.id) { _, _ in
+            Task { await model.reconnect(); resetToRoot() }
+        }
+        // 单击当前文件 Tab：回默认目录入口（清历史到根）。
         .onReceive(TabNavigationCenter.shared.$resetRequest) { request in
             guard let request, request.tabID == "files" else { return }
-            navPath = []
-            previewURL = nil
+            resetToRoot()
         }
         .quickLookPreview($previewURL)
         .sheet(item: $shareItem) { ActivityShareSheet(item: $0.url) }
@@ -44,27 +54,6 @@ struct FileBrowserView: View {
             Button("好", role: .cancel) { model.dismissError() }
         } message: {
             Text(model.errorMessage ?? "")
-        }
-    }
-
-    private var browserStack: some View {
-        NavigationStack(path: $navPath) {
-            DirectoryPage(
-                model: model,
-                node: FileNode(path: model.entryPath, title: model.serverName),
-                navPath: $navPath,
-                previewURL: $previewURL,
-                shareItem: $shareItem
-            )
-            .navigationDestination(for: FileNode.self) { node in
-                DirectoryPage(
-                    model: model,
-                    node: node,
-                    navPath: $navPath,
-                    previewURL: $previewURL,
-                    shareItem: $shareItem
-                )
-            }
         }
     }
 
@@ -79,18 +68,64 @@ struct FileBrowserView: View {
         }
     }
 
+    private func resetToRoot() {
+        history.reset(to: FileNode(path: model.entryPath, title: model.serverName))
+        previewURL = nil
+    }
+
     private var errorBinding: Binding<Bool> {
         Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.dismissError() } })
+    }
+}
+
+/// 目录浏览历史：nodes[0] 为根，index 为当前层级。系统 NavigationStack 只有返回，
+/// 前进/后退胶囊由此游标驱动（系统无原生前进控件，属"系统没有的才自己写"）。
+final class NavigationHistory: ObservableObject {
+    @Published private(set) var nodes: [FileNode] = []
+    @Published private(set) var index: Int = 0
+
+    var canGoBack: Bool { index > 0 }
+    var canGoForward: Bool { index < nodes.count - 1 }
+
+    /// 传给 NavigationStack 的 path：不含根，长度等于当前深度。
+    var path: [FileNode] {
+        guard index > 0, nodes.count > 1 else { return [] }
+        return Array(nodes.dropFirst().prefix(index))
+    }
+
+    func reset(to root: FileNode) {
+        nodes = [root]
+        index = 0
+    }
+
+    /// 系统 push/pop 触发 path 变化时同步历史；push 新节点会截断此前的前进历史。
+    func sync(path newPath: [FileNode]) {
+        if newPath.count < index {
+            index = newPath.count
+        } else if newPath.count > index {
+            if nodes.count > index + 1 {
+                nodes = Array(nodes.prefix(index + 1))
+            }
+            for node in newPath.dropFirst(index) {
+                nodes.append(node)
+            }
+            index = newPath.count
+        }
+    }
+
+    func goBack() { if index > 0 { index -= 1 } }
+    func goForward() { if index < nodes.count - 1 { index += 1 } }
+    func jump(to target: Int) {
+        guard target >= 0, target < nodes.count else { return }
+        index = target
     }
 }
 
 /// 单一目录层级页面。自己的条目、搜索、多选与弹窗状态互不干扰，返回上层天然保留。
 private struct DirectoryPage: View {
     @ObservedObject var model: FileBrowserModel
+    @EnvironmentObject private var history: NavigationHistory
     let node: FileNode
-    @Binding var navPath: [FileNode]
-    @Binding var previewURL: URL?
-    @Binding var shareItem: ShareItem?
 
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var entries: [RemoteFile] = []
@@ -98,6 +133,7 @@ private struct DirectoryPage: View {
     @State private var searchText = ""
     @State private var isSelecting = false
     @State private var selectedIDs: Set<RemoteFile.ID> = []
+    @State private var showPathMenu = false
 
     // 操作弹窗状态
     @State private var pendingCreateFolder = false
@@ -111,25 +147,20 @@ private struct DirectoryPage: View {
     @State private var targetOperation: BatchOperation?
     @State private var targetFiles: [RemoteFile] = []
 
-    private var title: String { node.title }
-
     var body: some View {
         pageContent
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "搜索")
             .refreshable { await load() }
             .task { await load() }
             .toolbar { toolbarContent }
-            // 多选态底部系统工具栏
-            .safeAreaInset(edge: .bottom) {
-                if isSelecting { batchActionBar }
-            }
-        // 弹窗宿主挂到背景，拆开类型检查链
-        .background(dialogHost)
+            .navigationBarBackButtonHidden(true)
+            .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
+            .overlay { pathMenuOverlay }
+            .background(dialogHost)
     }
 
-    /// 所有弹窗集中在独立的轻量宿主上，避免 body 的 modifier 链过长导致 type-check 超时。
+    /// 所有弹窗集中在独立宿主，避免 body 的 modifier 链过长导致 type-check 超时。
     private var dialogHost: some View {
         Color.clear.frame(width: 0, height: 0)
         .alert("新建文件夹", isPresented: $pendingCreateFolder) {
@@ -201,8 +232,7 @@ private struct DirectoryPage: View {
     private func load() async {
         isLoading = true
         defer { isLoading = false }
-        let result = await model.listDirectory(at: node.path)
-        entries = result
+        entries = await model.listDirectory(at: node.path)
     }
 
     private var visibleEntries: [RemoteFile] {
@@ -215,61 +245,90 @@ private struct DirectoryPage: View {
         !visibleEntries.isEmpty && selectedIDs.count == visibleEntries.count
     }
 
-    // MARK: - 列表视图（系统默认行样式）
+    // MARK: - 列表视图（系统默认行样式，整行可点）
 
     private var listView: some View {
         List {
             ForEach(visibleEntries) { file in
-                FileRow(file: file)
-                    .contentShape(Rectangle())
-                    .onTapGesture { activate(file) }
-                    .contextMenu { contextMenuItems(for: file) }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        if !isSelecting {
-                            Button {
-                                renameTarget(file)
-                            } label: {
-                                Label("重命名", systemImage: "pencil")
-                            }
-                            .tint(.orange)
-                            Button(role: .destructive) {
-                                requestDelete([file])
-                            } label: {
-                                Label("删除", systemImage: "trash")
-                            }
-                            Button {
-                                beginTransfer(.move, files: [file])
-                            } label: {
-                                Label("移动", systemImage: "arrow.right")
-                            }
-                            .tint(.blue)
-                        }
-                    }
+                rowView(for: file)
             }
         }
         .listStyle(.insetGrouped)
-        .overlay {
-            if isLoading && !entries.isEmpty { ProgressView() }
+        .overlay { if isLoading && !entries.isEmpty { ProgressView() } }
+    }
+
+    /// 每个条目用系统原生 NavigationLink / Button 承载点击 —— 整行都是热区，
+    /// 而非只在文件名上挂 gesture。多选态改为切换选中的 Button。
+    @ViewBuilder
+    private func rowView(for file: RemoteFile) -> some View {
+        Group {
+            if isSelecting {
+                Button { toggleSelection(file) } label: {
+                    FileRow(file: file, isSelected: selectedIDs.contains(file.id), showsCheckmark: true)
+                }
+                .buttonStyle(.plain)
+            } else if file.isDirectory {
+                NavigationLink(value: FileNode(path: file.path, title: file.name)) {
+                    FileRow(file: file)
+                }
+            } else {
+                Button { quickLook(file) } label: { FileRow(file: file) }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+            }
+        }
+        .contentShape(Rectangle())
+        .contextMenu { contextMenuItems(for: file) }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if !isSelecting {
+                Button { renameTarget(file) } label: { Label("重命名", systemImage: "pencil") }
+                    .tint(.orange)
+                Button(role: .destructive) { requestDelete([file]) } label: {
+                    Label("删除", systemImage: "trash")
+                }
+                Button { beginTransfer(.move, files: [file]) } label: {
+                    Label("移动", systemImage: "arrow.right")
+                }
+                .tint(.blue)
+            }
         }
     }
 
-    // MARK: - 图标网格视图
+    // MARK: - 图标网格视图（整行/整格可点）
 
     private var gridView: some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: sizeClass == .compact ? 84 : 110), spacing: 16)], spacing: 20) {
                 ForEach(visibleEntries) { file in
-                    GridFileCell(file: file, isSelected: selectedIDs.contains(file.id))
-                        .contentShape(Rectangle())
-                        .onTapGesture { activate(file) }
-                        .contextMenu { contextMenuItems(for: file) }
+                    gridCell(for: file)
                 }
             }
             .padding()
         }
-        .overlay {
-            if isLoading && !entries.isEmpty { ProgressView() }
+        .overlay { if isLoading && !entries.isEmpty { ProgressView() } }
+    }
+
+    @ViewBuilder
+    private func gridCell(for file: RemoteFile) -> some View {
+        Group {
+            if isSelecting {
+                Button { toggleSelection(file) } label: {
+                    GridFileCell(file: file, isSelected: selectedIDs.contains(file.id))
+                }
+                .buttonStyle(.plain)
+            } else if file.isDirectory {
+                NavigationLink(value: FileNode(path: file.path, title: file.name)) {
+                    GridFileCell(file: file)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button { quickLook(file) } label: { GridFileCell(file: file) }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+            }
         }
+        .contentShape(Rectangle())
+        .contextMenu { contextMenuItems(for: file) }
     }
 
     private var emptyView: some View {
@@ -281,42 +340,133 @@ private struct DirectoryPage: View {
         }
     }
 
-    // MARK: - 工具栏（对齐系统：视图切换 / 选择 / 更多）
+    // MARK: - 顶部工具栏（返回/前进胶囊 · 标题下拉 · ⋯）
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            if isSelecting {
-                Button("取消") { resetSelection() }
-            }
-        }
-        ToolbarItem(placement: .topBarTrailing) {
             if isSelecting {
                 Button(allVisibleSelected ? "取消全选" : "全选") {
                     if allVisibleSelected { selectedIDs = [] }
                     else { selectedIDs = Set(visibleEntries.map(\.id)) }
                 }
             } else {
-                HStack(spacing: 14) {
-                    Button {
-                        withAnimation { model.viewMode = model.viewMode == .list ? .grid : .list }
-                    } label: {
-                        Image(systemName: model.viewMode == .list ? "square.grid.2x2" : "list.bullet")
-                    }
-                    Button {
-                        isSelecting = true
-                        selectedIDs = []
-                    } label: {
-                        Image(systemName: "checkmark.circle")
-                    }
-                    moreMenu
-                }
+                navArrows
             }
+        }
+        ToolbarItem(placement: .principal) {
+            if isSelecting {
+                Text("\(selectedIDs.count) 项").font(.headline)
+            } else {
+                titleMenu
+            }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            if isSelecting {
+                Button { resetSelection() } label: {
+                    Image(systemName: "checkmark.circle.fill").font(.title3)
+                }
+            } else {
+                moreMenu
+            }
+        }
+    }
+
+    /// 返回/前进胶囊（系统无原生前进，自己维护历史游标）。
+    private var navArrows: some View {
+        HStack(spacing: 0) {
+            Button { history.goBack() } label: {
+                Image(systemName: "chevron.left").font(.body.weight(.semibold))
+            }
+            .disabled(!history.canGoBack)
+            Divider().frame(height: 14)
+            Button { history.goForward() } label: {
+                Image(systemName: "chevron.right").font(.body.weight(.semibold))
+            }
+            .disabled(!history.canGoForward)
+        }
+        .buttonStyle(.plain)
+        .frame(width: 68, height: 30)
+        .background(.quaternary.opacity(0.6), in: Capsule())
+    }
+
+    /// 标题带下拉箭头，展开位置层级浮层。
+    private var titleMenu: some View {
+        Button { withAnimation { showPathMenu.toggle() } } label: {
+            HStack(spacing: 4) {
+                Text(node.title).font(.headline).lineLimit(1)
+                Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
+            }
+            .foregroundStyle(.primary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 当前可跳转的层级（根到当前），供标题下拉浮层列出。
+    private var visibleLevels: [FileNode] {
+        Array(history.nodes.prefix(history.index + 1))
+    }
+
+    /// 标题下方展开的纵向位置层级：首行"根目录"，逐级列出，当前高亮，点击跳转。
+    @ViewBuilder
+    private var pathMenuOverlay: some View {
+        if showPathMenu {
+            ZStack(alignment: .top) {
+                Color.black.opacity(0.2)
+                    .ignoresSafeArea()
+                    .onTapGesture { withAnimation { showPathMenu = false } }
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(visibleLevels.enumerated()), id: \.offset) { idx, level in
+                        Button {
+                            history.jump(to: idx)
+                            withAnimation { showPathMenu = false }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: idx == history.index ? "checkmark" : (idx == 0 ? "folder" : "folder.fill"))
+                                    .foregroundStyle(idx == history.index ? Color.accentColor : Color.secondary)
+                                Text(idx == 0 ? "根目录" : level.title)
+                                    .foregroundStyle(idx == history.index ? Color.accentColor : Color.primary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        if idx != visibleLevels.count - 1 {
+                            Divider().padding(.leading, 40)
+                        }
+                    }
+                }
+                .frame(width: 260)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 0.5)
+                }
+                .shadow(radius: 12, y: 6)
+                .padding(.top, 46)
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .transition(.opacity.combined(with: .move(edge: .top)))
         }
     }
 
     private var moreMenu: some View {
         Menu {
+            Button {
+                isSelecting = true
+                selectedIDs = []
+            } label: {
+                Label("选择", systemImage: "checkmark.circle")
+            }
+            Button {
+                newFolderName = ""
+                pendingCreateFolder = true
+            } label: {
+                Label("新建文件夹", systemImage: "folder.badge.plus")
+            }
+            Divider()
             Menu {
                 ForEach(FileSortOrder.allCases) { order in
                     Button {
@@ -337,13 +487,13 @@ private struct DirectoryPage: View {
             } label: {
                 Label("排序方式", systemImage: "arrow.up.arrow.down")
             }
-
             Button {
-                newFolderName = ""
-                pendingCreateFolder = true
+                withAnimation { model.viewMode = model.viewMode == .list ? .grid : .list }
             } label: {
-                Label("新建文件夹", systemImage: "folder.badge.plus")
+                Label(model.viewMode == .list ? "图标视图" : "列表视图",
+                      systemImage: model.viewMode == .list ? "square.grid.2x2" : "list.bullet")
             }
+            Divider()
             Button {
                 model.showHiddenFiles.toggle()
                 Task { await load() }
@@ -351,7 +501,6 @@ private struct DirectoryPage: View {
                 Label(model.showHiddenFiles ? "隐藏隐藏文件" : "显示隐藏文件",
                       systemImage: model.showHiddenFiles ? "eye.slash" : "eye")
             }
-            Divider()
             Button {
                 model.setAsDefaultDirectory(node.path)
             } label: {
@@ -367,47 +516,27 @@ private struct DirectoryPage: View {
         }
     }
 
-    // MARK: - 长按上下文菜单（对齐系统文件 App）
+    // MARK: - 长按上下文菜单（顶部快捷三连）
 
     @ViewBuilder
     private func contextMenuItems(for file: RemoteFile) -> some View {
+        ControlGroup {
+            Button { beginTransfer(.copy, files: [file]) } label: {
+                Label("拷贝", systemImage: "doc.on.doc")
+            }
+            Button { beginTransfer(.move, files: [file]) } label: {
+                Label("移动", systemImage: "arrow.right")
+            }
+            Button { share(file) } label: {
+                Label("共享", systemImage: "square.and.arrow.up")
+            }
+        }
+        Divider()
         if !file.isDirectory {
-            Button {
-                Task {
-                    if let url = await model.localURL(for: file, purpose: "preview") { previewURL = url }
-                }
-            } label: {
-                Label("快速查看", systemImage: "eye")
-            }
-            Button {
-                Task {
-                    if let url = await model.localURL(for: file, purpose: "share") { shareItem = ShareItem(url: url) }
-                }
-            } label: {
-                Label("分享", systemImage: "square.and.arrow.up")
-            }
-            Divider()
+            Button { quickLook(file) } label: { Label("快速查看", systemImage: "eye") }
         }
-        Button {
-            infoFile = file
-        } label: {
-            Label("获取信息", systemImage: "info.circle")
-        }
-        Button {
-            renameTarget(file)
-        } label: {
-            Label("重命名", systemImage: "pencil")
-        }
-        Button {
-            beginTransfer(.move, files: [file])
-        } label: {
-            Label("移动", systemImage: "arrow.right")
-        }
-        Button {
-            beginTransfer(.copy, files: [file])
-        } label: {
-            Label("复制", systemImage: "doc.on.doc")
-        }
+        Button { infoFile = file } label: { Label("获取信息", systemImage: "info.circle") }
+        Button { renameTarget(file) } label: { Label("重命名", systemImage: "pencil") }
         if !file.isDirectory {
             Button {
                 Task { await model.compress([file], in: node.path); await load() }
@@ -416,67 +545,68 @@ private struct DirectoryPage: View {
             }
         }
         Divider()
-        Button(role: .destructive) {
-            requestDelete([file])
-        } label: {
+        Button(role: .destructive) { requestDelete([file]) } label: {
             Label("删除", systemImage: "trash")
         }
     }
 
-    // MARK: - 多选底部系统工具栏
+    // MARK: - 多选底部浮动玻璃工具条
 
     private var batchActionBar: some View {
         HStack(spacing: 4) {
-            batchButton("分享", systemImage: "square.and.arrow.up") {
-                Task {
-                    guard let first = selectedFiles.first,
-                          let url = await model.localURL(for: first, purpose: "share") else { return }
-                    shareItem = ShareItem(url: url)
-                }
-            }
-            batchButton("移动", systemImage: "arrow.right") { beginTransfer(.move, files: selectedFiles) }
-            batchButton("复制", systemImage: "doc.on.doc") { beginTransfer(.copy, files: selectedFiles) }
-            batchButton("压缩", systemImage: "doc.zipper") {
+            batchIcon("square.and.arrow.up") { shareFirstSelected() }
+            batchIcon("arrow.right") { beginTransfer(.move, files: selectedFiles) }
+            batchIcon("doc.on.doc") { beginTransfer(.copy, files: selectedFiles) }
+            batchIcon("doc.zipper") {
                 Task { await model.compress(selectedFiles, in: node.path); await load(); resetSelection() }
             }
-            batchButton("删除", systemImage: "trash", role: .destructive) { requestDelete(selectedFiles) }
+            batchIcon("trash", role: .destructive) { requestDelete(selectedFiles) }
+            Divider().frame(height: 22)
+            Menu {
+                Button(allVisibleSelected ? "取消全选" : "全选") {
+                    if allVisibleSelected { selectedIDs = [] }
+                    else { selectedIDs = Set(visibleEntries.map(\.id)) }
+                }
+                Button("新建文件夹") { newFolderName = ""; pendingCreateFolder = true }
+                Button("获取信息") {
+                    if let first = selectedFiles.first { infoFile = first }
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle").font(.body)
+            }
         }
-        .padding(10)
-        .background(.bar)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, in: Capsule())
+        .overlay {
+            Capsule().strokeBorder(Color.secondary.opacity(0.2), lineWidth: 0.5)
+        }
+        .shadow(radius: 12, y: 5)
+        .disabled(selectedIDs.isEmpty)
+        .padding(.horizontal)
+        .padding(.bottom, 6)
     }
 
-    private func batchButton(
-        _ title: String,
-        systemImage: String,
-        role: ButtonRole? = nil,
-        action: @escaping () -> Void
-    ) -> some View {
+    private func batchIcon(_ name: String, role: ButtonRole? = nil, action: @escaping () -> Void) -> some View {
         Button(role: role, action: action) {
-            VStack(spacing: 3) {
-                Image(systemName: systemImage).font(.body)
-                Text(title).font(.caption2)
-            }
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
+            Image(systemName: name).font(.body)
         }
         .buttonStyle(.plain)
-        .disabled(selectedIDs.isEmpty)
-        .foregroundStyle(role == .destructive ? Color.red : Color.accentColor)
     }
 
     // MARK: - 操作辅助
 
-    /// 单击：目录 push 下一级；文件进 QuickLook；多选态切换选中。
-    private func activate(_ file: RemoteFile) {
-        if isSelecting {
-            toggleSelection(file)
-        } else if file.isDirectory {
-            navPath.append(FileNode(path: file.path, title: file.name))
-        } else {
-            Task {
-                if let url = await model.localURL(for: file, purpose: "preview") { previewURL = url }
-            }
-        }
+    private func quickLook(_ file: RemoteFile) {
+        Task { if let url = await model.localURL(for: file, purpose: "preview") { previewURL = url } }
+    }
+
+    private func share(_ file: RemoteFile) {
+        Task { if let url = await model.localURL(for: file, purpose: "share") { shareItem = ShareItem(url: url) } }
+    }
+
+    private func shareFirstSelected() {
+        guard let first = selectedFiles.first else { return }
+        share(first)
     }
 
     private func toggleSelection(_ file: RemoteFile) {
@@ -524,15 +654,22 @@ private struct DirectoryPage: View {
     }
 }
 
-/// 单行文件条目：系统图标 + 名称 + 元信息；行高/间距/圆角全走系统 List 默认。
+/// 单行文件条目：系统图标 + 名称 + 元信息；撑满整行使整行都可点。
 private struct FileRow: View {
     let file: RemoteFile
+    var isSelected = false
+    var showsCheckmark = false
 
     var body: some View {
         HStack(spacing: 12) {
+            if showsCheckmark {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+            }
             Image(systemName: FileKind(file: file).systemImage)
                 .font(.title3)
-                .foregroundStyle(file.isDirectory ? Color.accentColor : Color.secondary)
+                .foregroundStyle(FileKind(file: file).tint)
             VStack(alignment: .leading, spacing: 2) {
                 Text(file.name)
                     .font(.body)
@@ -542,30 +679,40 @@ private struct FileRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
     private var meta: String {
-        if file.isDirectory { return "文件夹" }
+        let date = file.modified?.formatted(date: .abbreviated, time: .omitted) ?? ""
+        if file.isDirectory { return date.isEmpty ? "文件夹" : date }
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         let size = formatter.string(fromByteCount: file.size)
-        guard let date = file.modified else { return size }
-        return "\(size) · \(date.formatted(date: .abbreviated, time: .shortened))"
+        return date.isEmpty ? size : "\(date) · \(size)"
     }
 }
 
-/// 图标网格单元：大图标 + 文件名，对齐系统文件 App 的图标视图。
+/// 图标网格单元：大图标 + 文件名，撑满整格可点。
 private struct GridFileCell: View {
     let file: RemoteFile
-    let isSelected: Bool
+    var isSelected = false
 
     var body: some View {
         VStack(spacing: 6) {
-            Image(systemName: FileKind(file: file).systemImage)
-                .font(.system(size: 40))
-                .foregroundStyle(file.isDirectory ? Color.accentColor : Color.secondary)
-                .frame(height: 48)
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: FileKind(file: file).systemImage)
+                    .font(.system(size: 40))
+                    .foregroundStyle(FileKind(file: file).tint)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
             Text(file.name)
                 .font(.caption)
                 .lineLimit(2)
@@ -574,6 +721,7 @@ private struct GridFileCell: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
+        .contentShape(Rectangle())
         .background(isSelected ? Color.accentColor.opacity(0.12) : Color.clear,
                     in: RoundedRectangle(cornerRadius: 10))
     }
