@@ -169,7 +169,7 @@ private struct DirectoryPage: View {
                 .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: targetPickerBinding) {
-            TargetDirectorySheet(model: model, node: node, operation: targetOperation) { target in
+            TargetDirectorySheet(model: model, node: node, operation: targetOperation ?? .move) { target in
                 Task { await model.transfer(targetFiles, operation: targetOperation ?? .move, to: target); await load() }
                 targetOperation = nil
                 targetFiles = []
