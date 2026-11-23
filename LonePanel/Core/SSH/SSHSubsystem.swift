@@ -94,7 +94,7 @@ final class ByteInbox {
     }
 
     func take() async throws -> [UInt8] {
-        try withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { continuation in
             lock.lock()
             if !buffer.isEmpty {
                 let bytes = buffer
@@ -150,9 +150,9 @@ private final class SubsystemHandler: ChannelDuplexHandler {
     }
 
     func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
-        if event is SSHChannelRequestEvent.ChannelSuccessEvent {
+        if event is ChannelSuccessEvent {
             if !resolved { resolved = true; ready.succeed(()) }
-        } else if event is SSHChannelRequestEvent.ChannelFailureEvent {
+        } else if event is ChannelFailureEvent {
             if !resolved {
                 resolved = true
                 ready.fail(SSHConnectionError.authenticationUnsupported)

@@ -63,7 +63,8 @@ final class SFTPClient {
 
     private func handshake() async throws {
         let packet = SFTPPacket(type: SFTPMessage.initialize, payload: SFTPWire.be32(3))
-        try await withCheckedThrowingContinuation { continuation in
+        // VERSION 响应由 dispatch 通过 initContinuation 兑现；这里只等待握手完成。
+        _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<SFTPPacket, Error>) in
             lock.lock()
             initContinuation = continuation
             lock.unlock()
@@ -91,7 +92,7 @@ final class SFTPClient {
         buffer.append(contentsOf: chunk)
         var packets: [SFTPPacket] = []
         while buffer.count >= 4 {
-            let bodyLength = Int(try? SFTPWire.uint32(buffer, at: 0) ?? 0)
+            let bodyLength = Int((try? SFTPWire.uint32(buffer, at: 0)) ?? 0)
             guard bodyLength > 0 else { buffer.removeAll(); break }
             let total = 4 + bodyLength
             guard buffer.count >= total else { break }
@@ -224,7 +225,7 @@ final class SFTPClient {
         var result: [RemoteFile] = []
         while true {
             var read = PayloadWriter()
-            read.string(handle)
+            read.blob(handle)
             let response = try await request(type: SFTPMessage.readdir, payload: read.bytes)
 
             if response.type == SFTPMessage.status {
@@ -312,7 +313,7 @@ final class SFTPClient {
         let chunkSize: UInt32 = 32 * 1024
         while true {
             var read = PayloadWriter()
-            read.string(handle)
+            read.blob(handle)
             read.uint64(offset)
             read.uint32(chunkSize)
             let response = try await request(type: SFTPMessage.read, payload: read.bytes)
@@ -361,7 +362,7 @@ final class SFTPClient {
             let length = min(chunkSize, bytes.count - offset)
             let chunk = Array(bytes[offset..<(offset + length)])
             var write = PayloadWriter()
-            write.string(handle)
+            write.blob(handle)
             write.uint64(UInt64(offset))
             write.blob(chunk) // 4 字节长度 + 原始字节，可承载二进制
             try expectOK(try await request(type: SFTPMessage.write, payload: write.bytes))
@@ -377,7 +378,7 @@ final class SFTPClient {
         lock.unlock()
         var body = PayloadWriter()
         body.uint32(id)
-        body.string(handle)
+        body.blob(handle)
         transport.send(SFTPPacket(type: SFTPMessage.close, payload: body.bytes).framed)
     }
 }

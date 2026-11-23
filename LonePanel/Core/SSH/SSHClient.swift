@@ -44,7 +44,8 @@ enum SSHConnectionError: LocalizedError {
 /// 具体业务模块通过 ServerSession.currentServer 取得连接参数后使用它，不自行管理通道。
 final class SSHSession {
     private let group: MultiThreadedEventLoopGroup
-    private let channel: Channel
+    /// internal 可见性：供同模块 SSHSubsystem 扩展开启 subsystem 子通道。
+    let channel: Channel
     private let gateBox: GateBox
 
     init(
