@@ -18,6 +18,12 @@ final class FileBrowserModel: ObservableObject {
     /// 是否已完成首次导航初始化：冷启动建一次默认目录链，切回 Tab 不再重置。
     private(set) var navigationInitialized = false
 
+    // MARK: - 搜索（全局一份，供导航栈统一渲染，各级目录页共享过滤）
+    /// 搜索关键词：所有目录页用同一个词过滤各自条目。
+    @Published var searchText = ""
+    /// 是否处于搜索态：各级工具栏放大镜置 true，导航栈据此聚焦/收起。
+    @Published var isSearching = false
+
     // MARK: - 连接
     @Published private(set) var isConnected = false
     @Published private(set) var isLoading = false
