@@ -6,7 +6,7 @@ import NIOSSH
 /// 具体协议（如 SFTP）由功能模块在此之上实现。
 final class SSHSubsystemChannel {
     private let channel: Channel
-    private let inbox = ByteInbox()
+    private let inbox: ByteInbox
 
     init(channel: Channel, inbox: ByteInbox) {
         self.channel = channel
