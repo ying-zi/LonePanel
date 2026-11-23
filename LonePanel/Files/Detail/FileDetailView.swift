@@ -6,13 +6,18 @@ import UIKit
 /// 单击文件本身改为系统 QuickLook 预览，不在这里做自定义文本编辑/编码切换。
 struct FileInfoSheet: View {
     let file: RemoteFile
+    let model: FileBrowserModel
     @Environment(\.dismiss) private var dismiss
+    /// 文件夹的真实统计（SSH du/find 获取）；nil 表示未加载/不支持/失败。
+    @State private var folderStats: FolderStats?
+    @State private var statsLoading = false
 
     var body: some View {
         NavigationStack {
             List {
                 headerSection
                 attributesSection
+                if file.isDirectory { folderStatsSection }
                 locationSection
             }
             .navigationTitle("信息")
@@ -21,6 +26,13 @@ struct FileInfoSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
                 }
+            }
+            .task {
+                guard file.isDirectory else { return }
+                statsLoading = true
+                let result = await model.folderStats(for: file)
+                folderStats = result
+                statsLoading = false
             }
         }
     }
@@ -44,12 +56,39 @@ struct FileInfoSheet: View {
     private var attributesSection: some View {
         Section("属性") {
             LabeledContent("种类", value: kindLabel)
-            LabeledContent("大小", value: byteSize)
+            // 文件夹的 STAT size 无意义（见 folderStatsSection），只给文件显示大小。
+            if !file.isDirectory {
+                LabeledContent("大小", value: byteSize)
+            }
             if let date = file.modified {
                 LabeledContent("修改日期", value: date.formatted(date: .abbreviated, time: .shortened))
             }
             LabeledContent("权限", value: file.permissionText)
             LabeledContent("属主", value: ownerText)
+        }
+    }
+
+    /// 文件夹真实统计：磁盘占用 / 文件数 / 子目录数。
+    /// SFTP STAT 的目录 size 只是一个固定值（通常 4096），不代表实际占用，
+    /// 因此这里展示通过 SSH du/find 命令测得的数据；加载中显示转圈，失败显示未知。
+    @ViewBuilder
+    private var folderStatsSection: some View {
+        Section("内容") {
+            if statsLoading {
+                HStack {
+                    Text("正在统计磁盘占用…")
+                    Spacer()
+                    ProgressView()
+                }
+            } else if let stats = folderStats {
+                LabeledContent("磁盘占用", value: FileBrowserModel.sizeText(stats.sizeBytes))
+                LabeledContent("文件", value: "\(stats.fileCount) 个")
+                LabeledContent("子目录", value: "\(stats.directoryCount) 个")
+            } else {
+                LabeledContent("磁盘占用", value: "无法获取")
+                LabeledContent("文件", value: "未知")
+                LabeledContent("子目录", value: "未知")
+            }
         }
     }
 
@@ -74,9 +113,7 @@ struct FileInfoSheet: View {
     }
 
     private var byteSize: String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: file.size)
+        FileBrowserModel.sizeText(file.size)
     }
 
     private var ownerText: String {

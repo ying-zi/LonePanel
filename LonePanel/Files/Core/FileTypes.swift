@@ -138,3 +138,13 @@ struct BatchProgress {
     let transferredBytes: Int64
     let totalBytes: Int64
 }
+
+/// 文件夹真实统计（通过远端 shell 命令获取，SFTP STAT 的目录 size 不代表实际占用）。
+struct FolderStats {
+    /// 磁盘占用字节数（du -sk 的 KB 结果 × 1024）。
+    let sizeBytes: Int64
+    /// 包含的文件数（不含目录本身）。
+    let fileCount: Int
+    /// 包含的子目录数（不含目录本身）。
+    let directoryCount: Int
+}

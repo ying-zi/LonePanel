@@ -349,6 +349,81 @@ final class FileBrowserModel: ObservableObject {
         DefaultDirectoryStore.set(path, for: id)
     }
 
+    // MARK: - 大小格式化（统一处理 0 字节，避免 ByteCountFormatter 输出 "Zero KB"）
+
+    /// 人类可读的大小文案。0 字节统一显示 "0 KB"，不使用系统默认的 "Zero KB"。
+    static func sizeText(_ bytes: Int64) -> String {
+        if bytes == 0 { return "0 KB" }
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
+    }
+
+    // MARK: - 文件夹真实统计（SSH du/find 命令，SFTP STAT 的目录 size 不可信）
+
+    /// 用远端 shell 命令统计文件夹的真实磁盘占用、文件数、子目录数。
+    /// 一条命令合并 du + 两次 find，降低往返；解析失败返回 nil，让界面显示「未知」。
+    func folderStats(for file: RemoteFile) async -> FolderStats? {
+        guard let client, file.isDirectory else { return nil }
+        let path = shellQuote(file.path)
+        // du -sk 输出「KB<TAB>路径」；find 统计不含目录自身，故子目录数 -1。
+        let script = "bytes=$(du -sk -- \(path) 2>/dev/null | awk '{print $1}'); "
+            + "files=$(find \(path) -type f 2>/dev/null | wc -l); "
+            + "dirs=$(find \(path) -type d 2>/dev/null | wc -l); "
+            + "echo \"${bytes:-0}|${files:-0}|$(( ${dirs:-1} - 1 ))\""
+        do {
+            let result = try await client.execute(script)
+            guard result.exitStatus == 0 else { return nil }
+            let parts = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+                .split(separator: "|", omittingEmptySubsequences: false)
+            guard parts.count == 3,
+                  let kb = Int64(parts[0].trimmingCharacters(in: .whitespacesAndNewlines)),
+                  let files = Int(parts[1].trimmingCharacters(in: .whitespacesAndNewlines)),
+                  let dirs = Int(parts[2].trimmingCharacters(in: .whitespacesAndNewlines))
+            else { return nil }
+            return FolderStats(sizeBytes: kb * 1024, fileCount: files, directoryCount: max(0, dirs))
+        } catch {
+            return nil
+        }
+    }
+
+    // MARK: - 上传（本地文件 → 当前目录）
+
+    /// 把系统文件选择器给出的本地文件逐个上传到目标目录，复用批量进度 HUD。
+    /// 每个文件先读取 Data 再分块写回；失败只提示当前文件，不中断其余上传。
+    func upload(files urls: [URL], to directory: String) async {
+        guard let client, !urls.isEmpty else { return }
+        let title = "正在上传"
+        batchProgress = BatchProgress(title: title, completed: 0, total: urls.count,
+                                      detail: urls.first?.lastPathComponent ?? "",
+                                      transferredBytes: 0, totalBytes: 0)
+        defer { batchProgress = nil }
+
+        for (index, url) in urls.enumerated() {
+            let name = url.lastPathComponent
+            batchProgress = BatchProgress(title: title, completed: index, total: urls.count,
+                                          detail: name, transferredBytes: 0, totalBytes: 0)
+            let reached = url.startAccessingSecurityScopedResource()
+            defer { if reached { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let data = try Data(contentsOf: url)
+                let totalBytes = Int64(data.count)
+                try await client.writeFile(client.joined(directory, name), data: data) { written in
+                    Task { @MainActor [weak self] in
+                        self?.batchProgress = BatchProgress(
+                            title: title, completed: index, total: urls.count,
+                            detail: name, transferredBytes: written, totalBytes: totalBytes
+                        )
+                    }
+                }
+            } catch {
+                errorMessage = "上传「\(name)」失败：\(error.localizedDescription)"
+            }
+        }
+        batchProgress = BatchProgress(title: title, completed: urls.count, total: urls.count,
+                                      detail: "完成", transferredBytes: 0, totalBytes: 0)
+    }
+
     // MARK: - 预览与导出（QuickLook / 系统分享面板）
 
     /// 把远程文件下载到本地临时目录并返回 URL，保留扩展名以便系统识别类型。
