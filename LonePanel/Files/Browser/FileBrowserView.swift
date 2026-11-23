@@ -112,8 +112,9 @@ private struct DirectoryPage: View {
     @State private var isSearching = false
     @FocusState private var searchFocused: Bool
     @State private var isSelecting = false
-    /// 不支持在线预览的文件给出提示，并继续走下载 + 系统分享。
+    /// 不支持在线预览的文件给出提示，确认后再下载 + 系统分享。
     @State private var previewNotice: String?
+    @State private var pendingNoticeFile: RemoteFile?
     @State private var selectedIDs: Set<RemoteFile.ID> = []
 
     // 操作弹窗状态
@@ -144,9 +145,9 @@ private struct DirectoryPage: View {
             .background(dialogHost)
     }
 
-    /// 退出搜索：清空关键词并收起搜索框，带系统缓动过渡。
+    /// 退出搜索：清空关键词并收起搜索框，带与展开一致的水平缓动过渡。
     private func closeSearch() {
-        withAnimation(.easeInOut(duration: 0.22)) {
+        withAnimation(.easeInOut(duration: 0.25)) {
             searchText = ""
             searchFocused = false
             isSearching = false
@@ -182,7 +183,13 @@ private struct DirectoryPage: View {
         }
         .confirmationDialog("删除所选项目？", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("删除", role: .destructive) {
-                Task { await model.delete(deleting); deleting = []; await load() }
+                let filesToDelete = deleting
+                Task {
+                    await model.delete(filesToDelete)
+                    deleting = []
+                    resetSelection()
+                    await load()
+                }
             }
             Button("取消", role: .cancel) { deleting = [] }
         }
@@ -196,7 +203,14 @@ private struct DirectoryPage: View {
             Text("所选内容位于系统关键目录（如 /etc、/usr）。删除可能导致系统异常，请务必确认你清楚后果。")
         }
         .alert("无法在线预览", isPresented: noticeBinding) {
-            Button("知道了", role: .cancel) { previewNotice = nil }
+            Button("取消", role: .cancel) { pendingNoticeFile = nil; previewNotice = nil }
+            Button("下载并分享") {
+                if let file = pendingNoticeFile {
+                    Task { if let url = await model.localURL(for: file, purpose: "share") { shareItem = ShareItem(url: url) } }
+                }
+                pendingNoticeFile = nil
+                previewNotice = nil
+            }
         } message: {
             Text(previewNotice ?? "")
         }
@@ -328,19 +342,19 @@ private struct DirectoryPage: View {
         Group {
             if isSelecting {
                 Button { toggleSelection(file) } label: {
-                GridFileCell(file: file, isSelected: selectedIDs.contains(file.id),
-                             progress: model.transferProgress[file.path])
-            }
-            .buttonStyle(.plain)
-        } else if file.isDirectory {
-            NavigationLink(value: FileNode(path: file.path, title: file.name)) {
-                GridFileCell(file: file, progress: model.transferProgress[file.path])
-            }
-            .buttonStyle(.plain)
-        } else {
-            Button { quickLook(file) } label: {
-                GridFileCell(file: file, progress: model.transferProgress[file.path])
-            }
+                    GridFileCell(file: file, isSelected: selectedIDs.contains(file.id),
+                                 progress: model.transferProgress[file.path])
+                }
+                .buttonStyle(.plain)
+            } else if file.isDirectory {
+                NavigationLink(value: FileNode(path: file.path, title: file.name)) {
+                    GridFileCell(file: file, progress: model.transferProgress[file.path])
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button { quickLook(file) } label: {
+                    GridFileCell(file: file, progress: model.transferProgress[file.path])
+                }
                 .buttonStyle(.plain)
                 .foregroundStyle(.primary)
             }
@@ -368,22 +382,31 @@ private struct DirectoryPage: View {
                     if allVisibleSelected { selectedIDs = [] }
                     else { selectedIDs = Set(visibleEntries.map(\.id)) }
                 }
+            } else if isSearching {
+                // 搜索态 trailing 只有一个「取消」按钮，leading 放等宽透明占位，
+                // 让 .principal 的搜索框在导航栏中严格居中，而不是向右/向左偏移。
+                Text("取消").opacity(0).disabled(true)
             }
-            // 非多选态不放置任何 leading item，让系统原生返回箭头显示（根页自动隐藏）。
+            // 普通态不放置 leading item，让系统原生返回箭头显示（根页自动隐藏）。
         }
         ToolbarItem(placement: .principal) {
-            // 标题位：多选计数 / 搜索框 / 层级下拉，切换走系统缓动过渡。
-            Group {
-                if isSelecting {
-                    Text("\(selectedIDs.count) 项").font(.headline)
-                } else if isSearching {
-                    searchField
-                } else {
-                    titleMenu
-                }
+            // 标题 / 多选计数 / 搜索框叠放在同一位置，切换只做水平位移 + 淡入淡出：
+            // 搜索框从右滑入、标题向左滑出；收起时标题由左滑回，全程无垂直跳动。
+            ZStack {
+                titleMenu
+                    .opacity(!isSearching && !isSelecting ? 1 : 0)
+                    .offset(x: isSearching ? -32 : 0)
+                    .allowsHitTesting(!isSearching && !isSelecting)
+                Text("\(selectedIDs.count) 项").font(.headline)
+                    .opacity(isSelecting ? 1 : 0)
+                    .allowsHitTesting(isSelecting)
+                searchField
+                    .opacity(isSearching ? 1 : 0)
+                    .offset(x: isSearching ? 0 : 32)
+                    .allowsHitTesting(isSearching)
             }
-            .animation(.easeInOut(duration: 0.22), value: isSearching)
-            .animation(.easeInOut(duration: 0.22), value: isSelecting)
+            .animation(.easeInOut(duration: 0.25), value: isSearching)
+            .animation(.easeInOut(duration: 0.25), value: isSelecting)
         }
         ToolbarItem(placement: .topBarTrailing) {
             if isSelecting {
@@ -393,16 +416,20 @@ private struct DirectoryPage: View {
             } else if isSearching {
                 Button("取消") { closeSearch() }
             } else {
-                // 独立的放大镜按钮，放在 ⋯ 左边；两者同处系统工具栏，用更大间距分隔。
-                HStack(spacing: 22) {
+                // 放大镜与裸三点更多各自独立，加大组内间距与按钮热区，避免贴边。
+                HStack(spacing: 26) {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.22)) { isSearching = true }
+                        resetSelection()
+                        isSearching = true
                         searchFocused = true
                     } label: {
                         Image(systemName: "magnifyingglass")
+                            .frame(width: 28, height: 32)
+                            .contentShape(Rectangle())
                     }
                     moreMenu
                 }
+                .padding(.leading, 6)
             }
         }
     }
@@ -427,7 +454,6 @@ private struct DirectoryPage: View {
         .padding(.vertical, 7)
         .background(.quaternary.opacity(0.7), in: Capsule())
         .frame(width: sizeClass == .compact ? 220 : 320)
-        .transition(.opacity.combined(with: .scale(scale: 0.92)))
     }
 
     /// 标题下拉：与右上 ⋯ 一致的系统原生 Menu，列出从根目录到当前的位置层级。
@@ -467,6 +493,8 @@ private struct DirectoryPage: View {
     private var moreMenu: some View {
         Menu {
             Button {
+                searchText = ""
+                isSearching = false
                 isSelecting = true
                 selectedIDs = []
             } label: {
@@ -499,7 +527,11 @@ private struct DirectoryPage: View {
                         model.sortOrder = order
                         Task { await load() }
                     } label: {
-                        Label(order.rawValue, systemImage: model.sortOrder == order ? "checkmark" : "")
+                        if model.sortOrder == order {
+                            Label(order.rawValue, systemImage: "checkmark")
+                        } else {
+                            Text(order.rawValue)
+                        }
                     }
                 }
                 Divider()
@@ -586,11 +618,6 @@ private struct DirectoryPage: View {
             }
             batchIcon("arrow.right", title: "移动") { beginTransfer(.move, files: selectedFiles) }
             batchIcon("doc.on.doc", title: "拷贝") { copySelected() }
-            if !model.clipboard.isEmpty {
-                batchIcon("doc.on.clipboard", title: "粘贴") {
-                    Task { await pasteHere() }
-                }
-            }
             batchIcon("trash", title: "删除", role: .destructive) { requestDelete(selectedFiles) }
         }
         .padding(.horizontal, 10)
@@ -623,9 +650,10 @@ private struct DirectoryPage: View {
 
     private func quickLook(_ file: RemoteFile) {
         if !FileKind.supportsQuickLook(file) {
-            // 归档/未知类型系统无法在线预览：提示后下载并交给系统分享面板。
-            previewNotice = "「\(file.name)」不支持在线预览，已下载并打开系统分享菜单。下载进度会显示在该文件下方。"
-            Task { if let url = await model.localURL(for: file, purpose: "share") { shareItem = ShareItem(url: url) } }
+            // 归档/未知类型系统无法在线预览：记录待分享文件，先弹提示，
+            // 用户确认后再下载并打开系统分享面板，避免提示与分享面板同时弹出。
+            pendingNoticeFile = file
+            previewNotice = "「\(file.name)」不支持在线预览，确认后将下载并打开系统分享菜单。"
             return
         }
         Task { if let url = await model.localURL(for: file, purpose: "preview") { previewURL = url } }

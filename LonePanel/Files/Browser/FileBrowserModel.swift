@@ -17,11 +17,19 @@ final class FileBrowserModel: ObservableObject {
     /// 设置里是否已配置并选中服务器。
     var hasConfiguredServer: Bool { ServerSession.shared.currentServer != nil }
 
-    // MARK: - 全局视图偏好（系统「文件」App：各位置记住自己的视图，这里用全局简化）
-    @Published var viewMode: FileViewMode = .list
-    @Published var sortOrder: FileSortOrder = .name
-    @Published var sortAscending = true
-    @Published var showHiddenFiles = false
+    // MARK: - 全局视图偏好（所有设置项按全局记忆，冷启动自动恢复）
+    @Published var viewMode: FileViewMode = FilePreferencesStore.viewMode {
+        didSet { FilePreferencesStore.viewMode = viewMode }
+    }
+    @Published var sortOrder: FileSortOrder = FilePreferencesStore.sortOrder {
+        didSet { FilePreferencesStore.sortOrder = sortOrder }
+    }
+    @Published var sortAscending = FilePreferencesStore.sortAscending {
+        didSet { FilePreferencesStore.sortAscending = sortAscending }
+    }
+    @Published var showHiddenFiles = FilePreferencesStore.showHiddenFiles {
+        didSet { FilePreferencesStore.showHiddenFiles = showHiddenFiles }
+    }
 
     /// 正在下载的文件路径 → 进度(0...1)。用于列表行内显示原生进度条。
     @Published var transferProgress: [String: Double] = [:]
@@ -130,10 +138,19 @@ final class FileBrowserModel: ObservableObject {
 
     // MARK: - 写操作（全部带 path，作用于当前所在目录，返回上层不受影响）
 
+    /// 校验名称：不能为空、不能含 "/" 或 null，避免生成异常路径。
+    private func validName(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard !trimmed.contains("/") && !trimmed.contains("\0") else {
+            errorMessage = "名称不能包含「/」等非法字符"
+            return nil
+        }
+        return trimmed
+    }
+
     func makeDirectory(at path: String, named name: String) async {
-        guard let client else { return }
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard let client, let trimmed = validName(name) else { return }
         do {
             try await client.makeDirectory(client.joined(path, trimmed))
         } catch {
@@ -142,9 +159,7 @@ final class FileBrowserModel: ObservableObject {
     }
 
     func rename(_ file: RemoteFile, in parent: String, to newName: String) async {
-        guard let client else { return }
-        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard let client, let trimmed = validName(newName) else { return }
         do {
             try await client.rename(from: file.path, to: client.joined(parent, trimmed))
         } catch {
@@ -152,23 +167,49 @@ final class FileBrowserModel: ObservableObject {
         }
     }
 
+    /// 删除：优先走 SSH `rm -rf`，一条命令删掉全部（含非空目录），
+    /// 规避 SFTP RMDIR 要求目录为空、且长请求遇后台重连易失败的问题。
+    /// 服务端禁用 exec 时自动回退纯 SFTP 递归删除。
     func delete(_ files: [RemoteFile]) async {
-        guard let client else { return }
+        guard let client, !files.isEmpty else { return }
         do {
-            for file in files {
-                if file.isDirectory {
-                    try await client.removeDirectory(file.path)
-                } else {
-                    try await client.removeFile(file.path)
-                }
+            let script = "rm -rf -- " + files.map { shellQuote($0.path) }.joined(separator: " ")
+            let result = try await client.execute(script)
+            if result.exitStatus == 0 {
+                refreshToken &+= 1
+                return
             }
+            let reason = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+            errorMessage = reason.isEmpty ? "删除失败：服务器拒绝了操作" : "删除失败：\(reason)"
         } catch {
-            errorMessage = SSHSession.describe(error)
+            // exec 通道不可用（服务端禁用命令执行）：回退纯 SFTP 递归删除。
+            do {
+                for file in files { try await deleteRecursive(client, file) }
+                refreshToken &+= 1
+            } catch {
+                errorMessage = SSHSession.describe(error)
+            }
         }
     }
 
-    /// 移动/复制：全部走纯 SFTP 原语（rename / read+write 递归），不依赖远端 exec 通道。
-    /// 这样即便服务器禁用了 exec，只要 SFTP 可用，文件操作就可用。
+    /// 纯 SFTP 递归删除：目录先删子项再删自身；软链按文件删，避免跟随。
+    private func deleteRecursive(_ client: SFTPClient, _ file: RemoteFile) async throws {
+        if file.isSymlink {
+            try await client.removeFile(file.path)
+            return
+        }
+        if file.isDirectory {
+            for child in try await client.listDirectory(file.path) {
+                try await deleteRecursive(client, child)
+            }
+            try await client.removeDirectory(file.path)
+        } else {
+            try await client.removeFile(file.path)
+        }
+    }
+
+    /// 移动/复制：先走纯 SFTP（不依赖 exec，兼容禁用命令执行的服务器）；
+    /// 若 SFTP 原语失败，再回退 SSH mv/cp -R，提高跨设备、占名等场景的成功率。
     func transfer(_ files: [RemoteFile], operation: BatchOperation, to target: String) async {
         guard let client, !files.isEmpty else { return }
         do {
@@ -178,6 +219,25 @@ final class FileBrowserModel: ObservableObject {
                 case .copy: try await client.copy(file, toDirectory: target)
                 }
             }
+            return
+        } catch {
+            // 纯 SFTP 失败，继续尝试 SSH 命令回退。
+        }
+        let sources = files.map { shellQuote($0.path) }.joined(separator: " ")
+        let directory = target.hasSuffix("/") ? target : target + "/"
+        let command: String
+        switch operation {
+        case .move: command = "mv -f -- \(sources) \(shellQuote(directory))"
+        case .copy: command = "cp -Rf -- \(sources) \(shellQuote(directory))"
+        }
+        do {
+            let result = try await client.execute(command)
+            if result.exitStatus != 0 {
+                let reason = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                errorMessage = reason.isEmpty
+                    ? "\(operation.rawValue)失败：服务器拒绝了操作"
+                    : "\(operation.rawValue)失败：\(reason)"
+            }
         } catch {
             errorMessage = SSHSession.describe(error)
         }
@@ -185,9 +245,7 @@ final class FileBrowserModel: ObservableObject {
 
     /// 新建空文件：SFTP 以 creat|trunc|write 打开后即关闭，得到一个 0 字节文件。
     func makeFile(at path: String, named name: String) async {
-        guard let client else { return }
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard let client, let trimmed = validName(name) else { return }
         do {
             try await client.writeFile(client.joined(path, trimmed), data: Data())
         } catch {
@@ -207,9 +265,18 @@ final class FileBrowserModel: ObservableObject {
 
     func clearClipboard() { clipboard = [] }
 
-    /// 把剪贴板内容复制到目标目录（复用已认证连接的 cp -R）。粘贴后保留剪贴板，可连续粘贴。
+    /// 把剪贴板内容复制到目标目录。粘贴后保留剪贴板，可连续粘贴。
+    /// 目标与某个源项同名同目录时会覆盖自身造成数据损坏，这里提前拦截并提示。
     func pasteClipboard(into target: String) async {
         guard !clipboard.isEmpty else { return }
+        let normalizedTarget = (target as NSString).standardizingPath
+        for file in clipboard {
+            let sourceParent = (file.path as NSString).deletingLastPathComponent
+            if (sourceParent as NSString).standardizingPath == normalizedTarget {
+                errorMessage = "「\(file.name)」已在当前目录，无法粘贴到原位置。请先移动到其他目录。"
+                return
+            }
+        }
         await transfer(clipboard, operation: .copy, to: target)
     }
 
