@@ -6,6 +6,18 @@ import Foundation
 /// 只依赖根 Core 的会话/SSH/钥匙串与 Files/Core 能力，不认识其他功能模块。
 @MainActor
 final class FileBrowserModel: ObservableObject {
+    /// 全局唯一实例：导航栈与连接状态跨 Tab 切换存活，
+    /// 避免离开文件页再回来时因视图重建而回到默认目录。
+    static let shared = FileBrowserModel()
+
+    // MARK: - 导航（跨 Tab 保留）
+
+    /// 导航栈：根页 "/" 不进栈，元素是逐级 push 的目录节点。
+    /// 放在单例 model 中，切换 Tab 不丢失，停留在离开前的目录。
+    @Published var navPath: [FileNode] = []
+    /// 是否已完成首次导航初始化：冷启动建一次默认目录链，切回 Tab 不再重置。
+    private(set) var navigationInitialized = false
+
     // MARK: - 连接
     @Published private(set) var isConnected = false
     @Published private(set) var isLoading = false
@@ -48,6 +60,37 @@ final class FileBrowserModel: ObservableObject {
     var entryPath: String {
         guard let id = ServerSession.shared.currentServer?.id else { return "/" }
         return DefaultDirectoryStore.path(for: id) ?? "/"
+    }
+
+    // MARK: - 导航栈管理
+
+    /// 冷启动首次连接成功后，把导航栈展开到默认目录的每一级祖先（根 "/" 不进栈）。
+    /// 只执行一次；此后切 Tab / 切回前台都不再改动导航栈，保留用户所处目录。
+    func initializeNavigationIfNeeded() {
+        guard !navigationInitialized else { return }
+        navigationInitialized = true
+        navPath = Self.pathChain(for: entryPath)
+    }
+
+    /// 显式回根：单击当前文件 Tab / 切换服务器时调用，重置到默认目录入口。
+    /// 同时标记已初始化，避免之后切回 Tab 时 .task 再次用默认目录覆盖用户所在位置。
+    func resetNavigationToEntry() {
+        navigationInitialized = true
+        navPath = Self.pathChain(for: entryPath)
+    }
+
+    /// 把默认目录绝对路径拆成从 "/home" 起的逐级节点（不含根 "/"）。
+    /// 例如 "/home/www" → [("/home","home"), ("/home/www","www")]；"/" → []。
+    static func pathChain(for path: String) -> [FileNode] {
+        let clean = path.hasSuffix("/") ? String(path.dropLast()) : path
+        guard !clean.isEmpty, clean != "/" else { return [] }
+        var result: [FileNode] = []
+        var accumulated = ""
+        for part in clean.split(separator: "/") {
+            accumulated += "/" + part
+            result.append(FileNode(path: accumulated, title: String(part)))
+        }
+        return result
     }
 
     // MARK: - 连接与冷启动

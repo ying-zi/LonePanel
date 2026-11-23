@@ -10,19 +10,20 @@ import UniformTypeIdentifiers
 /// - 长按上下文菜单、左滑操作、多选态浮动玻璃工具条；
 /// - 单击文件走系统 QuickLook，分享走系统分享面板；拷贝→粘贴走共享剪贴板。
 struct FileBrowserView: View {
-    @StateObject private var model = FileBrowserModel()
+    /// 单例模型：导航栈与连接状态跨 Tab 切换存活。
+    @ObservedObject private var model = FileBrowserModel.shared
     @ObservedObject private var session = ServerSession.shared
     @Environment(\.scenePhase) private var scenePhase
 
-    /// NavigationStack 导航栈：根不进 path；回根即清空。系统原生返回由 NavigationStack 管理。
-    @State private var navPath: [FileNode] = []
+    /// NavigationStack 导航栈：根不进 path。存放于单例 model，切走再回来停留在原目录。
+    /// 系统原生返回由 NavigationStack 管理。
     @State private var previewURL: URL?
     @State private var shareItem: ShareItem?
 
     var body: some View {
         Group {
             if model.isConnected {
-                NavigationStack(path: $navPath) {
+                NavigationStack(path: $model.navPath) {
                     DirectoryPage(
                         model: model,
                         // 根页固定是真正的根目录 "/"（标题显示服务器名）。
@@ -31,7 +32,7 @@ struct FileBrowserView: View {
                         node: FileNode(path: "/", title: model.serverName),
                         previewURL: $previewURL,
                         shareItem: $shareItem,
-                        navPath: $navPath
+                        navPath: $model.navPath
                     )
                     .navigationDestination(for: FileNode.self) { node in
                         DirectoryPage(
@@ -39,7 +40,7 @@ struct FileBrowserView: View {
                             node: node,
                             previewURL: $previewURL,
                             shareItem: $shareItem,
-                            navPath: $navPath
+                            navPath: $model.navPath
                         )
                     }
                 }
@@ -52,10 +53,12 @@ struct FileBrowserView: View {
         }
         .task {
             await model.connectIfNeeded()
-            if model.isConnected { resetToRoot() }
+            // 仅首次连接时建立默认目录导航链；切回 Tab 不重置，保留离开前的目录。
+            if model.isConnected { model.initializeNavigationIfNeeded() }
         }
         .onChange(of: session.currentServer?.id) { _, _ in
-            Task { await model.reconnect(); resetToRoot() }
+            // 切换服务器是明确的新会话，重置到新服务器的默认目录入口。
+            Task { await model.reconnect(); model.resetNavigationToEntry() }
         }
         // 离开 App 较久后返回：静默重连并刷新当前列表（保留导航层级与界面快照）。
         .onChange(of: scenePhase) { _, phase in
@@ -68,7 +71,9 @@ struct FileBrowserView: View {
         // 单击当前文件 Tab：回默认目录入口（清导航栈、清剪贴板）。
         .onReceive(TabNavigationCenter.shared.$resetRequest) { request in
             guard let request, request.tabID == "files" else { return }
-            resetToRoot()
+            model.resetNavigationToEntry()
+            model.clearClipboard()
+            previewURL = nil
         }
         .quickLookPreview($previewURL)
         .sheet(item: $shareItem) { ActivityShareSheet(items: $0.urls) }
@@ -148,28 +153,6 @@ struct FileBrowserView: View {
         }
     }
 
-    private func resetToRoot() {
-        // 冷启动/切服务器/单击 Tab：导航栈展开到默认目录的每一级祖先，
-        // 根页仍是 "/"，因此从标题菜单或返回箭头都能访问默认目录的上级。
-        navPath = Self.pathChain(for: model.entryPath)
-        model.clearClipboard()
-        previewURL = nil
-    }
-
-    /// 把默认目录绝对路径拆成从 "/home" 起的逐级节点（不含根 "/"）。
-    /// 例如 "/home/www" → [("/home","home"), ("/home/www","www")]；"/" → []。
-    private static func pathChain(for path: String) -> [FileNode] {
-        let clean = path.hasSuffix("/") ? String(path.dropLast()) : path
-        guard !clean.isEmpty, clean != "/" else { return [] }
-        var result: [FileNode] = []
-        var accumulated = ""
-        for part in clean.split(separator: "/") {
-            accumulated += "/" + part
-            result.append(FileNode(path: accumulated, title: String(part)))
-        }
-        return result
-    }
-
     private var errorBinding: Binding<Bool> {
         Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.dismissError() } })
     }
@@ -219,27 +202,24 @@ private struct DirectoryPage: View {
             .task { await load() }
             // 断线重连成功后重新拉取当前目录（保留导航层级与选中态）。
             .onChange(of: model.refreshToken) { _, _ in Task { await load() } }
-            .toolbar { toolbarContent }
-            // 多选 / 搜索 / 后台静默重连态隐藏系统返回键：
-            // - 多选/搜索：leading 留空后 .principal 才严格居中，搜索框到「取消」距离恒定；
-            // - 静默重连：由 leading 原位的转圈接管，避免在返回箭头旁再叠一个指示器。
-            // 正常态保留系统原生返回箭头。
-            .navigationBarBackButtonHidden(isSelecting || isSearching || model.isBackgroundReconnecting)
-            .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
-            .background(dialogHost)
-            // 搜索框展开动画结束后再聚焦：用 asyncAfter 脱离 withAnimation 事务，
-            // FocusState 在干净事务里设置才不会被视图转场吞掉（Task.sleep 方案在真机上会失效）。
+            // 系统原生搜索：由导航容器接管顶栏切换（标题→搜索框、右侧系统「取消」），
+            // 键盘弹出、输入框聚焦全部交给系统，彻底消除自定义方案里聚焦时机不稳的问题。
+            .searchable(text: $searchText, isPresented: $isSearching, prompt: "搜索")
+            .searchFocused($searchFocused)
+            // 系统「取消」只关闭搜索栏、不清关键词；这里在关闭时清空，
+            // 保证下次点放大镜是空搜索态。纯状态清理，不触碰焦点，无时机问题。
             .onChange(of: isSearching) { _, searching in
-                if searching {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        // 守卫：若期间已点「取消」退出搜索，则不再聚焦。
-                        guard isSearching else { return }
-                        searchFocused = true
-                    }
-                } else {
+                if !searching {
+                    searchText = ""
                     searchFocused = false
                 }
             }
+            .toolbar { toolbarContent }
+            // 多选 / 后台静默重连态隐藏系统返回键；搜索态的返回与「取消」交给系统接管。
+            // 静默重连：由 leading 原位的转圈接管，避免在返回箭头旁再叠一个指示器。
+            .navigationBarBackButtonHidden(isSelecting || model.isBackgroundReconnecting)
+            .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
+            .background(dialogHost)
             // 上传：系统文件选择器支持多选；选中后上传到当前目录并刷新。
             .fileImporter(isPresented: $showFileImporter,
                           allowedContentTypes: [.item],
@@ -256,17 +236,6 @@ private struct DirectoryPage: View {
                     }
                 }
             }
-    }
-
-    /// 退出搜索：清空关键词并收起搜索框，带与展开一致的水平缓动过渡。
-    private func closeSearch() {
-        // 焦点与键盘必须在动画外收起：包进 withAnimation 的事务会吞掉 FocusState 变更，
-        // 导致手动点输入框弹出键盘后，点「取消」键盘不关。
-        searchFocused = false
-        UIApplication.shared.sendAction(
-            #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        searchText = ""
-        withAnimation(.easeInOut(duration: 0.25)) { isSearching = false }
     }
 
     /// 所有弹窗集中在独立宿主，避免 body 的 modifier 链过长导致 type-check 超时。
@@ -509,34 +478,18 @@ private struct DirectoryPage: View {
             // 搜索态同样留空，避免出现一个随返回箭头转场的透明占位白点。
         }
         ToolbarItem(placement: .principal) {
-            // 标题 / 多选计数 / 搜索框叠放在同一位置，切换只做水平位移 + 淡入淡出：
-            // 搜索框从右滑入、标题向左滑出；收起时标题由左滑回，全程无垂直跳动。
-            ZStack {
-                titleMenu
-                    .opacity(!isSearching && !isSelecting ? 1 : 0)
-                    .offset(x: isSearching ? -32 : 0)
-                    .allowsHitTesting(!isSearching && !isSelecting)
-                Text("\(selectedIDs.count) 项").font(.headline)
-                    .opacity(isSelecting ? 1 : 0)
-                    .allowsHitTesting(isSelecting)
-                // 搜索框与「取消」同组居中：两者间距由 HStack 固定，
-                // 因此顶层与子层级到取消按钮的距离完全一致，不受返回箭头影响。
-                HStack(spacing: 12) {
-                    searchField
-                    // 取消用 iOS 26 原生液态玻璃按钮：label 内嵌 frame 撑起胶囊，
-                    // 不用 .controlSize(.small)（会把玻璃背景压得比「取消」二字还小）。
-                    Button { closeSearch() } label: {
-                        Text("取消").frame(minWidth: 44, minHeight: 30)
-                    }
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.capsule)
+            // 搜索态时系统会把标题位替换为原生搜索框，此处让位留空；
+            // 多选态显示选中计数，其余显示标题层级 Menu。
+            if !isSearching {
+                ZStack {
+                    titleMenu
+                        .opacity(!isSelecting ? 1 : 0)
+                        .allowsHitTesting(!isSelecting)
+                    Text("\(selectedIDs.count) 项").font(.headline)
+                        .opacity(isSelecting ? 1 : 0)
+                        .allowsHitTesting(isSelecting)
                 }
-                    .opacity(isSearching ? 1 : 0)
-                    .offset(x: isSearching ? 0 : 32)
-                    .allowsHitTesting(isSearching)
             }
-            .animation(.easeInOut(duration: 0.25), value: isSearching)
-            .animation(.easeInOut(duration: 0.25), value: isSelecting)
         }
         ToolbarItem(placement: .topBarTrailing) {
             if isSelecting {
@@ -549,16 +502,17 @@ private struct DirectoryPage: View {
                         .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 9))
                 }
             } else if isSearching {
-                // 取消按钮已随搜索框同组放于 .principal，此处留空避免重复。
+                // 搜索态：「取消」由系统搜索栏提供，此处留空避免重复。
                 EmptyView()
             } else {
                 // 放大镜与裸三点更多各自独立，加大组内间距与按钮热区，避免贴边。
                 HStack(spacing: 26) {
                     Button {
                         resetSelection()
-                        withAnimation(.easeInOut(duration: 0.25)) { isSearching = true }
-                        // 聚焦交给 onChange(isSearching) 在过渡结束后执行，
-                        // 同帧设置 FocusState 会被视图转场重置，导致键盘不弹出。
+                        // 程序化激活系统搜索：设置 isPresented 呈现搜索栏，
+                        // 再由 .searchFocused 聚焦输入框并弹键盘（均由系统接管，时机可靠）。
+                        isSearching = true
+                        searchFocused = true
                     } label: {
                         Image(systemName: "magnifyingglass")
                             .frame(width: 28, height: 32)
@@ -571,39 +525,6 @@ private struct DirectoryPage: View {
                 .padding(.trailing, 8)
             }
         }
-    }
-
-    /// 搜索框宽度随屏幕自适应，使右边缘与「取消」按钮保持固定留白。
-    /// 搜索态已隐藏返回箭头，因此顶层与子层级的 toolbar 布局完全一致，
-    /// 搜索框位置不再因有无返回箭头而偏移。
-    private var searchFieldWidth: CGFloat {
-        let w = UIScreen.main.bounds.width
-        if sizeClass == .compact {
-            return max(180, w - 168)
-        }
-        return min(max(320, w - 260), 560)
-    }
-
-    /// 搜索态标题位输入框：系统原生胶囊外观，自动聚焦、一键清空。
-    private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            TextField("搜索", text: $searchText)
-                .textFieldStyle(.plain)
-                .focused($searchFocused)
-            if !searchText.isEmpty {
-                Button { searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(.quaternary.opacity(0.7), in: Capsule())
-        .frame(width: searchFieldWidth)
     }
 
     /// 标题下拉：与右上 ⋯ 一致的系统原生 Menu，列出从根目录到当前的位置层级。
@@ -645,6 +566,7 @@ private struct DirectoryPage: View {
         Menu {
             Button {
                 searchText = ""
+                searchFocused = false
                 isSearching = false
                 isSelecting = true
                 selectedIDs = []
