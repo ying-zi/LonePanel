@@ -6,6 +6,7 @@ enum DatabaseTab {
         id: "database",
         title: "数据库",
         symbolName: "cylinder.split.1x2",
-        view: AnyView(DatabaseView())
+        view: AnyView(DatabaseView()),
+        showsFloatingTerminal: true
     )
 }

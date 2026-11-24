@@ -6,6 +6,7 @@ enum WebsiteTab {
         id: "website",
         title: "网站",
         symbolName: "globe",
-        view: AnyView(WebsiteView())
+        view: AnyView(WebsiteView()),
+        showsFloatingTerminal: true
     )
 }

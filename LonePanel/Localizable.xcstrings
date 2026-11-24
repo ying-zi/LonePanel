@@ -1470,6 +1470,96 @@
           }
         }
       }
+    },
+    "SSH 终端": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH Terminal"
+          }
+        }
+      }
+    },
+    "关闭": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
+    },
+    "重试": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
+          }
+        }
+      }
+    },
+    "正在连接…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting…"
+          }
+        }
+      }
+    },
+    "打开终端": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Terminal"
+          }
+        }
+      }
+    },
+    "显示悬浮终端按钮": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Floating Terminal Button"
+          }
+        }
+      }
+    },
+    "请先到「设置 → 我的服务器」添加并选择一个服务器": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Please add and select a server in Settings → My Servers first"
+          }
+        }
+      }
+    },
+    "开启后，在 Docker、网站、数据库页面右下角显示终端快捷入口；文件和设置页不显示。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When enabled, a terminal shortcut appears at the bottom-right of Docker, Website and Database pages; not shown on Files or Settings."
+          }
+        }
+      }
+    },
+    "中断 (Ctrl+C)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrupt (Ctrl+C)"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
