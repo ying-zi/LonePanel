@@ -415,7 +415,13 @@ private struct DirectoryPage: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .background(Color.green.opacity(0.85))
+        .background(
+            LinearGradient(
+                colors: [.red, .orange, .yellow, .green, .blue, .purple],
+                startPoint: .bottom,
+                endPoint: .top
+            )
+        )
         .overlay { if isLoading && !entries.isEmpty { ProgressView() } }
     }
 
