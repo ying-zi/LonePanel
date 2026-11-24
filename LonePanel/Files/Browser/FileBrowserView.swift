@@ -269,7 +269,9 @@ private struct DirectoryPage: View {
             // 多选 / 后台静默重连态隐藏系统返回键；搜索态的返回与「取消」交给系统接管。
             // 静默重连：由 leading 原位的转圈接管，避免在返回箭头旁再叠一个指示器。
             .navigationBarBackButtonHidden(isSelecting || model.isBackgroundReconnecting)
-            .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
+            .safeAreaInset(edge: .bottom) {
+                batchActionBar.frame(height: isSelecting ? nil : 0)
+            }
             .background(dialogHost)
     }
 
