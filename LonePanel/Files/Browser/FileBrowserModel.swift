@@ -17,6 +17,9 @@ final class FileBrowserModel: ObservableObject {
     @Published var navPath: [FileNode] = []
     /// 是否已完成首次导航初始化：冷启动建一次默认目录链，切回 Tab 不再重置。
     private(set) var navigationInitialized = false
+    /// 点「文件」Tab 后待恢复默认目录：iOS 26 TabView 会把导航栈系统级 pop 到根（[]），
+    /// 检测到 pop 后立即据此设回默认目录链；若系统不 pop 则由兜底定时器主动恢复。
+    @Published var pendingEntryRestore = false
 
     // MARK: - 搜索（全局一份，供导航栈统一渲染，各级目录页共享过滤）
     /// 搜索关键词：所有目录页用同一个词过滤各自条目。
@@ -87,6 +90,7 @@ final class FileBrowserModel: ObservableObject {
     /// 若每次都新建数组赋给 NavigationStack.path，会反复触发 pop/push 动画（视觉「横跳」）。
     func resetNavigationToEntry() {
         navigationInitialized = true
+        pendingEntryRestore = false
         let target = Self.pathChain(for: entryPath)
         guard navPath != target else { return }
         navPath = target
@@ -94,6 +98,26 @@ final class FileBrowserModel: ObservableObject {
         // 避免回到默认目录后工具栏仍停留在上一次的异常状态。
         searchText = ""
         isSearching = false
+    }
+
+    /// 「再次点击文件 Tab」的唯一入口。
+    /// iOS 26 的 TabView 在点击当前已选中 Tab 时，会先于/并行于我们的命令
+    /// 把嵌套 NavigationStack 系统级 pop 到根（navPath 被写回 []）。若我们只在
+    /// 命令到达时设一次默认目录链，可能被随后到来的系统 pop 覆盖成根目录。
+    /// 因此这里先记录待恢复意图，交给视图层在检测到「导航栈被清空」时调用
+    /// resetNavigationToEntry() 把默认目录链设回去；并留一个兜底：若系统根本
+    /// 没有 pop（navPath 未变空），则短延时后主动恢复，避免一直悬着。
+    func requestEntryRestore() {
+        pendingEntryRestore = true
+        // 兜底：若系统未触发 pop（部分 iOS 版本点当前 Tab 不 pop 导航栈），
+        // 没有 onChange(navPath 变空) 来消费，就在这里延时主动恢复。
+        // 用序号快照避免与视图层的消费重复：真正生效以 pending 标志为准。
+        Task { @MainActor [weak self] in
+            guard let self, self.pendingEntryRestore else { return }
+            try? await Task.sleep(nanoseconds: 250_000_000) // 0.25s，给系统 pop 留窗口
+            guard self.pendingEntryRestore else { return }
+            self.resetNavigationToEntry()
+        }
     }
 
     /// 把默认目录绝对路径拆成从 "/home" 起的逐级节点（不含根 "/"）。
