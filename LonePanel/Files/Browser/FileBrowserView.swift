@@ -19,8 +19,6 @@ struct FileBrowserView: View {
     /// 系统原生返回由 NavigationStack 管理。
     @State private var previewURL: URL?
     @State private var shareItem: ShareItem?
-    /// 搜索框焦点：挂在 NavigationStack 上统一管理，各级目录页点放大镜时置位。
-    @FocusState private var searchFocused: Bool
 
     var body: some View {
         Group {
@@ -46,22 +44,9 @@ struct FileBrowserView: View {
                         )
                     }
                 }
-                // 搜索框挂在导航栈上只渲染一次：切层级不再有两级搜索框交替闪烁。
-                // 状态放单例 model，各级 DirectoryPage 共享同一关键词过滤各自条目。
-                .searchable(text: $model.searchText, isPresented: $model.isSearching, prompt: "搜索")
-                .searchFocused($searchFocused)
-                // iOS 26：搜索栏未聚焦时收缩，消除列表顶部常驻的灰色搜索条。
-                .searchToolbarBehavior(.minimize)
-                // 呈现搜索时主动聚焦（放大镜按钮只置 isPresented，焦点在此统一接管）；
-                // 关闭时清关键词并同步焦点，保证下次点放大镜是空搜索态。
-                .onChange(of: model.isSearching) { _, searching in
-                    if searching {
-                        searchFocused = true
-                    } else {
-                        model.searchText = ""
-                        searchFocused = false
-                    }
-                }
+                // 搜索框下放到每个 DirectoryPage：系统为每一级目录各自提供一个原生放大镜，
+                // 点开即在「当前页」呈现搜索框并自动聚焦，不会再出现「按钮消失、框不出」。
+                // 各页搜索状态独立，互不串味；切层级时随页面销毁自然收起，无残留、无闪烁。
             } else if model.hasConfiguredServer && !model.connectionFailed {
                 // 已配置服务器、正在连接（尚未失败）：显示原生加载动画。
                 ProgressView("正在连接服务器…")
@@ -86,47 +71,43 @@ struct FileBrowserView: View {
                 // 成功后递增 refreshToken，各 DirectoryPage 监听后刷新当前目录。
             }
         }
-        // 单击当前文件 Tab：回默认目录入口（清导航栈、清剪贴板）。
-        // dropFirst：@Published 的 $publisher 在订阅时会立即发一次当前值，
-        // 若不跳过，切走再切回文件页时视图重建会收到「上一次点击」的旧请求，
-        // 误触发回根 —— 与点击时的连发叠加就表现为导航栈反复横跳 / 丢失位置。
-        .onReceive(TabNavigationCenter.shared.$resetRequest.dropFirst()) { request in
-            guard let request, request.tabID == "files" else { return }
+        // 再次单击当前文件 Tab：一次到位回默认目录入口（清导航栈、清剪贴板）。
+        // 用「递增序号」而非可选对象广播：iOS 26 切 Tab 会重建本视图，
+        // onChange 在新视图上不会因订阅立即触发，只有序号真正变大才响应 ——
+        // 彻底消除旧方案 dropFirst 漏消费/误消费导致的根目录↔默认目录横跳与空白页。
+        .onChange(of: TabNavigationCenter.shared.command.serial) { _, serial in
+            guard serial > 0, TabNavigationCenter.shared.command.tabID == "files" else { return }
             model.resetNavigationToEntry()
             model.clearClipboard()
             previewURL = nil
         }
-        // push 到新目录时自动退出搜索态：isSearching 是全局单例状态，
-        // 若搜索态下点进文件夹，子页面工具栏会读到 true 而把按钮整片隐藏。
-        .onChange(of: model.navPath.count) { oldCount, newCount in
-            if newCount > oldCount, model.isSearching {
-                model.isSearching = false
-                model.searchText = ""
-            }
-        }
-        // 系统文件选择器挂在导航栈顶层（单例状态），不随目录页 push/pop 重建，
-        // 保证选择完成后的 completion 一定回调。用 .data 而非 .item：
-        // .item 含文件夹等抽象类型，iOS 26 选中目录后读取失败且看似「没反应」；
-        // .data 匹配任意数据文件并排除文件夹，是「选择所有文件」的标准写法。
-        .fileImporter(isPresented: $model.isUploadPickerPresented,
-                      allowedContentTypes: [.data],
-                      allowsMultipleSelection: true) { result in
-            let target = model.uploadTargetDirectory
-            switch result {
-            case .success(let urls):
-                Task { @MainActor in
-                    guard !urls.isEmpty else { model.endFileOperation(); return }
-                    await model.upload(files: urls, to: target)
+        // 上传改用 UIKit 的 UIDocumentPickerViewController：delegate 回调不随 SwiftUI
+        // 视图重建丢失（选文件时 App 会进后台，切回时 FileBrowserView 可能重建，
+        // SwiftUI .fileImporter 的 completion 因此丢失，表现为「选完没反应」）。
+        // asCopy 让系统把文件复制进 App 沙箱，直接可读，绕开 iOS 26 security-scope 读取失败。
+        .fullScreenCover(isPresented: $model.isUploadPickerPresented, onDismiss: {
+            // 兜底：无论选择器是点取消、下拉关闭还是选完文件，
+            // 都要解除「文件操作进行中」标记，否则会永久抑制回前台静默重连。
+            model.endFileOperation()
+        }) {
+            FileUploadPicker(
+                onPick: { urls in
+                    // 先关 cover，再异步上传；回调里同步置位关闭选择器界面。
+                    model.isUploadPickerPresented = false
+                    let target = model.uploadTargetDirectory
+                    Task { @MainActor in
+                        guard !urls.isEmpty else { model.endFileOperation(); return }
+                        await model.upload(files: urls, to: target)
+                        model.endFileOperation()
+                        // asCopy 产生的是沙箱临时副本，上传后清理，避免 Inbox 累积。
+                        for url in urls { try? FileManager.default.removeItem(at: url) }
+                    }
+                },
+                onCancel: {
+                    model.isUploadPickerPresented = false
                     model.endFileOperation()
                 }
-            case .failure(let error):
-                Task { @MainActor in
-                    model.endFileOperation()
-                    // 用户主动取消（NSUserCancelledError code=2）不弹错误打扰。
-                    if (error as NSError).code == 2 { return }
-                    model.errorMessage = "选择文件失败：\(error.localizedDescription)"
-                }
-            }
+            )
         }
         .quickLookPreview($previewURL)
         .sheet(item: $shareItem) { ActivityShareSheet(items: $0.urls) }
@@ -222,7 +203,16 @@ private struct DirectoryPage: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var entries: [RemoteFile] = []
     @State private var isLoading = false
+    /// 是否至少成功加载过一次。区分「尚未加载」与「加载完确实为空」，消除首帧空白页闪现。
+    @State private var hasLoadedOnce = false
     @State private var isSelecting = false
+
+    /// 每页独立的搜索状态：系统为每一级目录各自提供原生放大镜，
+    /// 点开即在「当前页」呈现搜索框并自动聚焦，各页互不串味。
+    @State private var searchText = ""
+    @State private var isSearching = false
+    @FocusState private var searchFocused: Bool
+
     /// 不支持在线预览的文件给出提示，确认后再下载 + 系统分享。
     @State private var previewNotice: String?
     @State private var pendingNoticeFile: RemoteFile?
@@ -245,6 +235,20 @@ private struct DirectoryPage: View {
     var body: some View {
         pageContent
             .navigationBarTitleDisplayMode(.inline)
+            // 搜索栏挂在「每一页」上：系统为根页与每个 push 的子页各自注入原生放大镜，
+            // 点开即在当前页呈现搜索框。各页状态独立，切层级随页面退出自然收起。
+            .searchable(text: $searchText, isPresented: $isSearching, prompt: "搜索")
+            .searchFocused($searchFocused)
+            // iOS 26：未聚焦时收缩，消除列表顶部常驻的灰色搜索条。
+            .searchToolbarBehavior(.minimize)
+            .onChange(of: isSearching) { _, searching in
+                if searching {
+                    searchFocused = true
+                } else {
+                    searchText = ""
+                    searchFocused = false
+                }
+            }
             .refreshable { await load() }
             .task { await load() }
             // 断线重连成功后重新拉取当前目录（保留导航层级与选中态）。
@@ -347,7 +351,10 @@ private struct DirectoryPage: View {
 
     @ViewBuilder
     private var contentForState: some View {
-        if isLoading && entries.isEmpty {
+        if isLoading || !hasLoadedOnce {
+            // 首帧与加载中都显示加载态。没有 hasLoadedOnce 时，新建的目录页
+            // 首帧 isLoading=false、entries=[]，会先闪一帧「文件夹为空」的空白页 ——
+            // 回默认目录 push 多级导航链时每一级都闪，视觉上就是「跳到一个空白页」。
             ProgressView("加载中…")
         } else if entries.isEmpty {
             emptyView
@@ -364,10 +371,11 @@ private struct DirectoryPage: View {
         isLoading = true
         defer { isLoading = false }
         entries = await model.listDirectory(at: node.path)
+        hasLoadedOnce = true
     }
 
     private var visibleEntries: [RemoteFile] {
-        let keyword = model.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !keyword.isEmpty else { return entries }
         return entries.filter { $0.name.localizedCaseInsensitiveContains(keyword) }
     }
@@ -470,10 +478,10 @@ private struct DirectoryPage: View {
 
     private var emptyView: some View {
         ContentUnavailableView {
-            Label(model.searchText.isEmpty ? "文件夹为空" : "无搜索结果",
-                  systemImage: model.searchText.isEmpty ? "folder" : "magnifyingglass")
+            Label(searchText.isEmpty ? "文件夹为空" : "无搜索结果",
+                  systemImage: searchText.isEmpty ? "folder" : "magnifyingglass")
         } description: {
-            Text(model.searchText.isEmpty ? "此目录中没有内容" : "试试其他关键词")
+            Text(searchText.isEmpty ? "此目录中没有内容" : "试试其他关键词")
         }
     }
 
@@ -482,7 +490,7 @@ private struct DirectoryPage: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            if model.isBackgroundReconnecting && !isSelecting && !model.isSearching {
+            if model.isBackgroundReconnecting && !isSelecting && !isSearching {
                 // 后台切回前台静默重连：在返回按钮原位显示同等大小的转圈，
                 // 保留界面快照；连接是非确定过程，用循环动画而非线性进度条。
                 ProgressView()
@@ -499,7 +507,7 @@ private struct DirectoryPage: View {
         ToolbarItem(placement: .principal) {
             // 搜索态时系统会把标题位替换为原生搜索框，此处让位留空；
             // 多选态显示选中计数，其余显示标题层级 Menu。
-            if !model.isSearching {
+            if !isSearching {
                 ZStack {
                     titleMenu
                         .opacity(!isSelecting ? 1 : 0)
@@ -521,22 +529,12 @@ private struct DirectoryPage: View {
                         .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 9))
                 }
             } else {
-                // 首页（导航栈根页 "/"）：搜索入口完全交给系统的 .minimize 放大镜，
-                // 此处只放 ⋯，避免首页出现两个放大镜。
-                // 下级目录：系统 .minimize 放大镜不会出现在 push 出来的页面上，
-                // 因此补一个自定义放大镜，点击置 isSearching 让系统搜索框呈现。
-                // 更多按钮正常态/搜索态都常驻，不会因搜索态残留整片消失。
-                HStack(spacing: 18) {
-                    if node.path != "/" && !model.isSearching {
-                        Button { model.isSearching = true } label: {
-                            Image(systemName: "magnifyingglass")
-                                .frame(width: 28, height: 32)
-                                .contentShape(Rectangle())
-                        }
-                    }
-                    moreMenu
-                }
-                .padding(.trailing, 8)
+                // 搜索栏已挂到每一页，系统为根页与每个子页各自提供原生放大镜，
+                // 不再自定义放大镜按钮 —— 从根上杜绝「双放大镜」与
+                // 「点了自定义放大镜却不出搜索框、按钮反而消失」的问题。
+                // 只保留 ⋯，常驻不随搜索态消失。
+                moreMenu
+                    .padding(.trailing, 8)
             }
         }
     }
@@ -579,8 +577,8 @@ private struct DirectoryPage: View {
     private var moreMenu: some View {
         Menu {
             Button {
-                model.searchText = ""
-                model.isSearching = false
+                searchText = ""
+                isSearching = false
                 isSelecting = true
                 selectedIDs = []
             } label: {
@@ -984,5 +982,47 @@ private struct TargetDirectorySheet: View {
         defer { isLoading = false }
         let all = await model.listDirectory(at: path)
         dirs = all.filter(\.isDirectory)
+    }
+}
+
+/// 基于 UIKit `UIDocumentPickerViewController` 的文件选择器。
+/// 相比 SwiftUI `.fileImporter` 的优势（针对「选完没反应」）：
+/// - delegate 回调绑定在 Representable 的 Coordinator 上，选文件时 App 进后台、
+///   切回时外层视图重建也不会丢失回调；
+/// - `asCopy: true` 让系统把选中文件复制进 App 沙箱，返回的是本进程可直接读取的 URL，
+///   绕开 iOS 26 上 security-scoped URL `Data(contentsOf:)` 偶发失败的问题；
+/// - `.item` 作为类型覆盖任意文件（含 iCloud 云文件），由系统负责按需下载。
+struct FileUploadPicker: UIViewControllerRepresentable {
+    let onPick: ([URL]) -> Void
+    let onCancel: () -> Void
+
+    /// UIDocumentPicker 直接作为 fullScreenCover 的根 VC —— 它自带导航、取消与选择按钮，
+    /// 这种呈现方式最标准、最少层级，delegate 回调稳定。
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item], asCopy: true)
+        picker.allowsMultipleSelection = true
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ picker: UIDocumentPickerViewController, context: Context) {
+        context.coordinator.onPick = onPick
+        context.coordinator.onCancel = onCancel
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        var onPick: (([URL]) -> Void)?
+        var onCancel: (() -> Void)?
+
+        func documentPicker(_ controller: UIDocumentPickerViewController,
+                            didPickDocumentsAt urls: [URL]) {
+            onPick?(urls)
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            onCancel?()
+        }
     }
 }

@@ -81,7 +81,7 @@ final class FileBrowserModel: ObservableObject {
         navPath = Self.pathChain(for: entryPath)
     }
 
-    /// 显式回根：单击当前文件 Tab / 切换服务器时调用，重置到默认目录入口。
+    /// 显式回默认目录：再次单击当前文件 Tab / 切换服务器时调用。
     /// 同时标记已初始化，避免之后切回 Tab 时 .task 再次用默认目录覆盖用户所在位置。
     /// 幂等：目标与当前导航栈一致时不赋值——iOS 26 TabView 单击可能连发多次请求，
     /// 若每次都新建数组赋给 NavigationStack.path，会反复触发 pop/push 动画（视觉「横跳」）。
@@ -90,6 +90,10 @@ final class FileBrowserModel: ObservableObject {
         let target = Self.pathChain(for: entryPath)
         guard navPath != target else { return }
         navPath = target
+        // 重置后同步关闭可能残留的搜索/多选态（单例全局态），
+        // 避免回到默认目录后工具栏仍停留在上一次的异常状态。
+        searchText = ""
+        isSearching = false
     }
 
     /// 把默认目录绝对路径拆成从 "/home" 起的逐级节点（不含根 "/"）。
