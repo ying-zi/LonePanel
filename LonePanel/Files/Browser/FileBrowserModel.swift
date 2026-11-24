@@ -684,8 +684,8 @@ final class FileBrowserModel: ObservableObject {
 /// 其余 SSH/NIO 底层错误交给 SSHSession.describe 翻译，绝不暴露原始报错。
 /// 放在 Files 层而非 Core 层，避免 Core 反向依赖文件模块的 SFTPError。
 private func describeFileError(_ error: Error) -> String {
-    if let e = error as? SFTPError, let text = e.localizedDescription {
-        return text
+    if let e = error as? SFTPError {
+        return e.localizedDescription
     }
     return SSHSession.describe(error)
 }
