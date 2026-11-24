@@ -29,8 +29,8 @@ struct TerminalView: View {
             .navigationTitle("SSH 终端")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
-            // 兜底：进界面时确保连接（App 前台已在别处保活，此处幂等）。
-            .task { await session.ensureAlive() }
+            // 用户打开终端即视为主动唤起：解除断开标记并连接（幂等）。
+            .task { await session.activateForUser() }
             .onChange(of: session.isReady) { _, ready in
                 if ready { focusInput() }
             }
@@ -46,7 +46,11 @@ struct TerminalView: View {
             Button {
                 session.sendInterrupt()
             } label: {
-                Label("中断", systemImage: "xmark.circle")
+                Text("⌃C")
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.quaternary, in: Capsule())
             }
             .disabled(!session.isReady)
             .help("中断当前命令 (Ctrl+C)")
@@ -71,7 +75,7 @@ struct TerminalView: View {
                     // 设置页：已有返回箭头，此按钮专用于断开/重连。
                     if session.userDisconnected {
                         Button {
-                            Task { await session.reconnect() }
+                            Task { await session.activateForUser() }
                         } label: {
                             Text("连接")
                         }
@@ -97,20 +101,24 @@ struct TerminalView: View {
         }
     }
 
-    /// 等宽输出区。用 Text 逐段渲染，配合 ScrollView 自动滚到底。
+    /// 等宽输出区。命令/输出/提示分色，随内容自动滚到底。
     private var outputArea: some View {
         ScrollView {
             ScrollViewReader { proxy in
-                Text(session.output)
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(.primary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-                    .id("bottom")
-                    .onChange(of: session.output) { _, _ in
-                        withAnimation(.none) { proxy.scrollTo("bottom", anchor: .bottom) }
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(session.chunks) { chunk in
+                        Text(chunk.text)
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(color(for: chunk.kind))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    Color.clear.frame(height: 1).id("bottom")
+                }
+                .padding(8)
+                .onChange(of: session.revision) { _, _ in
+                    withAnimation(.none) { proxy.scrollTo("bottom", anchor: .bottom) }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -127,7 +135,7 @@ struct TerminalView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                    Button("重试") { Task { await session.ensureAlive() } }
+                    Button("重试") { Task { await session.activateForUser() } }
                         .buttonStyle(.borderedProminent)
                 }
                 .padding()
@@ -135,7 +143,15 @@ struct TerminalView: View {
         }
     }
 
-    /// 命令行输入区。两行高的圆角输入框（可继续换行滚动），右侧发送。
+    private func color(for kind: TerminalChunkKind) -> Color {
+        switch kind {
+        case .command: return Color.accentColor
+        case .info: return .secondary
+        case .output: return .primary
+        }
+    }
+
+    /// 命令行输入区。两行高的圆角输入框（可继续换行滚动），右侧方块发送。
     private var inputBar: some View {
         HStack(alignment: .center, spacing: 8) {
             Text("$")
@@ -175,11 +191,14 @@ struct TerminalView: View {
             Button {
                 submit()
             } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(Color.accentColor)
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 46, height: 46)
+                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 10))
             }
             .disabled(!session.isReady || command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel("发送")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)

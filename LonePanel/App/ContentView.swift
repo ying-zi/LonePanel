@@ -6,10 +6,18 @@ struct ContentView: View {
     @State private var selection: String = TabRegistry.modules.first?.id ?? ""
     @AppStorage("com.lone.lonepanel.terminal.floating") private var floatingEnabled = true
     @State private var showTerminal = false
+    @ObservedObject private var terminal = TerminalSession.shared
 
     /// 当前选中的模块是否显示悬浮终端按钮。
     private var currentModuleShowsTerminal: Bool {
         TabRegistry.modules.first { $0.id == selection }?.showsFloatingTerminal ?? false
+    }
+
+    /// 悬浮终端按钮颜色：蓝=已连接，红=已断开，橙=连接中/自动重连。
+    private var terminalStatusColor: Color {
+        if terminal.userDisconnected { return .red }
+        if terminal.isReady { return .accentColor }
+        return .orange // 连接中或断线重连中
     }
 
     /// 用普通 $selection，不再拦截「再次点击当前 Tab」。
@@ -35,7 +43,7 @@ struct ContentView: View {
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(width: 52, height: 52)
-                        .background(Color.accentColor, in: Circle())
+                        .background(terminalStatusColor, in: Circle())
                         .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 3)
                 }
                 .buttonStyle(.plain)
@@ -45,6 +53,7 @@ struct ContentView: View {
                 .accessibilityLabel("打开终端")
                 .transition(.scale.combined(with: .opacity))
                 .animation(.spring(response: 0.3), value: currentModuleShowsTerminal)
+                .animation(.easeInOut, value: terminalStatusColor)
             }
         }
         .sheet(isPresented: $showTerminal) {
