@@ -270,7 +270,11 @@ private struct DirectoryPage: View {
             // 静默重连：由 leading 原位的转圈接管，避免在返回箭头旁再叠一个指示器。
             .navigationBarBackButtonHidden(isSelecting || model.isBackgroundReconnecting)
             .safeAreaInset(edge: .bottom) {
-                batchActionBar.frame(height: isSelecting ? nil : 0)
+                batchActionBar
+                    .opacity(isSelecting ? 1 : 0)
+                    .frame(height: isSelecting ? nil : 0)
+                    .clipped()
+                    .allowsHitTesting(isSelecting)
             }
             .background(dialogHost)
     }
