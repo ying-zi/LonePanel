@@ -42,6 +42,7 @@
 		D20000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000001 /* Assets.xcassets */; };
 		070000000000000000000001 /* NIOSSH in Frameworks */ = {isa = PBXBuildFile; productRef = 060000000000000000000001 /* NIOSSH */; };
 		070000000000000000000002 /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = 060000000000000000000002 /* Crypto */; };
+		070000000000000000000003 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 060000000000000000000003 /* SwiftTerm */; };
 		D10000000000000000000034 /* FileTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000034 /* FileTypes.swift */; };
 		D10000000000000000000035 /* FileDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000035 /* FileDetailView.swift */; };
 		D10000000000000000000036 /* FilePreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000036 /* FilePreferencesStore.swift */; };
@@ -112,6 +113,7 @@
 			files = (
 				070000000000000000000001 /* NIOSSH in Frameworks */,
 				070000000000000000000002 /* Crypto in Frameworks */,
+				070000000000000000000003 /* SwiftTerm in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -371,7 +373,7 @@
 			dependencies = (
 			);
 			name = LonePanel;
-			packageProductDependencies = (060000000000000000000001 /* NIOSSH */, 060000000000000000000002 /* Crypto */,);
+			packageProductDependencies = (060000000000000000000001 /* NIOSSH */, 060000000000000000000002 /* Crypto */, 060000000000000000000003 /* SwiftTerm */,);
 			productName = LonePanel;
 			productReference = F20000000000000000000001 /* LonePanel.app */;
 			productType = "com.apple.product-type.application";
@@ -617,6 +619,14 @@
 				minimumVersion = 5.1.2;
 			};
 		};
+		050000000000000000000003 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.2.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -629,6 +639,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 050000000000000000000002 /* XCRemoteSwiftPackageReference "swift-crypto" */;
 			productName = Crypto;
+		};
+		060000000000000000000003 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 050000000000000000000003 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

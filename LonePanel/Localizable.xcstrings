@@ -1630,6 +1630,26 @@
           }
         }
       }
+    },
+    "开启 Ctrl 锁定": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on Ctrl lock"
+          }
+        }
+      }
+    },
+    "关闭 Ctrl 锁定": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn off Ctrl lock"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
