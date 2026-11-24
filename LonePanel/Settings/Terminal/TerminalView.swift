@@ -106,7 +106,7 @@ struct TerminalView: View {
         VStack(spacing: 8) {
             HStack(alignment: .top, spacing: 8) {
                 Text("$")
-                    .font(.system(size: 14, design: .monospaced, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
                     .foregroundStyle(Color.accentColor)
                     .padding(.top, 9)
 
