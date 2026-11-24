@@ -19,7 +19,7 @@ struct SettingsView: View {
                         Label("缓存管理", systemImage: "internaldrive")
                     }
                     NavigationLink {
-                        TerminalView()
+                        TerminalView(presentation: .pushed)
                     } label: {
                         Label("SSH 终端", systemImage: "terminal")
                     }

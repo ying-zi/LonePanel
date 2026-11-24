@@ -1,8 +1,16 @@
 import SwiftUI
 
+/// 终端的呈现方式，决定右上角操作按钮的语义。
+enum TerminalPresentation {
+    case sheet   // 悬浮按钮弹出：右上角为「收起」
+    case pushed  // 设置页推入：右上角为「断开 / 连接」
+}
+
 /// 内置 SSH 终端界面。上方等宽输出区，下方命令行输入。
 /// 会话由 TerminalSession 全局持有——设置页与悬浮面板是同一会话、同一份输出。
 struct TerminalView: View {
+    var presentation: TerminalPresentation = .sheet
+
     @ObservedObject private var session = TerminalSession.shared
     @Environment(\.dismiss) private var dismiss
     @FocusState private var inputFocused: Bool
@@ -20,35 +28,61 @@ struct TerminalView: View {
             .background(Color(uiColor: .systemBackground))
             .navigationTitle("SSH 终端")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        session.sendInterrupt()
-                    } label: {
-                        Label("中断", systemImage: "xmark.circle")
-                    }
-                    .disabled(!session.isReady)
-                    .help("中断当前命令 (Ctrl+C)")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 16) {
-                        Button {
-                            session.clearOutput()
-                        } label: {
-                            Image(systemName: "trash")
-                        }
-                        Button("关闭") { dismiss() }
-                    }
-                }
-            }
-            .task { await session.start() }
-            // 连接刚就绪（新连接）时聚焦。
+            .toolbar { toolbarContent }
+            // 兜底：进界面时确保连接（App 前台已在别处保活，此处幂等）。
+            .task { await session.ensureAlive() }
             .onChange(of: session.isReady) { _, ready in
                 if ready { focusInput() }
             }
-            // 复用已连接的会话时，进场即聚焦。
             .onAppear {
                 if session.isReady { focusInput() }
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button {
+                session.sendInterrupt()
+            } label: {
+                Label("中断", systemImage: "xmark.circle")
+            }
+            .disabled(!session.isReady)
+            .help("中断当前命令 (Ctrl+C)")
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            HStack(spacing: 16) {
+                Button {
+                    session.clearOutput()
+                } label: {
+                    Image(systemName: "trash")
+                }
+
+                switch presentation {
+                case .sheet:
+                    // 悬浮面板：并非断开，只是收起。
+                    Button { dismiss() } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .accessibilityLabel("收起终端")
+                case .pushed:
+                    // 设置页：已有返回箭头，此按钮专用于断开/重连。
+                    if session.userDisconnected {
+                        Button {
+                            Task { await session.reconnect() }
+                        } label: {
+                            Text("连接")
+                        }
+                    } else {
+                        Button {
+                            session.disconnect()
+                        } label: {
+                            Text("断开")
+                        }
+                    }
+                }
             }
         }
     }
@@ -93,7 +127,7 @@ struct TerminalView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                    Button("重试") { Task { await session.start() } }
+                    Button("重试") { Task { await session.ensureAlive() } }
                         .buttonStyle(.borderedProminent)
                 }
                 .padding()
@@ -101,57 +135,55 @@ struct TerminalView: View {
         }
     }
 
-    /// 命令行输入区。统一底色的多行文本框，自动聚焦，右下方发送。
+    /// 命令行输入区。两行高的圆角输入框（可继续换行滚动），右侧发送。
     private var inputBar: some View {
-        VStack(spacing: 8) {
-            HStack(alignment: .top, spacing: 8) {
-                Text("$")
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(Color.accentColor)
-                    .padding(.top, 9)
+        HStack(alignment: .center, spacing: 8) {
+            Text("$")
+                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                .foregroundStyle(Color.accentColor)
 
-                ZStack(alignment: .topLeading) {
-                    TextEditor(text: $command)
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $command)
+                    .font(.system(size: 14, design: .monospaced))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($inputFocused)
+                    .scrollContentBackground(.hidden)
+                    .frame(height: 46)
+                    .disabled(!session.isReady)
+
+                if command.isEmpty {
+                    Text("输入命令…")
                         .font(.system(size: 14, design: .monospaced))
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .focused($inputFocused)
-                        .scrollContentBackground(.hidden)
-                        .frame(height: 80)
-                        .disabled(!session.isReady)
-                        .toolbar {
-                            ToolbarItemGroup(placement: .keyboard) {
-                                Spacer()
-                                Button("发送") { submit() }
-                                    .disabled(!session.isReady || command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            }
-                        }
-
-                    if command.isEmpty {
-                        Text("输入命令…")
-                            .font(.system(size: 14, design: .monospaced))
-                            .foregroundStyle(.tertiary)
-                            .padding(.leading, 5)
-                            .padding(.top, 9)
-                            .allowsHitTesting(false)
-                    }
+                        .foregroundStyle(.tertiary)
+                        .padding(.leading, 5)
+                        .padding(.top, 4)
+                        .allowsHitTesting(false)
                 }
             }
-
-            HStack {
-                Spacer()
-                Button {
-                    submit()
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(Color.accentColor)
-                }
-                .disabled(!session.isReady || command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(uiColor: .secondarySystemBackground))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color(uiColor: .separator), lineWidth: 0.5)
             }
+
+            Button {
+                submit()
+            } label: {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(Color.accentColor)
+            }
+            .disabled(!session.isReady || command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .padding(12)
-        .background(Color(uiColor: .secondarySystemBackground))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(uiColor: .systemBackground))
     }
 
     private func submit() {
