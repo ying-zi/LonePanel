@@ -55,8 +55,15 @@ struct FileBrowserView: View {
                 // 点开即在「当前页」呈现搜索框并自动聚焦，不会再出现「按钮消失、框不出」。
                 // 各页搜索状态独立，互不串味；切层级时随页面销毁自然收起，无残留、无闪烁。
             } else if model.hasConfiguredServer && !model.connectionFailed {
-                // 已配置服务器、正在连接（尚未失败）：显示原生加载动画。
-                ProgressView("正在连接服务器…")
+                // 已配置服务器、正在连接（尚未失败）：显示加载动画。
+                // 用无标签转圈 + 独立文字，避免 ProgressView(label:) 自带的材质背景块
+                // 与页面底色不一致而显得突兀；这样动画直接融入背景。
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("正在连接服务器…")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 disconnectedView
             }
