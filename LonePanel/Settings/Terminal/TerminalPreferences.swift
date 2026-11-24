@@ -6,6 +6,7 @@ enum TerminalPreferences {
     private static let floatingKey = "com.lone.lonepanel.terminal.floating"
     private static let fontSizeKey = "com.lone.lonepanel.terminal.fontSize"
     private static let wrapKey = "com.lone.lonepanel.terminal.autoWrap"
+    private static let virtualColumnsKey = "com.lone.lonepanel.terminal.virtualColumns"
 
     /// 悬浮终端按钮是否显示。默认开。
     static var floatingEnabled: Bool {
@@ -32,5 +33,14 @@ enum TerminalPreferences {
             return defaults.bool(forKey: wrapKey)
         }
         set { defaults.set(newValue, forKey: wrapKey) }
+    }
+
+    /// 虚拟列数：关闭自动换行时终端按此宽度排版并横向滚动。默认 100。
+    static var virtualColumns: Int {
+        get {
+            guard defaults.object(forKey: virtualColumnsKey) != nil else { return 100 }
+            return defaults.integer(forKey: virtualColumnsKey)
+        }
+        set { defaults.set(newValue, forKey: virtualColumnsKey) }
     }
 }
