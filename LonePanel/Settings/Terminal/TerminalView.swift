@@ -142,7 +142,8 @@ struct TerminalView: View {
     @StateObject private var keyState = TerminalKeyState()
     @Environment(\.dismiss) private var dismiss
     @State private var focusTick = 0
-    @State private var showSettings = false
+    /// 字号面板是否内联展开（不再用模态弹窗，避免遮挡键盘）。
+    @State private var showFontPanel = false
     @AppStorage("com.lone.lonepanel.terminal.fontSize") private var fontSize = 14.0
     @State private var keyboardShown = true
 
@@ -156,7 +157,6 @@ struct TerminalView: View {
             .navigationTitle("SSH 终端")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
-            .sheet(isPresented: $showSettings) { settingsPanel }
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
                 keyboardShown = true
             }
@@ -179,11 +179,14 @@ struct TerminalView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            Button { showSettings = true } label: {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { showFontPanel.toggle() }
+            } label: {
                 Image(systemName: "textformat.size")
+                    .foregroundStyle(showFontPanel ? TerminalTheme.lockBlue : Color.primary)
             }
-            .help("终端设置")
-            .accessibilityLabel("终端设置")
+            .help("字号设置")
+            .accessibilityLabel(showFontPanel ? "收起字号设置" : "字号设置")
         }
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 16) {
@@ -255,7 +258,36 @@ struct TerminalView: View {
                     .transition(.opacity)
             }
         }
+        // 内联字号面板：悬浮在终端顶部，不弹模态窗，键盘在底部互不遮挡。
+        .overlay(alignment: .topLeading) {
+            if showFontPanel { fontPanel }
+        }
         .animation(.easeInOut, value: session.notice)
+        .animation(.easeInOut(duration: 0.2), value: showFontPanel)
+    }
+
+    /// 内联展开的字号滑块条：一行「字号 [滑块] Npt」，宽 300pt，磨砂背景。
+    private var fontPanel: some View {
+        HStack(spacing: 10) {
+            Text("字号")
+                .font(.system(size: 14, weight: .medium))
+            Slider(value: $fontSize, in: 12...18, step: 1)
+                .tint(TerminalTheme.lockBlue)
+            Text("\(Int(fontSize))pt")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .frame(width: 38, alignment: .trailing)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .frame(width: 300)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(.quaternary, lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.28), radius: 10, y: 4)
+        .padding(.leading, 12)
+        .padding(.top, 8)
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     // MARK: - 快捷键栏
@@ -375,35 +407,5 @@ struct TerminalView: View {
 
     private func haptic() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-    }
-
-    // MARK: - 设置面板
-
-    private var settingsPanel: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("字号")
-                            Spacer()
-                            Text("\(Int(fontSize)) pt")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: $fontSize, in: 12...18, step: 1)
-                    }
-                } header: {
-                    Text("显示")
-                }
-            }
-            .navigationTitle("终端设置")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成") { showSettings = false }
-                }
-            }
-        }
-        .presentationDetents([.medium])
     }
 }
