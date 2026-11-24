@@ -105,6 +105,8 @@ private struct TerminalHostView: UIViewRepresentable {
         func hostCurrentDirectoryUpdate(source: SwiftTerm.TerminalView, directory: String?) {}
         func scrolled(source: SwiftTerm.TerminalView, position: Double) {}
         func requestOpenLink(source: SwiftTerm.TerminalView, link: String, params: [String: String]) {}
+        func clipboardCopy(source: SwiftTerm.TerminalView, content: Data) {}
+        func rangeChanged(source: SwiftTerm.TerminalView, startY: Int, endY: Int) {}
     }
 }
 
