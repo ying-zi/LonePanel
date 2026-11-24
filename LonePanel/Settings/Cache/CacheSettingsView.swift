@@ -93,7 +93,8 @@ struct CacheSettingsView: View {
                 primaryButton: .destructive(Text("清理")) {
                     Task { await FileCache.shared.clear(category: item.category); await reload() }
                 },
-                secondaryButton: .cancel()
+                // 显式给文案，走本地化；否则 .cancel() 用系统默认英文 "Cancel"。
+                secondaryButton: .cancel(Text("取消"))
             )
         }
     }
