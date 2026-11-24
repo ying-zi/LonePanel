@@ -242,10 +242,12 @@ private struct DirectoryPage: View {
                 if searching {
                     searchFocused = true
                 } else {
-                    // 只清关键词；焦点与键盘的 resign 完全交给系统"取消"流程。
-                    // 过去这里额外赋值 searchFocused = false，键盘还在时点取消会
-                    // 与系统的 resign 叠加成双重 dismiss，导致底部白色区域上顶闪烁。
+                    // 系统"取消"会让搜索框 resign 键盘，但 SwiftUI 的 @FocusState 仍停在 true。
+                    // 子页是 push 出来的：取消搜索时导航栏转场会重新同步这个焦点，导致键盘
+                    // "弹一下又收"，表现为底部白区上顶闪烁；根页无转场所以不受影响。
+                    // 用 Task 排到系统 resign 之后再归位，既消除二次同步，又避开同帧双重 dismiss。
                     searchText = ""
+                    Task { @MainActor in searchFocused = false }
                 }
             }
             // 方案一：搜索态绑定在页上，离开即放弃。
@@ -269,13 +271,7 @@ private struct DirectoryPage: View {
             // 多选 / 后台静默重连态隐藏系统返回键；搜索态的返回与「取消」交给系统接管。
             // 静默重连：由 leading 原位的转圈接管，避免在返回箭头旁再叠一个指示器。
             .navigationBarBackButtonHidden(isSelecting || model.isBackgroundReconnecting)
-            .safeAreaInset(edge: .bottom) {
-                batchActionBar
-                    .opacity(isSelecting ? 1 : 0)
-                    .frame(height: isSelecting ? nil : 0)
-                    .clipped()
-                    .allowsHitTesting(isSelecting)
-            }
+            .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
             .background(dialogHost)
     }
 
@@ -749,7 +745,7 @@ private struct DirectoryPage: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.red, in: RoundedRectangle(cornerRadius: 18))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
         .overlay {
             RoundedRectangle(cornerRadius: 18)
                 .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 0.5)
