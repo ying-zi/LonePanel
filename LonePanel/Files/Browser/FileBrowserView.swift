@@ -71,6 +71,17 @@ struct FileBrowserView: View {
                 // 成功后递增 refreshToken，各 DirectoryPage 监听后刷新当前目录。
             }
         }
+        // 再次点击当前文件 Tab 的恢复链路：iOS 26 会把导航栈系统级 pop 到空，
+        // 这里在 pop 发生后（navPath 变空）若有待恢复意图，立即把默认目录链设回——
+        // 发生在系统 pop 之后，不会被覆盖，这是「回默认目录而非根目录」的核心。
+        // 若待处理期间用户主动导航进子目录，则放弃恢复、不打断操作。
+        .onChange(of: model.navPath) { _, newPath in
+            if newPath.isEmpty {
+                model.consumeEntryRestoreIfPopped()
+            } else {
+                model.cancelEntryRestoreOnUserNavigation()
+            }
+        }
         // 上传改用 UIKit 的 UIDocumentPickerViewController：delegate 回调不随 SwiftUI
         // 视图重建丢失（选文件时 App 会进后台，切回时 FileBrowserView 可能重建，
         // SwiftUI .fileImporter 的 completion 因此丢失，表现为「选完没反应」）。
