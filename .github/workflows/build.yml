@@ -39,6 +39,8 @@ jobs:
           # 去掉首字母（t 或 v）得到纯版本号，如 t1.0.0 -> 1.0.0
           VERSION="${TAG:1}"
           BUILD_TIME="$(date -u +%Y%m%d-%H%M%S)"
+          # 构建号用 git commit 计数：稳定、可复现（同一 commit 每次构建一致）。
+          BUILD_NUMBER="$(git rev-list --count HEAD)"
 
           case "$TAG" in
             t*) CHANNEL="testing"; PRERELEASE="true" ;;
@@ -50,6 +52,7 @@ jobs:
 
           echo "tag=${TAG}"           >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}"   >> "$GITHUB_OUTPUT"
+          echo "build_number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "build_time=${BUILD_TIME}" >> "$GITHUB_OUTPUT"
           echo "channel=${CHANNEL}"   >> "$GITHUB_OUTPUT"
           echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
@@ -65,8 +68,15 @@ jobs:
 
       - name: Build unsigned archive
         shell: bash
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          BUILD_NUMBER: ${{ steps.meta.outputs.build_number }}
         run: |
           set -euo pipefail
+          # 把 tag 版本与构建号覆盖写入生成的 Info.plist：
+          #   CFBundleShortVersionString = VERSION（用户看到的版本，如 1.32.0）
+          #   CFBundleVersion            = BUILD_NUMBER（git commit 计数，可复现）
+          # 这样 app 内显示的版本与tag/IPA 文件名一致，无需手改工程配置。
           xcodebuild archive \
             -project LonePanel.xcodeproj \
             -scheme LonePanel \
@@ -75,6 +85,8 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath "${PWD}/build/LonePanel.xcarchive" \
             -quiet \
+            MARKETING_VERSION="${VERSION}" \
+            CURRENT_PROJECT_VERSION="${BUILD_NUMBER}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -89,6 +101,14 @@ jobs:
           APP="$(find build/LonePanel.xcarchive/Products/Applications -maxdepth 1 -name '*.app' -print -quit)"
           if [[ -z "$APP" ]]; then
             echo "No .app found in xcarchive" >&2
+            exit 1
+          fi
+          # 校验：确认 tag 版本已真正写入 app 内 Info.plist，不一致则构建失败。
+          SHORT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")"
+          BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")"
+          echo "Info.plist -> CFBundleShortVersionString=${SHORT} | CFBundleVersion=${BUILD}"
+          if [[ "${SHORT}" != "${{ steps.meta.outputs.version }}" ]]; then
+            echo "Version mismatch: Info.plist=${SHORT}, tag=${{ steps.meta.outputs.version }}" >&2
             exit 1
           fi
           rm -rf build/Payload
