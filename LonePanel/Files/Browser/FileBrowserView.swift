@@ -749,7 +749,7 @@ private struct DirectoryPage: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .background(Color.red, in: RoundedRectangle(cornerRadius: 18))
         .overlay {
             RoundedRectangle(cornerRadius: 18)
                 .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 0.5)
