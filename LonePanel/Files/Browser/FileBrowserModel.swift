@@ -539,8 +539,19 @@ final class FileBrowserModel: ObservableObject {
 
     // MARK: - 预览与导出（QuickLook / 系统分享面板）
 
-    /// 把远程文件下载到本地临时目录并返回 URL，保留扩展名以便系统识别类型。
+    /// 返回远程文件可用的本地 URL，保留扩展名以便系统识别类型。
+    /// 命中通用缓存则秒开（无下载、无进度条）；未命中才下载并写入缓存。
+    /// key 含 服务器ID|路径|大小|修改时间：文件在服务端变化即失效重下，切服务器也不串味。
+    /// purpose 保留以兼容调用方；预览与分享共用同一份缓存，不再按用途分目录。
     func localURL(for file: RemoteFile, purpose: String) async -> URL? {
+        _ = purpose
+        let serverID = ServerSession.shared.currentServer?.id.uuidString ?? "unknown"
+        let modified = file.modified?.timeIntervalSince1970 ?? 0
+        let key = "\(serverID)|\(file.path)|\(file.size)|\(modified)"
+
+        // 命中缓存：直接给出本地路径，跳过下载与进度条。
+        if let cached = await FileCache.shared.url(forKey: key) { return cached }
+
         guard let client else { return nil }
         transferProgress[file.path] = 0
         defer { transferProgress[file.path] = nil }
@@ -551,8 +562,14 @@ final class FileBrowserModel: ObservableObject {
                     self.transferProgress[file.path] = progress
                 }
             }
+            // 优先写入通用缓存（按 files 类别统计/清理）；万一写入失败，降级到临时目录，
+            // 保证下载成功的文件仍能正常预览/分享。
+            if let cached = await FileCache.shared.store(data, forKey: key,
+                                                          category: "files", fileName: file.name) {
+                return cached
+            }
             let dir = FileManager.default.temporaryDirectory
-                .appendingPathComponent("LonePanel-\(purpose)", isDirectory: true)
+                .appendingPathComponent("LonePanel-fallback", isDirectory: true)
                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let url = dir.appendingPathComponent(file.name)

@@ -45,6 +45,8 @@
 		D10000000000000000000034 /* FileTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000034 /* FileTypes.swift */; };
 		D10000000000000000000035 /* FileDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000035 /* FileDetailView.swift */; };
 		D10000000000000000000036 /* FilePreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000036 /* FilePreferencesStore.swift */; };
+		D10000000000000000000037 /* FileCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000037 /* FileCache.swift */; };
+		D10000000000000000000038 /* CacheSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000038 /* CacheSettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -85,6 +87,8 @@
 		C10000000000000000000034 /* FileTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTypes.swift; sourceTree = "<group>"; };
 		C10000000000000000000035 /* FileDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDetailView.swift; sourceTree = "<group>"; };
 		C10000000000000000000036 /* FilePreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePreferencesStore.swift; sourceTree = "<group>"; };
+		C10000000000000000000037 /* FileCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileCache.swift; sourceTree = "<group>"; };
+		C10000000000000000000038 /* CacheSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -142,8 +146,17 @@
 				A80000000000000000000001 /* Session */,
 				A80000000000000000000002 /* SSH */,
 				A80000000000000000000003 /* Keychain */,
+				A80000000000000000000004 /* Cache */,
 			);
 			path = Core;
+			sourceTree = "<group>";
+		};
+		A80000000000000000000004 /* Cache */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000037 /* FileCache.swift */,
+			);
+			path = Cache;
 			sourceTree = "<group>";
 		};
 		A60000000000000000000001 /* Navigation */ = {
@@ -236,8 +249,17 @@
 				C10000000000000000000027 /* SettingsView.swift */,
 				B30000000000000000000001 /* Core */,
 				B30000000000000000000002 /* Servers */,
+				B30000000000000000000003 /* Cache */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		B30000000000000000000003 /* Cache */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000038 /* CacheSettingsView.swift */,
+			);
+			path = Cache;
 			sourceTree = "<group>";
 		};
 		B30000000000000000000001 /* Core */ = {
@@ -401,6 +423,8 @@
 				D10000000000000000000034 /* FileTypes.swift in Sources */,
 				D10000000000000000000035 /* FileDetailView.swift in Sources */,
 				D10000000000000000000036 /* FilePreferencesStore.swift in Sources */,
+				D10000000000000000000037 /* FileCache.swift in Sources */,
+				D10000000000000000000038 /* CacheSettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

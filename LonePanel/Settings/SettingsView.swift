@@ -10,6 +10,11 @@ struct SettingsView: View {
                 } label: {
                     Label("我的服务器", systemImage: "server.rack")
                 }
+                NavigationLink {
+                    CacheSettingsView()
+                } label: {
+                    Label("缓存管理", systemImage: "internaldrive")
+                }
             }
             .navigationTitle("设置")
         }
