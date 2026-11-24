@@ -24,16 +24,17 @@ struct CacheSettingsView: View {
                             .monospacedDigit()
                     }
                     Spacer(minLength: 8)
-                    // 纯图标按钮：字号放大时不会像文字那样撑变形；
-                    // .destructive + .borderedProminent 呈系统红色实心垃圾桶。
+                    // 纯图标胶囊按钮：宽度大于高度，系统的 .borderedProminent 自然呈胶囊造型。
+                    // 固定字号 + 固定尺寸，系统字号放大时不会变形。
+                    // .destructive 呈系统红色实心，垃圾桶居中。
                     Button(role: .destructive) {
                         confirmAll = true
                     } label: {
                         Image(systemName: "trash")
-                            .font(.system(size: 18, weight: .semibold))
+                            .font(.system(size: 24, weight: .semibold))
                     }
                     .buttonStyle(.borderedProminent)
-                    .frame(width: 46, height: 46)
+                    .frame(width: 88, height: 48)
                     .accessibilityLabel("全部清理")
                     .disabled(total == 0)
                 }
@@ -57,16 +58,16 @@ struct CacheSettingsView: View {
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
-                            // 灰色垃圾桶：.bordered 配 .tint(.gray)，与顶部红色形成层级区分。
+                            // 灰色胶囊垃圾桶：同样的宽胶囊，.bordered 配 .tint(.gray) 与顶部红色区分层级。
                             Button {
                                 pendingCategory = item
                             } label: {
                                 Image(systemName: "trash")
-                                    .font(.system(size: 16, weight: .medium))
+                                    .font(.system(size: 22, weight: .medium))
                             }
                             .buttonStyle(.bordered)
                             .tint(.gray)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 80, height: 46)
                             .accessibilityLabel("清理")
                         }
                     }
