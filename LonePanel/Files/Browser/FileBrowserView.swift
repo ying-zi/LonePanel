@@ -27,7 +27,12 @@ struct FileBrowserView: View {
 
     var body: some View {
         Group {
-            if model.isConnected {
+            // 只要配置了服务器且未连接失败，就固定呈现 NavigationStack：连接过程与
+            // 目录加载都由页内同一段加载态承接。过去在 TabView 根层另放一段 spinner，
+            // 会被系统套上材质圆角块（浅灰方块），且冷启动时与页内「加载中…」形成两段
+            // 动画跳变。现在根层只有这一分支，加载态与列表同处 NavigationStack 内，
+            // 背景与底色完全一致，从连接到出列表只有一次连续过渡。
+            if model.hasConfiguredServer && !model.connectionFailed {
                 NavigationStack(path: $model.navPath) {
                     DirectoryPage(
                         model: model,
@@ -54,13 +59,18 @@ struct FileBrowserView: View {
                 // 搜索框下放到每个 DirectoryPage：系统为每一级目录各自提供一个原生放大镜，
                 // 点开即在「当前页」呈现搜索框并自动聚焦，不会再出现「按钮消失、框不出」。
                 // 各页搜索状态独立，互不串味；切层级时随页面销毁自然收起，无残留、无闪烁。
-            } else if model.hasConfiguredServer && !model.connectionFailed {
-                // 已配置服务器、正在连接（尚未失败）：显示原生加载动画。
-                ProgressView("正在连接服务器…")
             } else {
                 disconnectedView
             }
         }
+        // 页面背景固定铺满全屏、忽略键盘安全区：List 用 .scrollContentBackground(.hidden)
+        // 变为透明后，透出的就是这一层。键盘弹起/收起时底部露出的始终是同一背景色，
+        // 消除"白块跳动"。这与 iOS 原生做法（如 GitHub 客户端）一致——配键盘色无效，
+        // 关键是让背景铺满、不随键盘压缩。NavigationStack 外层只放这一片，各页共享。
+        .background(
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea(.keyboard)
+        )
         .task {
             await model.connectIfNeeded()
             // 仅首次连接时建立默认目录导航链；切回 Tab 不重置，保留离开前的目录。
@@ -226,6 +236,8 @@ private struct DirectoryPage: View {
     @State private var showDangerConfirm = false
     @State private var showDeleteConfirm = false
     @State private var infoFile: RemoteFile?
+    /// 正在编辑的文本文件（仅文本 / 代码类型）。sheet 承载原生 TextEditor。
+    @State private var editingFile: RemoteFile?
     @State private var targetOperation: BatchOperation?
     @State private var targetFiles: [RemoteFile] = []
 
@@ -242,9 +254,8 @@ private struct DirectoryPage: View {
                 if searching {
                     searchFocused = true
                 } else {
-                    // 只清关键词；焦点与键盘的 resign 完全交给系统"取消"流程。
-                    // 过去这里额外赋值 searchFocused = false，键盘还在时点取消会
-                    // 与系统的 resign 叠加成双重 dismiss，导致底部白色区域上顶闪烁。
+                    // 只清关键词；焦点与键盘的 resign 完全交给系统"取消"流程，
+                    // 不手动改 FocusState（否则与系统动画撞成双重 dismiss）。
                     searchText = ""
                 }
             }
@@ -265,11 +276,22 @@ private struct DirectoryPage: View {
             .task { await load() }
             // 断线重连成功后重新拉取当前目录（保留导航层级与选中态）。
             .onChange(of: model.refreshToken) { _, _ in Task { await load() } }
-            .toolbar { toolbarContent }
+            // 连接未建立时隐藏工具栏：此时的 ⋯ / 搜索等操作都依赖尚未就绪的连接，
+            // 显示出来只会点了没反应。连接成功后随 isConnected 一起原生恢复。
+            .toolbar {
+                if model.isConnected { toolbarContent }
+            }
             // 多选 / 后台静默重连态隐藏系统返回键；搜索态的返回与「取消」交给系统接管。
             // 静默重连：由 leading 原位的转圈接管，避免在返回箭头旁再叠一个指示器。
             .navigationBarBackButtonHidden(isSelecting || model.isBackgroundReconnecting)
-            .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
+            // 多选栏用 overlay 悬浮在 TabBar 上方，不占安全区（避免 safeAreaInset
+            // 在键盘 dismiss 时回弹导致底部露出不同色背景）。仅多选态显示。
+            .overlay(alignment: .bottom) {
+                if isSelecting {
+                    batchActionBar
+                        .padding(.bottom, 72)
+                }
+            }
             .background(dialogHost)
     }
 
@@ -339,6 +361,11 @@ private struct DirectoryPage: View {
             FileInfoSheet(file: file, model: model)
                 .presentationDetents([.medium, .large])
         }
+        .sheet(item: $editingFile) { file in
+            TextEditorView(file: file, model: model) {
+                Task { await load() }
+            }
+        }
         .sheet(isPresented: targetPickerBinding) {
             TargetDirectorySheet(model: model, node: node, operation: targetOperation ?? .move) { target in
                 // 必须在创建 Task 前捕获值：@State 在 Task 执行时才读取，
@@ -363,11 +390,13 @@ private struct DirectoryPage: View {
 
     @ViewBuilder
     private var contentForState: some View {
-        if isLoading || !hasLoadedOnce {
-            // 首帧与加载中都显示加载态。没有 hasLoadedOnce 时，新建的目录页
-            // 首帧 isLoading=false、entries=[]，会先闪一帧「文件夹为空」的空白页 ——
-            // 回默认目录 push 多级导航链时每一级都闪，视觉上就是「跳到一个空白页」。
-            ProgressView("加载中…")
+        if !model.isConnected || isLoading || !hasLoadedOnce {
+            // 连接中、首帧与加载中共用同一段加载态 —— 这就是冷启动唯一的加载过程，
+            // 不再有 TabView 根层那段独立的「正在连接服务器…」造成两段动画跳变。
+            // 没有 hasLoadedOnce 时，新建的目录页首帧 isLoading=false、entries=[]，
+            // 会先闪一帧「文件夹为空」的空白页 —— 回默认目录 push 多级导航链时
+            // 每一级都闪，视觉上就是「跳到一个空白页」。
+            connectionLoadingView
         } else if entries.isEmpty {
             emptyView
         } else if model.viewMode == .grid {
@@ -377,9 +406,24 @@ private struct DirectoryPage: View {
         }
     }
 
+    /// 连接与目录加载共用的原生加载态：UIKit spinner 无背景块，文字为系统次级样式，
+    /// 与列表同处 NavigationStack 内、底色一致，不会被套浅灰圆角块。
+    private var connectionLoadingView: some View {
+        VStack(spacing: 12) {
+            NativeSpinner()
+            Text("加载中…")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     // MARK: - 加载与筛选
 
     private func load() async {
+        // 连接尚未建立时 listDirectory 会直接返回空；若此时写入 hasLoadedOnce
+        // 会闪现「文件夹为空」。保持加载态，等连接成功后 refreshToken 变化再拉取。
+        guard model.isConnected else { return }
         isLoading = true
         defer { isLoading = false }
         entries = await model.listDirectory(at: node.path)
@@ -403,8 +447,17 @@ private struct DirectoryPage: View {
             ForEach(visibleEntries) { file in
                 rowView(for: file)
             }
+            if isSelecting {
+                // 多选栏悬浮在底部，补占位避免遮住最后一行；仅多选态出现。
+                Color.clear.frame(height: 150)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
         }
         .listStyle(.insetGrouped)
+        // 列表自身透明，露出 NavigationStack 外层那片铺满全屏、忽略键盘的固定背景。
+        // 这样底部不随键盘压缩变色，消除键盘 dismiss 时的白块跳动。
+        .scrollContentBackground(.hidden)
         .overlay { if isLoading && !entries.isEmpty { ProgressView() } }
     }
 
@@ -435,15 +488,17 @@ private struct DirectoryPage: View {
         .contextMenu { contextMenuItems(for: file) }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if !isSelecting {
-                Button { renameTarget(file) } label: { Label("重命名", systemImage: "pencil") }
-                    .tint(.orange)
+                // 左滑只留高频动作：可编辑文本多一个「编辑」，其余只有「删除」。
+                // 重命名 / 移动收敛到长按菜单，避免左滑三个按钮的拥挤与误触。
+                if FileKind.isEditable(file) {
+                    Button { editingFile = file } label: {
+                        Label("编辑", systemImage: "square.and.pencil")
+                    }
+                    .tint(.blue)
+                }
                 Button(role: .destructive) { requestDelete([file]) } label: {
                     Label("删除", systemImage: "trash")
                 }
-                Button { beginTransfer(.move, files: [file]) } label: {
-                    Label("移动", systemImage: "arrow.right")
-                }
-                .tint(.blue)
             }
         }
     }
@@ -458,6 +513,10 @@ private struct DirectoryPage: View {
                 }
             }
             .padding()
+            if isSelecting {
+                // 多选栏悬浮在底部，补占位避免遮住最后一行；仅多选态出现。
+                Color.clear.frame(height: 150)
+            }
         }
         .overlay { if isLoading && !entries.isEmpty { ProgressView() } }
     }
@@ -718,6 +777,10 @@ private struct DirectoryPage: View {
         // 快速查看（QuickLook）仅对文件有效，目录改用进入浏览（整行点击）。
         if !file.isDirectory {
             Button { quickLook(file) } label: { Label("快速查看", systemImage: "eye") }
+        }
+        // 只有纯文本 / 源码且在大小上限内，才提供编辑入口。
+        if FileKind.isEditable(file) {
+            Button { editingFile = file } label: { Label("编辑", systemImage: "square.and.pencil") }
         }
         Button { infoFile = file } label: { Label("获取信息", systemImage: "info.circle") }
         Button { renameTarget(file) } label: { Label("重命名", systemImage: "pencil") }
@@ -1052,4 +1115,17 @@ struct FileUploadPicker: UIViewControllerRepresentable {
             onCancel?()
         }
     }
+}
+
+/// 系统原生 spinner：用 UIKit 的 UIActivityIndicatorView，避免 SwiftUI ProgressView
+/// 被套上材质背景块。它是 iOS 系统各处通用的原生加载指示器，本身不带任何背景。
+private struct NativeSpinner: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIActivityIndicatorView {
+        let spinner = UIActivityIndicatorView(style: .medium)
+        spinner.color = .tertiaryLabel
+        spinner.startAnimating()
+        return spinner
+    }
+
+    func updateUIView(_ uiView: UIActivityIndicatorView, context: Context) {}
 }

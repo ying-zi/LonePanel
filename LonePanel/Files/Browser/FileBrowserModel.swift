@@ -151,7 +151,7 @@ final class FileBrowserModel: ObservableObject {
         } catch {
             clearSession()
             connectionFailed = true
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
         }
     }
 
@@ -201,7 +201,7 @@ final class FileBrowserModel: ObservableObject {
         } catch {
             // 静默重连失败：保留快照界面不闪断，但明确弹窗告知连接失败，
             // 让用户知道当前会话可能已不可用、可手动重新连接。
-            errorMessage = "服务器连接失败：\(SSHSession.describe(error))"
+            errorMessage = "服务器连接失败：\(describeFileError(error))"
         }
     }
 
@@ -213,7 +213,7 @@ final class FileBrowserModel: ObservableObject {
             let raw = try await client.listDirectory(path)
             return sortEntries(raw)
         } catch {
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
             return []
         }
     }
@@ -266,7 +266,7 @@ final class FileBrowserModel: ObservableObject {
         do {
             try await client.makeDirectory(client.joined(path, trimmed))
         } catch {
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
         }
     }
 
@@ -275,7 +275,7 @@ final class FileBrowserModel: ObservableObject {
         do {
             try await client.rename(from: file.path, to: client.joined(parent, trimmed))
         } catch {
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
         }
     }
 
@@ -299,7 +299,7 @@ final class FileBrowserModel: ObservableObject {
                 for file in files { try await deleteRecursive(client, file) }
                 refreshToken &+= 1
             } catch {
-                errorMessage = SSHSession.describe(error)
+                errorMessage = describeFileError(error)
             }
         }
     }
@@ -377,7 +377,7 @@ final class FileBrowserModel: ObservableObject {
                     : "\(operation.rawValue)失败：\(reason)"
             }
         } catch {
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
         }
     }
 
@@ -387,7 +387,7 @@ final class FileBrowserModel: ObservableObject {
         do {
             try await client.writeFile(client.joined(path, trimmed), data: Data())
         } catch {
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
         }
     }
 
@@ -431,17 +431,19 @@ final class FileBrowserModel: ObservableObject {
     // MARK: - 文件夹真实统计（SSH du/find 命令，SFTP STAT 的目录 size 不可信）
 
     /// 用远端 shell 命令统计文件夹的真实磁盘占用、文件数、子目录数。
-    /// 一条命令合并 du + 两次 find，降低往返；解析失败返回 nil，让界面显示「未知」。
+    /// 冷磁盘首次 du/find 遍历大目录可能很慢，超时放宽到 60 秒；一次扫描只发一条
+    /// 合并命令降低往返。解析失败返回 nil，界面据此显示「扫描失败」并可重试。
     func folderStats(for file: RemoteFile) async -> FolderStats? {
         guard let client, file.isDirectory else { return nil }
         let path = shellQuote(file.path)
         // du -sk 输出「KB<TAB>路径」；find 统计不含目录自身，故子目录数 -1。
+        // 三段各自兜底为 0，某条子命令失败（如服务器禁用 find）也不会让整条返回非 0。
         let script = "bytes=$(du -sk -- \(path) 2>/dev/null | awk '{print $1}'); "
             + "files=$(find \(path) -type f 2>/dev/null | wc -l); "
             + "dirs=$(find \(path) -type d 2>/dev/null | wc -l); "
             + "echo \"${bytes:-0}|${files:-0}|$(( ${dirs:-1} - 1 ))\""
         do {
-            let result = try await client.execute(script)
+            let result = try await client.execute(script, timeoutSeconds: 60)
             guard result.exitStatus == 0 else { return nil }
             let parts = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
                 .split(separator: "|", omittingEmptySubsequences: false)
@@ -454,6 +456,50 @@ final class FileBrowserModel: ObservableObject {
         } catch {
             return nil
         }
+    }
+
+    // MARK: - 属主名称（/etc/passwd 与 /etc/group → UID/GID 映射）
+
+    /// 按当前服务器缓存的 UID→用户名、GID→组名映射。冷启动后首次按需加载。
+    private var uidNames: [UInt32: String] = [:]
+    private var gidNames: [UInt32: String] = [:]
+    private var ownerNamesLoadedFor: UUID?
+
+    /// 读取 /etc/passwd 与 /etc/group 建立映射。任一步失败则对应映射留空，
+    /// 界面回退显示 UID/GID 数字。整个流程走 SFTP（不依赖 exec 通道）。
+    func loadOwnerNamesIfNeeded() async {
+        guard let client, let serverID = ServerSession.shared.currentServer?.id else { return }
+        if ownerNamesLoadedFor == serverID { return }
+        var users: [UInt32: String] = [:]
+        var groups: [UInt32: String] = [:]
+        if let data = try? await client.readFile("/etc/passwd"),
+           let text = String(data: data, encoding: .utf8) {
+            for line in text.split(separator: "\n") {
+                let cols = line.split(separator: ":", omittingEmptySubsequences: false)
+                // root:x:0:0:root:/root:/bin/bash → 名称 col0, UID col2, GID col3
+                guard cols.count >= 3, let uid = UInt32(cols[2]) else { continue }
+                users[uid] = String(cols[0])
+            }
+        }
+        if let data = try? await client.readFile("/etc/group"),
+           let text = String(data: data, encoding: .utf8) {
+            for line in text.split(separator: "\n") {
+                let cols = line.split(separator: ":", omittingEmptySubsequences: false)
+                // root:x:0: → 名称 col0, GID col2
+                guard cols.count >= 3, let gid = UInt32(cols[2]) else { continue }
+                groups[gid] = String(cols[0])
+            }
+        }
+        uidNames = users
+        gidNames = groups
+        ownerNamesLoadedFor = serverID
+    }
+
+    /// 把 UID/GID 解析成可读的「用户 · 组」；缺映射时回退为数字。
+    func ownerDisplay(uid: UInt32?, gid: UInt32?) -> String {
+        let user = uid.flatMap { uidNames[$0] } ?? uid.map { "UID \($0)" } ?? "未知用户"
+        let group = gid.flatMap { gidNames[$0] } ?? gid.map { "GID \($0)" } ?? "未知组"
+        return "\(user) · \(group)"
     }
 
     // MARK: - 上传（本地文件 → 当前目录）
@@ -514,7 +560,7 @@ final class FileBrowserModel: ObservableObject {
                 }
                 succeeded += 1
             } catch {
-                failures.append("\(name)：\(SSHSession.describe(error))")
+                failures.append("\(name)：\(describeFileError(error))")
             }
         }
 
@@ -539,8 +585,24 @@ final class FileBrowserModel: ObservableObject {
 
     // MARK: - 预览与导出（QuickLook / 系统分享面板）
 
-    /// 把远程文件下载到本地临时目录并返回 URL，保留扩展名以便系统识别类型。
+    /// 缓存 key：含服务器、路径、大小、修改时间，远端变化即失效，切服务器不串味。
+    static func cacheKey(for file: RemoteFile) -> String {
+        let serverID = ServerSession.shared.currentServer?.id.uuidString ?? "unknown"
+        let modified = file.modified?.timeIntervalSince1970 ?? 0
+        return "\(serverID)|\(file.path)|\(file.size)|\(modified)"
+    }
+
+    /// 返回远程文件可用的本地 URL，保留扩展名以便系统识别类型。
+    /// 命中通用缓存则秒开（无下载、无进度条）；未命中才下载并写入缓存。
+    /// key 含 服务器ID|路径|大小|修改时间：文件在服务端变化即失效重下，切服务器也不串味。
+    /// purpose 保留以兼容调用方；预览与分享共用同一份缓存，不再按用途分目录。
     func localURL(for file: RemoteFile, purpose: String) async -> URL? {
+        _ = purpose
+        let key = Self.cacheKey(for: file)
+
+        // 命中缓存：直接给出本地路径，跳过下载与进度条。
+        if let cached = await FileCache.shared.url(forKey: key) { return cached }
+
         guard let client else { return nil }
         transferProgress[file.path] = 0
         defer { transferProgress[file.path] = nil }
@@ -551,16 +613,54 @@ final class FileBrowserModel: ObservableObject {
                     self.transferProgress[file.path] = progress
                 }
             }
+            // 优先写入通用缓存（按 files 类别统计/清理）；万一写入失败，降级到临时目录，
+            // 保证下载成功的文件仍能正常预览/分享。
+            if let cached = await FileCache.shared.store(data, forKey: key,
+                                                          category: "files", fileName: file.name) {
+                return cached
+            }
             let dir = FileManager.default.temporaryDirectory
-                .appendingPathComponent("LonePanel-\(purpose)", isDirectory: true)
+                .appendingPathComponent("LonePanel-fallback", isDirectory: true)
                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let url = dir.appendingPathComponent(file.name)
             try data.write(to: url)
             return url
         } catch {
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
             return nil
+        }
+    }
+
+    // MARK: - 文本编辑（读取 → UTF-8 解码 → 写回 → 失效缓存）
+
+    /// 读取远端文本文件为 UTF-8 字符串。解码失败返回 nil，由编辑器提示用户。
+    func readText(_ file: RemoteFile) async -> String? {
+        guard let client else { return nil }
+        do {
+            let data = try await client.readFile(file.path, expectedSize: file.size)
+            return String(data: data, encoding: .utf8)
+        } catch {
+            errorMessage = describeFileError(error)
+            return nil
+        }
+    }
+
+    /// 把编辑后的文本写回远端，成功后主动失效该文件的预览缓存并刷新列表。
+    /// 返回 false 表示失败（错误已写入 errorMessage）。
+    @discardableResult
+    func writeText(_ text: String, to file: RemoteFile) async -> Bool {
+        guard let client, let data = text.data(using: .utf8) else { return false }
+        do {
+            try await client.writeFile(file.path, data: data)
+            // 修改时间与大小可能都没变（例如只改一个字符），旧 key 仍会命中，
+            // 必须主动删掉缓存副本，否则预览/分享看到的还是旧内容。
+            await FileCache.shared.remove(forKey: Self.cacheKey(for: file))
+            refreshToken &+= 1
+            return true
+        } catch {
+            errorMessage = describeFileError(error)
+            return false
         }
     }
 
@@ -578,4 +678,14 @@ final class FileBrowserModel: ObservableObject {
     }
 
     func dismissError() { errorMessage = nil }
+}
+
+/// 文件模块统一的错误文案：SFTP 层错误自带人话（权限/不存在/超时等），直接呈现；
+/// 其余 SSH/NIO 底层错误交给 SSHSession.describe 翻译，绝不暴露原始报错。
+/// 放在 Files 层而非 Core 层，避免 Core 反向依赖文件模块的 SFTPError。
+private func describeFileError(_ error: Error) -> String {
+    if let e = error as? SFTPError {
+        return e.localizedDescription
+    }
+    return SSHSession.describe(error)
 }

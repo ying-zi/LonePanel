@@ -38,7 +38,7 @@ struct ServerFormView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     TextField("端口", text: $portText)
-                    TextField("用户名", text: $username)
+                    TextField("root", text: $username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
@@ -114,12 +114,18 @@ struct ServerFormView: View {
         Int(portText.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
+    /// 用户名留空时按 root 处理（绝大多数服务器默认用户）。UI 上仅作占位提示，
+    /// 不把 root 写进输入框，避免用户误以为已填好；真正提交时才兜底。
+    private var resolvedUsername: String {
+        let trimmed = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "root" : trimmed
+    }
+
     private func validate() -> Bool {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              port != nil,
-              !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            errorMessage = "请填写名称、地址、端口和用户名"
+              port != nil else {
+            errorMessage = "请填写名称、地址和端口"
             return false
         }
         return true
@@ -156,7 +162,7 @@ struct ServerFormView: View {
             let message = try await SSHSession.test(
                 host: host.trimmingCharacters(in: .whitespacesAndNewlines),
                 port: port,
-                username: username.trimmingCharacters(in: .whitespacesAndNewlines),
+                username: resolvedUsername,
                 credential: credential
             )
             testResult = message
@@ -191,7 +197,7 @@ struct ServerFormView: View {
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
             host: host.trimmingCharacters(in: .whitespacesAndNewlines),
             port: port,
-            username: username.trimmingCharacters(in: .whitespacesAndNewlines),
+            username: resolvedUsername,
             authKind: authKind,
             credentialKey: credentialKey
         )

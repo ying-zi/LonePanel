@@ -1,0 +1,79 @@
+import SwiftUI
+
+/// 原生文本编辑器：系统 TextEditor + 取消/存储，遵循项目「原生 UI」约束。
+/// 打开时读取远端 UTF-8 文本，存储时写回并失效缓存；空内容也能正常存储。
+struct TextEditorView: View {
+    let file: RemoteFile
+    let model: FileBrowserModel
+    /// 存储成功回调，用于关闭面板并刷新列表。
+    let onSaved: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: String = ""
+    @State private var isLoading = true
+    @State private var isSaving = false
+    @FocusState private var editorFocused: Bool
+
+    private var hasChanges: Bool { draft != original }
+    @State private var original: String = ""
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if isLoading {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text("正在读取文件…")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    TextEditor(text: $draft)
+                        .font(.system(size: 15, design: .monospaced))
+                        .focused($editorFocused)
+                        .padding(.horizontal, 4)
+                        .toolbar {
+                            ToolbarItem(placement: .keyboard) {
+                                HStack {
+                                    Spacer()
+                                    Button("完成") { editorFocused = false }
+                                }
+                            }
+                        }
+                }
+            }
+            .navigationTitle(file.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("存储") { Task { await save() } }
+                        .disabled(isLoading || isSaving || !hasChanges)
+                }
+            }
+            .task { await load() }
+        }
+    }
+
+    private func load() async {
+        guard let text = await model.readText(file) else {
+            dismiss()
+            return
+        }
+        draft = text
+        original = text
+        isLoading = false
+        editorFocused = true
+    }
+
+    private func save() async {
+        isSaving = true
+        defer { isSaving = false }
+        let ok = await model.writeText(draft, to: file)
+        guard ok else { return }
+        onSaved()
+        dismiss()
+    }
+}

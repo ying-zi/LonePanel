@@ -6,6 +6,7 @@ enum DockerTab {
         id: "docker",
         title: "Docker",
         symbolName: "shippingbox",
-        view: AnyView(DockerView())
+        view: AnyView(DockerView()),
+        showsFloatingTerminal: true
     )
 }

@@ -354,10 +354,10 @@ final class SFTPClient {
         }
     }
 
-    /// 在同一条已认证连接上执行远端命令（仅供连接的 exec 通道探测使用）。
-    /// 文件操作已全部改为纯 SFTP 原语，不再依赖此通道。
-    func execute(_ command: String) async throws -> SSHExecResult {
-        try await session.execute(command)
+    /// 在同一条已认证连接上执行远端命令。
+    /// 主要用于文件夹统计、删除/移动等需要 shell 的场景；超时可按需放宽。
+    func execute(_ command: String, timeoutSeconds: Int = 20) async throws -> SSHExecResult {
+        try await session.execute(command, timeoutSeconds: timeoutSeconds)
     }
 
     /// 读取文件。expectedSize 与 onProgress 配合，向 UI 汇报 0...1 的下载进度。

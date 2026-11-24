@@ -46,7 +46,9 @@ final class SSHSession {
     private let group: MultiThreadedEventLoopGroup
     /// internal 可见性：供同模块 SSHSubsystem 扩展开启 subsystem 子通道。
     let channel: Channel
-    private let gateBox: GateBox
+    /// 在途命令注册表：父通道错误时广播给所有正在执行的命令。
+    /// 支持并发——Docker 等模块进页面会同时拉容器、镜像、系统信息。
+    private let gateRegistry: GateRegistry
 
     init(
         host: String,
@@ -74,8 +76,8 @@ final class SSHSession {
 
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         self.group = group
-        let gateBox = GateBox()
-        self.gateBox = gateBox
+        let gateRegistry = GateRegistry()
+        self.gateRegistry = gateRegistry
 
         let auth = AuthDelegate(username: username, password: password, privateKey: privateKey)
         let hostKey = HostKeyDelegate()
@@ -96,7 +98,7 @@ final class SSHSession {
                         inboundChildChannelInitializer: nil
                     )
                     try sync.addHandler(handler)
-                    try sync.addHandler(ParentErrorHandler(gateBox: gateBox))
+                    try sync.addHandler(ParentErrorHandler(registry: gateRegistry))
                 }
             }
 
@@ -116,11 +118,12 @@ final class SSHSession {
     }
 
     /// 执行远端命令。返回退出码、标准输出与标准错误。
+    /// 可并发调用：每条命令独立子通道与 Promise，父通道错误会广播让所有在途命令一起失败。
     func execute(_ command: String, timeoutSeconds: Int = 20) async throws -> SSHExecResult {
         let promise = group.next().makePromise(of: SSHExecResult.self)
         let gate = PromiseGate(promise)
-        gateBox.set(gate)
-        defer { gateBox.set(nil) }
+        gateRegistry.add(gate)
+        defer { gateRegistry.remove(gate) }
 
         let timeoutWork = DispatchWorkItem {
             gate.fail(SSHConnectionError.timedOut)
@@ -256,18 +259,29 @@ private final class PromiseGate {
     }
 }
 
-/// 父通道的错误转发到当前命令的 Promise。
-private final class GateBox {
+/// 在途命令注册表。取代原先只存一条命令的单槽位：
+/// 单槽位下并发的第二条命令会覆盖第一条，父通道错误只能通知到最后一条，
+/// 前面的命令只能干等超时（Docker 并发拉数据时必然踩雷）。
+/// 现在父通道级错误广播给所有在途 gate；每条命令自己的子通道错误仍只影响自己。
+private final class GateRegistry {
     private let lock = NSLock()
-    private var current: PromiseGate?
+    private var gates: [ObjectIdentifier: PromiseGate] = [:]
 
-    func set(_ gate: PromiseGate?) {
-        lock.lock(); current = gate; lock.unlock()
+    func add(_ gate: PromiseGate) {
+        lock.lock(); gates[ObjectIdentifier(gate)] = gate; lock.unlock()
     }
 
-    func fail(_ error: Error) {
-        lock.lock(); let gate = current; lock.unlock()
-        gate?.fail(error)
+    func remove(_ gate: PromiseGate) {
+        lock.lock(); gates.removeValue(forKey: ObjectIdentifier(gate)); lock.unlock()
+    }
+
+    /// 父通道错误：连接级故障，所有在途命令一起失败。
+    func failAll(_ error: Error) {
+        lock.lock()
+        let all = Array(gates.values)
+        gates.removeAll()
+        lock.unlock()
+        for gate in all { gate.fail(error) }
     }
 }
 
@@ -326,19 +340,20 @@ private final class HostKeyDelegate: NIOSSHClientServerAuthenticationDelegate {
     }
 }
 
+/// 父通道的错误转发给所有在途命令。
 private final class ParentErrorHandler: ChannelInboundHandler {
     typealias InboundIn = Any
 
-    private let gateBox: GateBox
-    init(gateBox: GateBox) { self.gateBox = gateBox }
+    private let registry: GateRegistry
+    init(registry: GateRegistry) { self.registry = registry }
 
     func errorCaught(context: ChannelHandlerContext, error: Error) {
-        gateBox.fail(error)
+        registry.failAll(error)
         context.close(promise: nil)
     }
 
     func channelInactive(context: ChannelHandlerContext) {
-        gateBox.fail(SSHConnectionError.closedUnexpectedly)
+        registry.failAll(SSHConnectionError.closedUnexpectedly)
         context.fireChannelInactive()
     }
 }

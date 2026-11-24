@@ -55,8 +55,12 @@ enum SFTPStatusCode {
 enum SFTPOpenFlag {
     static let read: UInt32 = 0x00000001
     static let write: UInt32 = 0x00000002
+    static let append: UInt32 = 0x00000004
     static let trunc: UInt32 = 0x00000008
-    static let creat: UInt32 = 0x00000020
+    // SFTP v3：CREAT=0x10，EXCL=0x20。此前误把 0x20 当作 creat，
+    // 导致覆盖已存在文件时带了 EXCL 标志被服务器拒绝（编辑保存/复制同名文件失败）。
+    static let creat: UInt32 = 0x00000010
+    static let excl: UInt32 = 0x00000020
 }
 
 /// 文件条目（浏览器列表与导航共用）。

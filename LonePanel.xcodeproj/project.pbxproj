@@ -45,6 +45,15 @@
 		D10000000000000000000034 /* FileTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000034 /* FileTypes.swift */; };
 		D10000000000000000000035 /* FileDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000035 /* FileDetailView.swift */; };
 		D10000000000000000000036 /* FilePreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000036 /* FilePreferencesStore.swift */; };
+		D10000000000000000000037 /* FileCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000037 /* FileCache.swift */; };
+		D10000000000000000000038 /* CacheSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000038 /* CacheSettingsView.swift */; };
+		D10000000000000000000039 /* TextEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000039 /* TextEditorView.swift */; };
+		D20000000000000000000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000002 /* Localizable.xcstrings */; };
+		D10000000000000000000040 /* SSHShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000040 /* SSHShell.swift */; };
+		D10000000000000000000041 /* SharedSSHConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000041 /* SharedSSHConnection.swift */; };
+		D10000000000000000000042 /* TerminalPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000042 /* TerminalPreferences.swift */; };
+		D10000000000000000000043 /* TerminalSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000043 /* TerminalSession.swift */; };
+		D10000000000000000000044 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000044 /* TerminalView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -85,6 +94,15 @@
 		C10000000000000000000034 /* FileTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTypes.swift; sourceTree = "<group>"; };
 		C10000000000000000000035 /* FileDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDetailView.swift; sourceTree = "<group>"; };
 		C10000000000000000000036 /* FilePreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePreferencesStore.swift; sourceTree = "<group>"; };
+		C10000000000000000000037 /* FileCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileCache.swift; sourceTree = "<group>"; };
+		C10000000000000000000038 /* CacheSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSettingsView.swift; sourceTree = "<group>"; };
+		C10000000000000000000039 /* TextEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextEditorView.swift; sourceTree = "<group>"; };
+		C20000000000000000000002 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		C10000000000000000000040 /* SSHShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHShell.swift; sourceTree = "<group>"; };
+		C10000000000000000000041 /* SharedSSHConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedSSHConnection.swift; sourceTree = "<group>"; };
+		C10000000000000000000042 /* TerminalPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPreferences.swift; sourceTree = "<group>"; };
+		C10000000000000000000043 /* TerminalSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSession.swift; sourceTree = "<group>"; };
+		C10000000000000000000044 /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -111,6 +129,7 @@
 				B10000000000000000000004 /* Files */,
 				B10000000000000000000005 /* Settings */,
 				B20000000000000000000001 /* Resources */,
+				C20000000000000000000002 /* Localizable.xcstrings */,
 				A30000000000000000000001 /* Products */,
 			);
 			path = LonePanel;
@@ -142,8 +161,17 @@
 				A80000000000000000000001 /* Session */,
 				A80000000000000000000002 /* SSH */,
 				A80000000000000000000003 /* Keychain */,
+				A80000000000000000000004 /* Cache */,
 			);
 			path = Core;
+			sourceTree = "<group>";
+		};
+		A80000000000000000000004 /* Cache */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000037 /* FileCache.swift */,
+			);
+			path = Cache;
 			sourceTree = "<group>";
 		};
 		A60000000000000000000001 /* Navigation */ = {
@@ -168,6 +196,7 @@
 			children = (
 				C10000000000000000000007 /* ServerConnectionInfo.swift */,
 				C10000000000000000000008 /* ServerSession.swift */,
+				C10000000000000000000041 /* SharedSSHConnection.swift */,
 			);
 			path = Session;
 			sourceTree = "<group>";
@@ -178,6 +207,7 @@
 				C10000000000000000000009 /* SSHClient.swift */,
 				C10000000000000000000010 /* SSHSubsystem.swift */,
 				C10000000000000000000011 /* PrivateKeyParser.swift */,
+				C10000000000000000000040 /* SSHShell.swift */,
 			);
 			path = SSH;
 			sourceTree = "<group>";
@@ -225,6 +255,7 @@
 				B50000000000000000000001 /* Core */,
 				B50000000000000000000002 /* Browser */,
 				B50000000000000000000003 /* Detail */,
+				B50000000000000000000004 /* Editor */,
 			);
 			path = Files;
 			sourceTree = "<group>";
@@ -236,8 +267,28 @@
 				C10000000000000000000027 /* SettingsView.swift */,
 				B30000000000000000000001 /* Core */,
 				B30000000000000000000002 /* Servers */,
+				B30000000000000000000003 /* Cache */,
+				B30000000000000000000004 /* Terminal */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		B30000000000000000000003 /* Cache */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000038 /* CacheSettingsView.swift */,
+			);
+			path = Cache;
+			sourceTree = "<group>";
+		};
+		B30000000000000000000004 /* Terminal */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000042 /* TerminalPreferences.swift */,
+				C10000000000000000000043 /* TerminalSession.swift */,
+				C10000000000000000000044 /* TerminalView.swift */,
+			);
+			path = Terminal;
 			sourceTree = "<group>";
 		};
 		B30000000000000000000001 /* Core */ = {
@@ -286,6 +337,14 @@
 				C10000000000000000000035 /* FileDetailView.swift */,
 			);
 			path = Detail;
+			sourceTree = "<group>";
+		};
+		B50000000000000000000004 /* Editor */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000039 /* TextEditorView.swift */,
+			);
+			path = Editor;
 			sourceTree = "<group>";
 		};
 		B20000000000000000000001 /* Resources */ = {
@@ -356,6 +415,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D20000000000000000000001 /* Assets.xcassets in Resources */,
+				D20000000000000000000002 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -401,6 +461,14 @@
 				D10000000000000000000034 /* FileTypes.swift in Sources */,
 				D10000000000000000000035 /* FileDetailView.swift in Sources */,
 				D10000000000000000000036 /* FilePreferencesStore.swift in Sources */,
+				D10000000000000000000037 /* FileCache.swift in Sources */,
+				D10000000000000000000038 /* CacheSettingsView.swift in Sources */,
+				D10000000000000000000039 /* TextEditorView.swift in Sources */,
+				D10000000000000000000040 /* SSHShell.swift in Sources */,
+				D10000000000000000000041 /* SharedSSHConnection.swift in Sources */,
+				D10000000000000000000042 /* TerminalPreferences.swift in Sources */,
+				D10000000000000000000043 /* TerminalSession.swift in Sources */,
+				D10000000000000000000044 /* TerminalView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -467,6 +535,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = LonePanel;
+				INFOPLIST_KEY_CFBundleLocalizations = (
+					en,
+					"zh-Hans",
+				);
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -488,6 +560,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = LonePanel;
+				INFOPLIST_KEY_CFBundleLocalizations = (
+					en,
+					"zh-Hans",
+				);
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
