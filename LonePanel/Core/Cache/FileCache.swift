@@ -134,6 +134,20 @@ final class FileCache {
         }
     }
 
+    /// 删除单个 key 的缓存（远端文件被编辑覆盖后主动失效，避免预览读到旧副本）。
+    func remove(forKey key: String) async {
+        await withCheckedContinuation { cont in
+            queue.async {
+                self.ensureLoadedLocked()
+                if let entry = self.entries.removeValue(forKey: key) {
+                    try? FileManager.default.removeItem(at: self.fileURL(for: entry))
+                    self.saveIndexLocked()
+                }
+                cont.resume()
+            }
+        }
+    }
+
     /// 按类别清理。
     func clear(category: String) async {
         await withCheckedContinuation { cont in

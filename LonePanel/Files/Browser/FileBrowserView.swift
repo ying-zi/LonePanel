@@ -236,6 +236,8 @@ private struct DirectoryPage: View {
     @State private var showDangerConfirm = false
     @State private var showDeleteConfirm = false
     @State private var infoFile: RemoteFile?
+    /// 正在编辑的文本文件（仅文本 / 代码类型）。sheet 承载原生 TextEditor。
+    @State private var editingFile: RemoteFile?
     @State private var targetOperation: BatchOperation?
     @State private var targetFiles: [RemoteFile] = []
 
@@ -359,6 +361,11 @@ private struct DirectoryPage: View {
             FileInfoSheet(file: file, model: model)
                 .presentationDetents([.medium, .large])
         }
+        .sheet(item: $editingFile) { file in
+            TextEditorView(file: file, model: model) {
+                Task { await load() }
+            }
+        }
         .sheet(isPresented: targetPickerBinding) {
             TargetDirectorySheet(model: model, node: node, operation: targetOperation ?? .move) { target in
                 // 必须在创建 Task 前捕获值：@State 在 Task 执行时才读取，
@@ -481,15 +488,17 @@ private struct DirectoryPage: View {
         .contextMenu { contextMenuItems(for: file) }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if !isSelecting {
-                Button { renameTarget(file) } label: { Label("重命名", systemImage: "pencil") }
-                    .tint(.orange)
+                // 左滑只留高频动作：可编辑文本多一个「编辑」，其余只有「删除」。
+                // 重命名 / 移动收敛到长按菜单，避免左滑三个按钮的拥挤与误触。
+                if FileKind.isEditable(file) {
+                    Button { editingFile = file } label: {
+                        Label("编辑", systemImage: "square.and.pencil")
+                    }
+                    .tint(.blue)
+                }
                 Button(role: .destructive) { requestDelete([file]) } label: {
                     Label("删除", systemImage: "trash")
                 }
-                Button { beginTransfer(.move, files: [file]) } label: {
-                    Label("移动", systemImage: "arrow.right")
-                }
-                .tint(.blue)
             }
         }
     }
@@ -768,6 +777,10 @@ private struct DirectoryPage: View {
         // 快速查看（QuickLook）仅对文件有效，目录改用进入浏览（整行点击）。
         if !file.isDirectory {
             Button { quickLook(file) } label: { Label("快速查看", systemImage: "eye") }
+        }
+        // 只有纯文本 / 源码且在大小上限内，才提供编辑入口。
+        if FileKind.isEditable(file) {
+            Button { editingFile = file } label: { Label("编辑", systemImage: "square.and.pencil") }
         }
         Button { infoFile = file } label: { Label("获取信息", systemImage: "info.circle") }
         Button { renameTarget(file) } label: { Label("重命名", systemImage: "pencil") }

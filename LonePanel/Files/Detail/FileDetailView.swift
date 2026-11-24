@@ -11,6 +11,8 @@ struct FileInfoSheet: View {
     /// 文件夹的真实统计（SSH du/find 获取）；nil 表示未加载/不支持/失败。
     @State private var folderStats: FolderStats?
     @State private var statsLoading = false
+    /// 属主的可读名称（用户 · 组），由 /etc/passwd 映射解析后回填。
+    @State private var ownerName: String = "未知用户 · 未知组"
 
     var body: some View {
         NavigationStack {
@@ -28,11 +30,11 @@ struct FileInfoSheet: View {
                 }
             }
             .task {
+                // 属主名称与文件夹扫描相互独立：文件类型只需前者，文件夹两者都要。
+                await model.loadOwnerNamesIfNeeded()
+                ownerName = model.ownerDisplay(uid: file.uid, gid: file.gid)
                 guard file.isDirectory else { return }
-                statsLoading = true
-                let result = await model.folderStats(for: file)
-                folderStats = result
-                statsLoading = false
+                await scanFolder()
             }
         }
     }
@@ -64,19 +66,20 @@ struct FileInfoSheet: View {
                 LabeledContent("修改日期", value: date.formatted(date: .abbreviated, time: .shortened))
             }
             LabeledContent("权限", value: file.permissionText)
-            LabeledContent("属主", value: ownerText)
+            LabeledContent("属主", value: ownerName)
         }
     }
 
     /// 文件夹真实统计：磁盘占用 / 文件数 / 子目录数。
     /// SFTP STAT 的目录 size 只是一个固定值（通常 4096），不代表实际占用，
-    /// 因此这里展示通过 SSH du/find 命令测得的数据；加载中显示转圈，失败显示未知。
+    /// 因此这里展示通过 SSH du/find 命令测得的数据；冷磁盘首次扫描较慢，
+    /// 加载中显示转圈，失败给出「扫描失败」与重试按钮，由用户决定何时再扫。
     @ViewBuilder
     private var folderStatsSection: some View {
         Section("内容") {
             if statsLoading {
                 HStack {
-                    Text("正在统计磁盘占用…")
+                    Text("正在扫描文件夹…")
                     Spacer()
                     ProgressView()
                 }
@@ -85,11 +88,27 @@ struct FileInfoSheet: View {
                 LabeledContent("文件", value: "\(stats.fileCount) 个")
                 LabeledContent("子目录", value: "\(stats.directoryCount) 个")
             } else {
-                LabeledContent("磁盘占用", value: "无法获取")
-                LabeledContent("文件", value: "未知")
-                LabeledContent("子目录", value: "未知")
+                HStack {
+                    Text("扫描失败").foregroundStyle(.secondary)
+                    Spacer()
+                    Button("重新扫描") { Task { await scanFolder() } }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
             }
         }
+    }
+
+    /// 执行一次文件夹扫描，代次递增避免面板重建时并发的旧任务回填覆盖新结果。
+    @State private var scanGeneration = 0
+    private func scanFolder() async {
+        scanGeneration += 1
+        let generation = scanGeneration
+        statsLoading = true
+        let result = await model.folderStats(for: file)
+        guard generation == scanGeneration else { return }
+        folderStats = result
+        statsLoading = false
     }
 
     private var locationSection: some View {
@@ -114,12 +133,6 @@ struct FileInfoSheet: View {
 
     private var byteSize: String {
         FileBrowserModel.sizeText(file.size)
-    }
-
-    private var ownerText: String {
-        let uid = file.uid.map(String.init) ?? "未知"
-        let gid = file.gid.map(String.init) ?? "未知"
-        return "UID \(uid) · GID \(gid)"
     }
 }
 

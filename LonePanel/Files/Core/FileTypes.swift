@@ -92,6 +92,16 @@ enum FileKind {
         return previewable.contains(ext)
     }
 
+    /// 能否用内置编辑器编辑：纯文本 / 源代码类型、非目录非符号链接、且大小在安全上限内。
+    /// 上限 2 MB —— 文本一次性载入 TextEditor，超过这个体积会明显卡顿，故不提供编辑入口。
+    static let editableSizeLimit: Int64 = 2 * 1024 * 1024
+    static func isEditable(_ file: RemoteFile) -> Bool {
+        if file.isDirectory || file.isSymlink { return false }
+        if file.size > editableSizeLimit { return false }
+        let ext = (file.name as NSString).pathExtension.lowercased()
+        return Self.textExts.contains(ext) || Self.codeExts.contains(ext)
+    }
+
     private static let imageExts: Set<String> = [
         "jpg", "jpeg", "png", "gif", "heic", "heif", "bmp", "webp", "tiff", "tif", "ico"
     ]
