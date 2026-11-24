@@ -23,16 +23,17 @@ struct CacheSettingsView: View {
                             .font(.title2.weight(.semibold))
                             .monospacedDigit()
                     }
-                    Spacer()
+                    Spacer(minLength: 8)
+                    Button(role: .destructive) {
+                        confirmAll = true
+                    } label: {
+                        Text("全部清理")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(total == 0)
                 }
                 .padding(.vertical, 6)
-
-                Button(role: .destructive) {
-                    confirmAll = true
-                } label: {
-                    Label("一键清理全部缓存", systemImage: "trash")
-                }
-                .disabled(total == 0)
             } footer: {
                 Text("缓存用于加快文件预览与分享，可随时清理，不影响服务器上的数据。超出 1 GB 时 App 会自动清理最久未使用的部分。")
             }
