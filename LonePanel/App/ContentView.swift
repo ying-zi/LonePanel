@@ -5,23 +5,8 @@ import SwiftUI
 struct ContentView: View {
     @State private var selection: String = TabRegistry.modules.first?.id ?? ""
 
-    /// 用自定义 binding 拦截「点击的正是当前已选中 Tab」的情况：
-    /// 系统不会改变 selection，但会调用 setter，借此广播回根请求。
-    private var selectionBinding: Binding<String> {
-        Binding(
-            get: { selection },
-            set: { newValue in
-                if newValue == selection {
-                    TabNavigationCenter.shared.requestReset(tabID: newValue)
-                } else {
-                    selection = newValue
-                }
-            }
-        )
-    }
-
     var body: some View {
-        TabView(selection: selectionBinding) {
+        TabView(selection: $selection) {
             ForEach(TabRegistry.modules) { module in
                 module.view
                     .tabItem {
@@ -30,7 +15,6 @@ struct ContentView: View {
                     .tag(module.id)
             }
         }
-        // iOS 26：TabBar 在下滑时收起、上滑时展开，让内容成为主角。
-        .tabBarMinimizeBehavior(.onScrollDown)
+        // 底部 TabBar 常显：不随列表滚动收起，五个 Tab 始终可见。
     }
 }
