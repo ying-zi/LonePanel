@@ -10,30 +10,47 @@ final class TerminalByteBridge {
     private var handler: (([UInt8]) -> Void)?
     private var buffer = [UInt8]()
     private let maxBuffer = 256 * 1024
+    /// 视图是否已就绪（布局完成、列数确定）。未就绪时只缓存字节，不回放、不实时投递，
+    /// 避免以默认 80 列排版导致后续布局变化后文字被裁半截。
+    private var viewReady = false
 
+    /// 注册落地目标。此时视图尚未布局完成，只登记 handler，等待 ready() 后统一回放。
     func register(_ handler: (([UInt8]) -> Void)?) {
         lock.lock()
         self.handler = handler
-        // 锁内回放，保证「历史流 → 新数据」的顺序不被并发打乱。
-        // feed 不会重入本桥，不会死锁。
-        if let handler, !buffer.isEmpty {
-            handler(buffer)
-        }
+        self.viewReady = false
         lock.unlock()
+    }
+
+    /// 视图布局完成、列数确定后调用：一次性回放缓存的历史字节，随后转入实时投递。
+    func markReady() {
+        lock.lock()
+        guard !viewReady, let handler else { lock.unlock(); return }
+        let backlog = buffer
+        viewReady = true
+        lock.unlock()
+        // 回放历史（此时视图列数已正确）。feed 不会重入本桥，安全。
+        if !backlog.isEmpty { handler(backlog) }
     }
 
     func deliver(_ bytes: [UInt8]) {
         lock.lock()
-        handler?(bytes)
         buffer.append(contentsOf: bytes)
         if buffer.count > maxBuffer {
             buffer.removeFirst(buffer.count - maxBuffer)
         }
+        let ready = viewReady
+        let handler = self.handler
         lock.unlock()
+        // 就绪后实时投递；未就绪只缓存，等 markReady 统一回放。
+        if ready { handler?(bytes) }
     }
 
     func reset() {
-        lock.lock(); buffer.removeAll(); lock.unlock()
+        lock.lock()
+        buffer.removeAll()
+        viewReady = false
+        lock.unlock()
     }
 }
 

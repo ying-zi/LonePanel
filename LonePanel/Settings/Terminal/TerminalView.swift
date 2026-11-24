@@ -8,20 +8,34 @@ enum TerminalPresentation {
     case pushed  // 设置页推入：右上角为「断开 / 连接」
 }
 
-/// 快捷键栏的共享状态。SwiftUI 按钮与 SwiftTerm 的 delegate 都读写它，
-/// 实现「点 ⌃ 点亮并展开组合键、再点收起并解锁」的切换语义。
+/// 终端主题色：Ctrl 锁定、按压反馈统一使用同一蓝。
+private enum TerminalTheme {
+    static let lockBlue = Color(red: 0.16, green: 0.48, blue: 0.96)
+}
+
+/// 快捷键栏共享状态：SwiftUI 按钮与 SwiftTerm delegate 都读写它。
 final class TerminalKeyState: ObservableObject {
     @Published var ctrlLocked = false
-    /// SwiftTerm 视图引用，用于本地清屏。由 Coordinator 设置。
+    /// SwiftTerm 视图引用，用于本地清屏 / 键盘收展。由 Coordinator 设置。
     weak var terminalView: SwiftTerm.TerminalView?
 
     func toggleCtrl() {
         ctrlLocked.toggle()
     }
 
+    func unlockCtrl() {
+        ctrlLocked = false
+    }
+
     func clearScreen() {
         // ED(2) 清屏 + 光标归位，交给 SwiftTerm 本地解释，不影响远端。
         terminalView?.feed(byteArray: Array("\u{1B}[2J\u{1B}[H".utf8)[...])
+    }
+
+    /// 把自动换行偏好应用到本地仿真器（DECAWM：?7h 开 / ?7l 关）。
+    func applyAutoWrap(_ enabled: Bool) {
+        let seq = enabled ? "\u{1B}[?7h" : "\u{1B}[?7l"
+        terminalView?.feed(byteArray: Array(seq.utf8)[...])
     }
 }
 
@@ -30,13 +44,15 @@ private struct TerminalHostView: UIViewRepresentable {
     let session: TerminalSession
     let keyState: TerminalKeyState
     let focusTick: Int
+    let fontSize: Double
+    let autoWrap: Bool
 
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
         let view = SwiftTerm.TerminalView(frame: .zero)
         view.terminalDelegate = context.coordinator
-        // 禁用 SwiftTerm 自带键盘工具条，改用我们自己的混合 Ctrl 快捷键栏。
+        // 禁用 SwiftTerm 自带键盘工具条，改用我们自己的快捷键栏。
         view.inputAccessoryView = nil
-        view.font = UIFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        view.font = UIFont.monospacedSystemFont(ofSize: CGFloat(fontSize), weight: .regular)
         view.autocapitalizationType = .none
         view.autocorrectionType = .no
         view.spellCheckingType = .no
@@ -44,7 +60,7 @@ private struct TerminalHostView: UIViewRepresentable {
         view.smartDashesType = .no
         keyState.terminalView = view
 
-        // 服务器字节 → SwiftTerm 仿真器。注册一次，覆盖冷启动先于视图建立的连接。
+        // 服务器字节 → SwiftTerm 仿真器。注册一次：只登记 handler，等布局完成后 markReady 回放。
         session.byteBridge.register { [weak view] bytes in
             guard let view else { return }
             if Thread.isMainThread {
@@ -53,15 +69,16 @@ private struct TerminalHostView: UIViewRepresentable {
                 DispatchQueue.main.async { view.feed(byteArray: bytes[...]) }
             }
         }
-        // 稍延迟弹出键盘（此时视图尚未上 window）。
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+        // 稍延迟：等视图上 window、布局完成（列数确定）后，应用换行偏好 + 回放历史 + 聚焦。
+        // sizeChanged 会优先做这件事；这里作为兜底，覆盖「重建后列数未变、回调不来」的情况。
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            context.coordinator.initializeIfNeeded(view)
             view.becomeFirstResponder()
         }
         return view
     }
 
     func updateUIView(_ uiView: SwiftTerm.TerminalView, context: Context) {
-        // focusTick 变化时重新聚焦（连接从「未就绪」变为「就绪」时触发）。
         if focusTick > 0 {
             DispatchQueue.main.async { uiView.becomeFirstResponder() }
         }
@@ -72,16 +89,20 @@ private struct TerminalHostView: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(session: session, keyState: keyState)
+        Coordinator(session: session, keyState: keyState, autoWrap: autoWrap)
     }
 
     final class Coordinator: TerminalViewDelegate {
         let session: TerminalSession
         let keyState: TerminalKeyState
+        let autoWrap: Bool
+        /// 布局完成回调是否已处理（回放 + 应用换行偏好），只做一次。
+        private var didInitialize = false
 
-        init(session: TerminalSession, keyState: TerminalKeyState) {
+        init(session: TerminalSession, keyState: TerminalKeyState, autoWrap: Bool) {
             self.session = session
             self.keyState = keyState
+            self.autoWrap = autoWrap
         }
 
         /// 键盘/快捷键产生的字节发往远端。Ctrl 锁定时把字母转成对应控制字符。
@@ -96,8 +117,22 @@ private struct TerminalHostView: UIViewRepresentable {
             MainActor.assumeIsolated { session.send(bytes) }
         }
 
-        /// SwiftTerm 布局后回调实际列行，同步给远端 shell（vim/htop 全屏尺寸才正确）。
+        /// 视图列数确定后做一次初始化：应用换行偏好 + 回放历史。幂等。
+        func initializeIfNeeded(_ view: SwiftTerm.TerminalView) {
+            MainActor.assumeIsolated {
+                guard !didInitialize else { return }
+                didInitialize = true
+                keyState.terminalView = view
+                // 先应用换行偏好，再回放历史，保证排版一致。
+                keyState.applyAutoWrap(autoWrap)
+                session.byteBridge.markReady()
+            }
+        }
+
+        /// SwiftTerm 布局后回调实际列行。首次回调时视图列数已确定——此刻才回放历史字节，
+        /// 避免「按默认 80 列排版后再改列数」导致文字被裁半截。
         func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
+            initializeIfNeeded(source)
             MainActor.assumeIsolated { session.resize(columns: newCols, rows: newRows) }
         }
 
@@ -111,7 +146,6 @@ private struct TerminalHostView: UIViewRepresentable {
 }
 
 /// 内置 SSH 终端界面：上方为 SwiftTerm 完整终端，下方为混合 Ctrl 快捷键栏。
-/// 会话由 TerminalSession 全局持有——设置页与悬浮面板是同一会话、同一块屏幕。
 struct TerminalView: View {
     var presentation: TerminalPresentation = .sheet
 
@@ -119,6 +153,10 @@ struct TerminalView: View {
     @StateObject private var keyState = TerminalKeyState()
     @Environment(\.dismiss) private var dismiss
     @State private var focusTick = 0
+    @State private var showSettings = false
+    @AppStorage("com.lone.lonepanel.terminal.fontSize") private var fontSize = 14.0
+    @AppStorage("com.lone.lonepanel.terminal.autoWrap") private var autoWrap = true
+    @State private var keyboardShown = true
 
     var body: some View {
         NavigationStack {
@@ -130,6 +168,13 @@ struct TerminalView: View {
             .navigationTitle("SSH 终端")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
+            .sheet(isPresented: $showSettings) { settingsPanel }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                keyboardShown = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                keyboardShown = false
+            }
             // 用户打开终端即视为主动唤起：解除断开标记并连接（幂等）。
             .task { await session.activateForUser() }
             .onChange(of: session.isReady) { _, ready in
@@ -141,26 +186,23 @@ struct TerminalView: View {
         }
     }
 
+    // MARK: - 顶部栏
+
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            Button {
-                session.sendInterrupt()
-            } label: {
-                Text("⌃C")
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.quaternary, in: Capsule())
+            Button { showSettings = true } label: {
+                Image(systemName: "textformat.size")
             }
-            .disabled(!session.isReady)
-            .help("中断当前命令 (Ctrl+C)")
+            .help("终端设置")
+            .accessibilityLabel("终端设置")
         }
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 16) {
                 Button { keyState.clearScreen() } label: {
                     Image(systemName: "trash")
                 }
+                .help("清屏")
                 switch presentation {
                 case .sheet:
                     Button { dismiss() } label: {
@@ -172,111 +214,129 @@ struct TerminalView: View {
                     if session.userDisconnected {
                         Button {
                             Task { await session.activateForUser() }
-                        } label: {
-                            Text("连接")
-                        }
+                        } label: { Text("连接") }
                     } else {
-                        Button {
-                            session.disconnect()
-                        } label: {
-                            Text("断开")
-                        }
+                        Button { session.disconnect() } label: { Text("断开") }
                     }
                 }
             }
         }
     }
 
+    // MARK: - 终端显示区
+
     /// SwiftTerm 终端视图 + 连接状态覆盖层。
+    /// 用 id 绑定字号：字号变化时重建视图并按新字号回放历史，重新排版。
     private var terminalArea: some View {
-        TerminalHostView(session: session, keyState: keyState, focusTick: focusTick)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay {
-                if session.isConnecting && !session.isReady {
-                    ProgressView("正在连接…")
-                        .padding()
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-                } else if let error = session.errorMessage, !session.isReady {
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.title)
-                            .foregroundStyle(.orange)
-                        Text(error)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                        Button("重试") { Task { await session.activateForUser() } }
-                            .buttonStyle(.borderedProminent)
-                    }
+        TerminalHostView(
+            session: session,
+            keyState: keyState,
+            focusTick: focusTick,
+            fontSize: fontSize,
+            autoWrap: autoWrap
+        )
+        .id("term-\(fontSize)-\(autoWrap)")
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay {
+            if session.isConnecting && !session.isReady {
+                ProgressView("正在连接…")
                     .padding()
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            } else if let error = session.errorMessage, !session.isReady {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.title)
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("重试") { Task { await session.activateForUser() } }
+                        .buttonStyle(.borderedProminent)
                 }
+                .padding()
             }
-            .overlay(alignment: .top) {
-                if let notice = session.notice {
-                    Text(notice)
-                        .font(.caption.monospaced())
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(.regularMaterial, in: Capsule())
-                        .padding(.top, 8)
-                        .transition(.opacity)
-                }
+        }
+        .overlay(alignment: .top) {
+            if let notice = session.notice {
+                Text(notice)
+                    .font(.caption.monospaced())
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.top, 8)
+                    .transition(.opacity)
             }
-            .animation(.easeInOut, value: session.notice)
+        }
+        .animation(.easeInOut, value: session.notice)
     }
 
-    /// 混合 Ctrl 快捷键栏：常规键常驻；点亮 ⌃ 后展开组合键并锁定修饰态。
+    // MARK: - 快捷键栏
+
+    /// 常驻一排 + Ctrl 锁定时展开的一排。所有按键限宽、按压变色 + 触感反馈。
     private var shortcutBar: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             if keyState.ctrlLocked {
-                HStack(spacing: 6) {
-                    comboKey("⌃A", byte: 0x01)
-                    comboKey("⌃E", byte: 0x05)
-                    comboKey("⌃K", byte: 0x0B)
-                    comboKey("⌃U", byte: 0x15)
-                    comboKey("⌃D", byte: 0x04)
-                    comboKey("⌃Z", byte: 0x1A)
-                    comboKey("⌃L", byte: 0x0C)
-                    comboKey("⌃C", byte: 0x03)
+                // 展开行：只留最高频的三个，完整文字「Ctrl + X」撑宽。
+                HStack(spacing: 8) {
+                    comboKey("Ctrl + C", byte: 0x03)
+                    comboKey("Ctrl + Z", byte: 0x1A)
+                    comboKey("Ctrl + D", byte: 0x04)
                 }
+                .frame(maxWidth: 460)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
-            HStack(spacing: 6) {
+            // 常驻行：CTRL 在最左，键盘收展在最右。
+            HStack(spacing: 8) {
+                ctrlKey()
                 controlKey("Tab", bytes: [0x09])
                 controlKey("Esc", bytes: [0x1B])
                 arrowKey("↑", sequence: [0x1B, 0x5B, 0x41])
                 arrowKey("↓", sequence: [0x1B, 0x5B, 0x42])
-                Spacer(minLength: 2)
-                Button {
-                    keyState.toggleCtrl()
-                } label: {
-                    Text("⌃")
-                        .font(.system(size: 17, weight: .bold, design: .monospaced))
-                        .frame(minWidth: 46, minHeight: 40)
-                        .foregroundStyle(keyState.ctrlLocked ? .white : .primary)
-                        .background(
-                            RoundedRectangle(cornerRadius: 9)
-                                .fill(keyState.ctrlLocked ? Color.accentColor : Color(uiColor: .secondarySystemBackground))
-                        )
-                }
-                .accessibilityLabel(keyState.ctrlLocked ? "关闭 Ctrl 锁定" : "开启 Ctrl 锁定")
+                Spacer(minLength: 4)
+                keyboardToggleKey()
             }
+            .frame(maxWidth: 460)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(Color(uiColor: .systemBackground))
-        .overlay(alignment: .top) {
-            Divider()
+        .overlay(alignment: .top) { Divider() }
+        .animation(.easeInOut(duration: 0.18), value: keyState.ctrlLocked)
+    }
+
+    /// 左一：CTRL 键，字母标识，点亮变蓝。
+    private func ctrlKey() -> some View {
+        Button {
+            haptic()
+            keyState.toggleCtrl()
+        } label: {
+            Text("CTRL")
+                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                .frame(width: 60, height: 44)
+                .foregroundStyle(keyState.ctrlLocked ? .white : .primary)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(keyState.ctrlLocked ? TerminalTheme.lockBlue : Color(uiColor: .secondarySystemBackground))
+                )
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(keyState.ctrlLocked ? "关闭 Ctrl 锁定" : "开启 Ctrl 锁定")
     }
 
     private func controlKey(_ title: String, bytes: [UInt8]) -> some View {
-        Button { session.send(bytes) } label: {
+        Button {
+            haptic()
+            session.send(bytes)
+        } label: {
             Text(title)
-                .font(.system(size: 13, weight: .medium))
-                .frame(minWidth: 48, minHeight: 40)
-                .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 9))
+                .font(.system(size: 14, weight: .medium))
+                .frame(maxWidth: 62, minHeight: 44)
+                .foregroundStyle(.primary)
+                .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
         }
+        .buttonStyle(.plain)
         .disabled(!session.isReady)
     }
 
@@ -284,13 +344,84 @@ struct TerminalView: View {
         controlKey(title, bytes: sequence)
     }
 
+    /// 展开行组合键：完整文字、撑宽、按压反馈。
     private func comboKey(_ title: String, byte: UInt8) -> some View {
-        Button { session.send([byte]) } label: {
+        Button {
+            haptic()
+            session.send([byte])
+        } label: {
             Text(title)
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                .frame(maxWidth: .infinity, minHeight: 38)
-                .background(Color(uiColor: .tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .foregroundStyle(TerminalTheme.lockBlue)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(TerminalTheme.lockBlue.opacity(0.12))
+                )
         }
+        .buttonStyle(.plain)
         .disabled(!session.isReady)
+    }
+
+    /// 右一：键盘收展，正方形，与 CTRL 同高。
+    private func keyboardToggleKey() -> some View {
+        Button {
+            haptic()
+            if keyboardShown {
+                keyState.terminalView?.resignFirstResponder()
+            } else {
+                keyState.terminalView?.becomeFirstResponder()
+            }
+        } label: {
+            Image(systemName: keyboardShown ? "chevron.down" : "chevron.up")
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 44, height: 44)
+                .foregroundStyle(TerminalTheme.lockBlue)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(TerminalTheme.lockBlue.opacity(0.12))
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(keyboardShown ? "收起键盘" : "展开键盘")
+    }
+
+    private func haptic() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    // MARK: - 设置面板
+
+    private var settingsPanel: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("字号")
+                            Spacer()
+                            Text("\(Int(fontSize)) pt")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: $fontSize, in: 11...22, step: 1)
+                    }
+                } header: {
+                    Text("显示")
+                }
+                Section {
+                    Toggle("自动换行", isOn: $autoWrap)
+                } footer: {
+                    Text("关闭后长内容不折行。若行太长被截断，可调小字号以显示更多列。")
+                }
+            }
+            .navigationTitle("终端设置")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") { showSettings = false }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
