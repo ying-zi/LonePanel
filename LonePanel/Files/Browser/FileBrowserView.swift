@@ -242,8 +242,10 @@ private struct DirectoryPage: View {
                 if searching {
                     searchFocused = true
                 } else {
+                    // 只清关键词；焦点与键盘的 resign 完全交给系统"取消"流程。
+                    // 过去这里额外赋值 searchFocused = false，键盘还在时点取消会
+                    // 与系统的 resign 叠加成双重 dismiss，导致底部白色区域上顶闪烁。
                     searchText = ""
-                    searchFocused = false
                 }
             }
             .refreshable { await load() }
@@ -517,13 +519,14 @@ private struct DirectoryPage: View {
         }
         ToolbarItem(placement: .topBarTrailing) {
             if isSelecting {
-                // 完成按钮：蓝色圆角矩形底 + 白色大勾，不用圆圈包勾。
+                // 完成按钮：纯大勾，无自定义背景色，颜色与系统搜索按钮一致（主色）。
+                // 背景交给 iOS 26 工具栏的玻璃胶囊，避免蓝底方块与胶囊叠在一起显突兀。
                 Button { resetSelection() } label: {
                     Image(systemName: "checkmark")
                         .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                         .frame(width: 32, height: 32)
-                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 9))
+                        .contentShape(Rectangle())
                 }
             } else {
                 // 搜索栏已挂到每一页，系统为根页与每个子页各自提供原生放大镜，
