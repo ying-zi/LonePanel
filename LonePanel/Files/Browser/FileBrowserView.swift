@@ -27,7 +27,12 @@ struct FileBrowserView: View {
 
     var body: some View {
         Group {
-            if model.isConnected {
+            // 只要配置了服务器且未连接失败，就固定呈现 NavigationStack：连接过程与
+            // 目录加载都由页内同一段加载态承接。过去在 TabView 根层另放一段 spinner，
+            // 会被系统套上材质圆角块（浅灰方块），且冷启动时与页内「加载中…」形成两段
+            // 动画跳变。现在根层只有这一分支，加载态与列表同处 NavigationStack 内，
+            // 背景与底色完全一致，从连接到出列表只有一次连续过渡。
+            if model.hasConfiguredServer && !model.connectionFailed {
                 NavigationStack(path: $model.navPath) {
                     DirectoryPage(
                         model: model,
@@ -54,18 +59,6 @@ struct FileBrowserView: View {
                 // 搜索框下放到每个 DirectoryPage：系统为每一级目录各自提供一个原生放大镜，
                 // 点开即在「当前页」呈现搜索框并自动聚焦，不会再出现「按钮消失、框不出」。
                 // 各页搜索状态独立，互不串味；切层级时随页面销毁自然收起，无残留、无闪烁。
-            } else if model.hasConfiguredServer && !model.connectionFailed {
-                // 已配置服务器、正在连接（尚未失败）：显示加载动画。
-                // 这里处在 TabView 的 tab 根内容层，SwiftUI 的 ProgressView 在此环境会
-                // 被套上系统材质圆角块（浅灰方块），与页面底色不一致。改用 UIKit 原生
-                // UIActivityIndicatorView（系统各处通用的原生 spinner，绝非自定义绘制），
-                // 它不带任何背景，动画直接融入页面背景。
-                VStack(spacing: 12) {
-                    NativeSpinner()
-                    Text("正在连接服务器…")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
             } else {
                 disconnectedView
             }
@@ -281,7 +274,11 @@ private struct DirectoryPage: View {
             .task { await load() }
             // 断线重连成功后重新拉取当前目录（保留导航层级与选中态）。
             .onChange(of: model.refreshToken) { _, _ in Task { await load() } }
-            .toolbar { toolbarContent }
+            // 连接未建立时隐藏工具栏：此时的 ⋯ / 搜索等操作都依赖尚未就绪的连接，
+            // 显示出来只会点了没反应。连接成功后随 isConnected 一起原生恢复。
+            .toolbar {
+                if model.isConnected { toolbarContent }
+            }
             // 多选 / 后台静默重连态隐藏系统返回键；搜索态的返回与「取消」交给系统接管。
             // 静默重连：由 leading 原位的转圈接管，避免在返回箭头旁再叠一个指示器。
             .navigationBarBackButtonHidden(isSelecting || model.isBackgroundReconnecting)
@@ -386,11 +383,13 @@ private struct DirectoryPage: View {
 
     @ViewBuilder
     private var contentForState: some View {
-        if isLoading || !hasLoadedOnce {
-            // 首帧与加载中都显示加载态。没有 hasLoadedOnce 时，新建的目录页
-            // 首帧 isLoading=false、entries=[]，会先闪一帧「文件夹为空」的空白页 ——
-            // 回默认目录 push 多级导航链时每一级都闪，视觉上就是「跳到一个空白页」。
-            ProgressView("加载中…")
+        if !model.isConnected || isLoading || !hasLoadedOnce {
+            // 连接中、首帧与加载中共用同一段加载态 —— 这就是冷启动唯一的加载过程，
+            // 不再有 TabView 根层那段独立的「正在连接服务器…」造成两段动画跳变。
+            // 没有 hasLoadedOnce 时，新建的目录页首帧 isLoading=false、entries=[]，
+            // 会先闪一帧「文件夹为空」的空白页 —— 回默认目录 push 多级导航链时
+            // 每一级都闪，视觉上就是「跳到一个空白页」。
+            connectionLoadingView
         } else if entries.isEmpty {
             emptyView
         } else if model.viewMode == .grid {
@@ -400,9 +399,24 @@ private struct DirectoryPage: View {
         }
     }
 
+    /// 连接与目录加载共用的原生加载态：UIKit spinner 无背景块，文字为系统次级样式，
+    /// 与列表同处 NavigationStack 内、底色一致，不会被套浅灰圆角块。
+    private var connectionLoadingView: some View {
+        VStack(spacing: 12) {
+            NativeSpinner()
+            Text("加载中…")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     // MARK: - 加载与筛选
 
     private func load() async {
+        // 连接尚未建立时 listDirectory 会直接返回空；若此时写入 hasLoadedOnce
+        // 会闪现「文件夹为空」。保持加载态，等连接成功后 refreshToken 变化再拉取。
+        guard model.isConnected else { return }
         isLoading = true
         defer { isLoading = false }
         entries = await model.listDirectory(at: node.path)
@@ -1091,7 +1105,7 @@ struct FileUploadPicker: UIViewControllerRepresentable {
 }
 
 /// 系统原生 spinner：用 UIKit 的 UIActivityIndicatorView，避免 SwiftUI ProgressView
-/// 在 TabView 根内容层被套上材质背景块。它是 iOS 系统通用的原生加载指示器。
+/// 被套上材质背景块。它是 iOS 系统各处通用的原生加载指示器，本身不带任何背景。
 private struct NativeSpinner: UIViewRepresentable {
     func makeUIView(context: Context) -> UIActivityIndicatorView {
         let spinner = UIActivityIndicatorView(style: .medium)

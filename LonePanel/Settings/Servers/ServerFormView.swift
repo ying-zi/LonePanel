@@ -38,7 +38,7 @@ struct ServerFormView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     TextField("端口", text: $portText)
-                    TextField("用户名（默认 root）", text: $username)
+                    TextField("root", text: $username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
