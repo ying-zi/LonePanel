@@ -61,6 +61,14 @@ struct FileBrowserView: View {
                 disconnectedView
             }
         }
+        // 页面背景固定铺满全屏、忽略键盘安全区：List 用 .scrollContentBackground(.hidden)
+        // 变为透明后，透出的就是这一层。键盘弹起/收起时底部露出的始终是同一背景色，
+        // 消除"白块跳动"。这与 iOS 原生做法（如 GitHub 客户端）一致——配键盘色无效，
+        // 关键是让背景铺满、不随键盘压缩。NavigationStack 外层只放这一片，各页共享。
+        .background(
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea(.keyboard)
+        )
         .task {
             await model.connectIfNeeded()
             // 仅首次连接时建立默认目录导航链；切回 Tab 不重置，保留离开前的目录。
@@ -242,12 +250,9 @@ private struct DirectoryPage: View {
                 if searching {
                     searchFocused = true
                 } else {
-                    // 系统"取消"会让搜索框 resign 键盘，但 SwiftUI 的 @FocusState 仍停在 true。
-                    // 子页是 push 出来的：取消搜索时导航栏转场会重新同步这个焦点，导致键盘
-                    // "弹一下又收"，表现为底部白区上顶闪烁；根页无转场所以不受影响。
-                    // 用 Task 排到系统 resign 之后再归位，既消除二次同步，又避开同帧双重 dismiss。
+                    // 只清关键词；焦点与键盘的 resign 完全交给系统"取消"流程，
+                    // 不手动改 FocusState（否则与系统动画撞成双重 dismiss）。
                     searchText = ""
-                    Task { @MainActor in searchFocused = false }
                 }
             }
             // 方案一：搜索态绑定在页上，离开即放弃。
@@ -271,8 +276,8 @@ private struct DirectoryPage: View {
             // 多选 / 后台静默重连态隐藏系统返回键；搜索态的返回与「取消」交给系统接管。
             // 静默重连：由 leading 原位的转圈接管，避免在返回箭头旁再叠一个指示器。
             .navigationBarBackButtonHidden(isSelecting || model.isBackgroundReconnecting)
-            // 诊断：去掉 safeAreaInset，验证底部白块是否来自它在键盘 dismiss 时的 inset 回弹。
-            // 多选栏改用 overlay 悬浮在 TabBar 上方，功能保留、但不占据安全区。
+            // 多选栏用 overlay 悬浮在 TabBar 上方，不占安全区（避免 safeAreaInset
+            // 在键盘 dismiss 时回弹导致底部露出不同色背景）。仅多选态显示。
             .overlay(alignment: .bottom) {
                 if isSelecting {
                     batchActionBar
@@ -412,16 +417,17 @@ private struct DirectoryPage: View {
             ForEach(visibleEntries) { file in
                 rowView(for: file)
             }
+            if isSelecting {
+                // 多选栏悬浮在底部，补占位避免遮住最后一行；仅多选态出现。
+                Color.clear.frame(height: 150)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
         }
         .listStyle(.insetGrouped)
+        // 列表自身透明，露出 NavigationStack 外层那片铺满全屏、忽略键盘的固定背景。
+        // 这样底部不随键盘压缩变色，消除键盘 dismiss 时的白块跳动。
         .scrollContentBackground(.hidden)
-        .background(
-            LinearGradient(
-                colors: [.red, .orange, .yellow, .green, .blue, .purple],
-                startPoint: .bottom,
-                endPoint: .top
-            )
-        )
         .overlay { if isLoading && !entries.isEmpty { ProgressView() } }
     }
 
@@ -475,6 +481,10 @@ private struct DirectoryPage: View {
                 }
             }
             .padding()
+            if isSelecting {
+                // 多选栏悬浮在底部，补占位避免遮住最后一行；仅多选态出现。
+                Color.clear.frame(height: 150)
+            }
         }
         .overlay { if isLoading && !entries.isEmpty { ProgressView() } }
     }
