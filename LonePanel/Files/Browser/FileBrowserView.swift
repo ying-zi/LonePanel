@@ -13,6 +13,10 @@ struct FileBrowserView: View {
     /// 单例模型：导航栈与连接状态跨 Tab 切换存活。
     @ObservedObject private var model = FileBrowserModel.shared
     @ObservedObject private var session = ServerSession.shared
+    /// 必须订阅 TabNavigationCenter：@Published 只有被 @ObservedObject 观察时，
+    /// command 变化才会触发本视图重绘、.onChange 才能比较到新的 serial。
+    /// 旧代码只读单例属性却没有订阅，导致点 Tab 时 .onChange 根本不执行。
+    @ObservedObject private var tabCenter = TabNavigationCenter.shared
     @Environment(\.scenePhase) private var scenePhase
 
     /// NavigationStack 导航栈：根不进 path。存放于单例 model，切走再回来停留在原目录。
@@ -71,15 +75,29 @@ struct FileBrowserView: View {
                 // 成功后递增 refreshToken，各 DirectoryPage 监听后刷新当前目录。
             }
         }
-        // 再次单击当前文件 Tab：一次到位回默认目录入口（清导航栈、清剪贴板）。
-        // 用「递增序号」而非可选对象广播：iOS 26 切 Tab 会重建本视图，
-        // onChange 在新视图上不会因订阅立即触发，只有序号真正变大才响应 ——
-        // 彻底消除旧方案 dropFirst 漏消费/误消费导致的根目录↔默认目录横跳与空白页。
-        .onChange(of: TabNavigationCenter.shared.command.serial) { _, serial in
-            guard serial > 0, TabNavigationCenter.shared.command.tabID == "files" else { return }
-            model.resetNavigationToEntry()
+        // 再次单击当前文件 Tab：回默认目录入口（清剪贴板）。
+        // 关键修复：本视图已 @ObservedObject 订阅 tabCenter，command 变化会触发重绘，
+        // .onChange 才能读到新 serial（否则命令送达但此处永不执行）。
+        // 不在此直接设 navPath——iOS 26 TabView 点当前 Tab 会并行把导航栈 pop 到 []，
+        // 直接设会被系统覆盖成根目录；改由 requestEntryRestore 记录意图，
+        // 下面的 .onChange(navPath) 在检测到「被 pop 到根」时把默认目录链设回去。
+        .onChange(of: tabCenter.command.serial) { _, serial in
+            guard serial > 0, tabCenter.command.tabID == "files" else { return }
             model.clearClipboard()
             previewURL = nil
+            model.requestEntryRestore()
+        }
+        // 系统级 pop-to-root 把导航栈清空后，若有待恢复意图，立即设回默认目录链。
+        // 这一步是「回默认目录而非根目录」的核心：它发生在系统 pop 之后，不会被覆盖。
+        .onChange(of: model.navPath) { _, newPath in
+            guard model.pendingEntryRestore else { return }
+            if newPath.isEmpty {
+                // 系统 pop 到根：把默认目录链设回去（核心修复点，发生在 pop 之后不会被覆盖）。
+                model.resetNavigationToEntry()
+            } else {
+                // 用户主动导航进了非空目录：放弃回默认目录意图，别打断操作。
+                model.pendingEntryRestore = false
+            }
         }
         // 上传改用 UIKit 的 UIDocumentPickerViewController：delegate 回调不随 SwiftUI
         // 视图重建丢失（选文件时 App 会进后台，切回时 FileBrowserView 可能重建，
