@@ -271,7 +271,14 @@ private struct DirectoryPage: View {
             // 多选 / 后台静默重连态隐藏系统返回键；搜索态的返回与「取消」交给系统接管。
             // 静默重连：由 leading 原位的转圈接管，避免在返回箭头旁再叠一个指示器。
             .navigationBarBackButtonHidden(isSelecting || model.isBackgroundReconnecting)
-            .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
+            // 诊断：去掉 safeAreaInset，验证底部白块是否来自它在键盘 dismiss 时的 inset 回弹。
+            // 多选栏改用 overlay 悬浮在 TabBar 上方，功能保留、但不占据安全区。
+            .overlay(alignment: .bottom) {
+                if isSelecting {
+                    batchActionBar
+                        .padding(.bottom, 72)
+                }
+            }
             .background(dialogHost)
     }
 
@@ -407,6 +414,8 @@ private struct DirectoryPage: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.green.opacity(0.85))
         .overlay { if isLoading && !entries.isEmpty { ProgressView() } }
     }
 
