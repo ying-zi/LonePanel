@@ -20,20 +20,27 @@ struct FileBrowserView: View {
     @State private var previewURL: URL?
     @State private var shareItem: ShareItem?
 
+    /// 栈底标题：真根 "/" 显示服务器名，默认目录显示其末级目录名。
+    private var rootTitle: String {
+        model.rootPath == "/" ? model.serverName : (model.rootPath as NSString).lastPathComponent
+    }
+
     var body: some View {
         Group {
             if model.isConnected {
                 NavigationStack(path: $model.navPath) {
                     DirectoryPage(
                         model: model,
-                        // 根页固定是真正的根目录 "/"（标题显示服务器名）。
-                        // 默认目录不再充当根，而是展开成 navPath 的逐级节点，
-                        // 这样标题菜单与返回箭头都能到达默认目录的所有上级。
-                        node: FileNode(path: "/", title: model.serverName),
+                        // 栈底 = 默认目录（未设则是真根 "/"）。iOS 26 点当前 Tab 会把
+                        // NavigationStack 系统级 pop 到栈底，落点自然就是默认目录。
+                        node: FileNode(path: model.rootPath, title: rootTitle),
                         previewURL: $previewURL,
                         shareItem: $shareItem,
                         navPath: $model.navPath
                     )
+                    // rootPath 变化（冷启动定位 / 切服务器 / 点服务器名回真根 / 设默认归位）
+                    // 时重建根页，确保其 .task 重新加载新栈底目录。
+                    .id(model.rootPath)
                     .navigationDestination(for: FileNode.self) { node in
                         DirectoryPage(
                             model: model,
@@ -69,17 +76,6 @@ struct FileBrowserView: View {
             Task {
                 await model.reconnectSilently()
                 // 成功后递增 refreshToken，各 DirectoryPage 监听后刷新当前目录。
-            }
-        }
-        // 再次点击当前文件 Tab 的恢复链路：iOS 26 会把导航栈系统级 pop 到空，
-        // 这里在 pop 发生后（navPath 变空）若有待恢复意图，立即把默认目录链设回——
-        // 发生在系统 pop 之后，不会被覆盖，这是「回默认目录而非根目录」的核心。
-        // 若待处理期间用户主动导航进子目录，则放弃恢复、不打断操作。
-        .onChange(of: model.navPath) { _, newPath in
-            if newPath.isEmpty {
-                model.consumeEntryRestoreIfPopped()
-            } else {
-                model.cancelEntryRestoreOnUserNavigation()
             }
         }
         // 上传改用 UIKit 的 UIDocumentPickerViewController：delegate 回调不随 SwiftUI
@@ -540,15 +536,25 @@ private struct DirectoryPage: View {
         }
     }
 
-    /// 标题下拉：与右上 ⋯ 一致的系统原生 Menu，列出从根目录到当前的位置层级。
-    /// navPath 为根之后的逐级节点，故完整层级 = [根] + navPath。
+    /// 标题下拉：主标题仍显示当前目录名；点开后首项恒为服务器名称，
+    /// 点击回到服务器真正的根目录 "/"（用于重新挑默认目录）；
+    /// 其余层级从栈底（默认目录）起列，不再展开 "/" 到默认目录间的祖先。
     private var titleMenu: some View {
         Menu {
+            // 首项恒定：当前服务器名 → 回真根 "/"。
+            Button {
+                model.navigateToTrueRoot()
+            } label: {
+                Label(model.serverName, systemImage: "server.rack")
+            }
+            Divider()
+            // 层级：从栈底（默认目录 / 真根）到当前的每一级。
             ForEach(Array(levelNodes.enumerated()), id: \.offset) { idx, level in
                 Button {
                     jumpToLevel(idx)
                 } label: {
-                    Label(level.title, systemImage: idx == currentLevel ? "checkmark" : (idx == 0 ? "folder" : "folder.fill"))
+                    Label(level.title,
+                          systemImage: idx == currentLevel ? "checkmark" : (idx == 0 ? "folder" : "folder.fill"))
                 }
             }
         } label: {
@@ -560,15 +566,19 @@ private struct DirectoryPage: View {
         }
     }
 
-    /// 从根到当前的完整层级节点：第 0 项固定是根目录 "/"（标题为服务器名），
-    /// 其后是展开到默认目录的逐级节点。默认目录的上级因此始终出现在菜单里。
+    /// 层级节点：第 0 项是栈底（默认目录；真根时标题为服务器名），其后是 navPath。
+    /// 默认目录以上的祖先不在此列，回真根统一走首项服务器名按钮。
     private var levelNodes: [FileNode] {
-        [FileNode(path: "/", title: model.serverName)] + navPath
+        [FileNode(path: model.rootPath, title: stackBottomTitle)] + navPath
+    }
+
+    private var stackBottomTitle: String {
+        model.rootPath == "/" ? model.serverName : (model.rootPath as NSString).lastPathComponent
     }
 
     private var currentLevel: Int { navPath.count }
 
-    /// 跳到指定层级：截断 navPath 到该深度。idx=0（根目录）即清空导航栈。
+    /// 跳到指定层级：截断 navPath 到该深度。idx=0（栈底）即清空导航栈。
     private func jumpToLevel(_ idx: Int) {
         guard idx < navPath.count else { return }
         navPath = Array(navPath.prefix(idx))

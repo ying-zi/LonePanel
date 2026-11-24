@@ -12,16 +12,16 @@ final class FileBrowserModel: ObservableObject {
 
     // MARK: - 导航（跨 Tab 保留）
 
-    /// 导航栈：根页 "/" 不进栈，元素是逐级 push 的目录节点。
+    /// 导航栈底路径（根页 path）：设了默认目录时就是默认目录，否则是 "/"。
+    /// 关键设计：iOS 26 点当前 Tab 会把嵌套 NavigationStack 系统级 pop 到栈底，
+    /// 因此把栈底本身设为默认目录，系统 pop 的结果天然就是「回默认目录」——
+    /// 不再需要任何拦截、快照、代次、兜底定时器去对抗系统行为。
+    @Published var rootPath: String = "/"
+    /// 导航栈：根页不进栈，元素是栈底之后逐级 push 的目录节点。
     /// 放在单例 model 中，切换 Tab 不丢失，停留在离开前的目录。
     @Published var navPath: [FileNode] = []
-    /// 是否已完成首次导航初始化：冷启动建一次默认目录链，切回 Tab 不再重置。
+    /// 是否已完成首次导航初始化：冷启动定位一次栈底，切回 Tab 不再重置。
     private(set) var navigationInitialized = false
-    /// 点当前「文件」Tab 后的待恢复意图：iOS 26 会把导航栈系统级 pop 到根，
-    /// 需要在 pop 之后把默认目录链设回。已在 FileBrowserView 中订阅（走本单例，必然触发）。
-    @Published var pendingEntryRestore = false
-    /// 恢复意图代次：避免上一次点击的兜底定时器误伤后一次点击。
-    private var entryRestoreGeneration = 0
 
     // MARK: - 搜索（全局一份，供导航栈统一渲染，各级目录页共享过滤）
     /// 搜索关键词：所有目录页用同一个词过滤各自条目。
@@ -78,96 +78,43 @@ final class FileBrowserModel: ObservableObject {
 
     // MARK: - 导航栈管理
 
-    /// 冷启动首次连接成功后，把导航栈展开到默认目录的每一级祖先（根 "/" 不进栈）。
-    /// 只执行一次；此后切 Tab / 切回前台都不再改动导航栈，保留用户所处目录。
+    /// 冷启动首次连接成功后，把导航栈底设为默认目录（未设则是 "/"/真根）。
+    /// 只执行一次；此后切 Tab / 切回前台都不再改动，保留用户所处目录。
     func initializeNavigationIfNeeded() {
         guard !navigationInitialized else { return }
         navigationInitialized = true
-        navPath = Self.pathChain(for: entryPath)
+        rootPath = entryPath
+        navPath = []
     }
 
-    /// 切到新服务器时回默认目录入口。
-    /// 同时标记已初始化，避免之后切回 Tab 时 .task 再次用默认目录覆盖用户所在位置。
+    /// 切到新服务器时：栈底换成新服务器的默认目录，清空导航栈。
     func resetNavigationToEntry() {
         navigationInitialized = true
-        cancelEntryRestore()
-        let target = Self.pathChain(for: entryPath)
-        guard navPath != target else { return }
-        navPath = target
-        // 重置后同步关闭可能残留的搜索/多选态（单例全局态），
-        // 避免回到默认目录后工具栏仍停留在上一次的异常状态。
+        rootPath = entryPath
+        navPath = []
         searchText = ""
         isSearching = false
     }
 
-    // MARK: - 再次点击当前文件 Tab：回默认目录（方案二）
-
-    /// ContentView 拦截到「再次点击当前已选中 Tab」时调用。
-    /// iOS 26 的 TabView 在点击当前 Tab 时会把嵌套 NavigationStack 系统级 pop 到根，
-    /// 且该 pop 与本调用几乎同时、无法直接取消。策略是记录恢复意图，
-    /// 并针对三种时序分别兜底：pop 已发生 / pop 稍后发生 / 系统不 pop。
-    /// 目标目录每次都从 DefaultDirectoryStore 现读（entryPath）。
-    func handleCurrentTabReselected() {
-        let target = Self.pathChain(for: entryPath)
-        entryRestoreGeneration += 1
-        let generation = entryRestoreGeneration
-        pendingEntryRestore = true
-
-        // 情况 A：系统已经把导航栈 pop 空（或本就在根）→ 立即设回默认目录。
-        if navPath.isEmpty {
-            applyEntryRestore(target, generation: generation)
-            return
-        }
-
-        // 情况 B/C：交给视图层 .onChange(navPath) 在检测到 pop 到空时消费；
-        // 若系统根本不 pop，则用兜底定时器主动恢复。
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 400_000_000) // 0.4s，覆盖系统 pop 动画窗口
-            guard let self, self.pendingEntryRestore,
-                  self.entryRestoreGeneration == generation else { return }
-            self.applyEntryRestore(target, generation: generation)
-        }
-    }
-
-    /// 视图层 .onChange(navPath) 检测到导航栈被 pop 到空时调用：立即设回默认目录。
-    func consumeEntryRestoreIfPopped() {
-        guard pendingEntryRestore, navPath.isEmpty else { return }
-        applyEntryRestore(Self.pathChain(for: entryPath), generation: entryRestoreGeneration)
-    }
-
-    /// 用户在此意图待处理期间主动导航进了子目录 → 放弃恢复，别打断操作。
-    func cancelEntryRestoreOnUserNavigation() {
-        guard pendingEntryRestore else { return }
-        cancelEntryRestore()
-    }
-
-    private func applyEntryRestore(_ target: [FileNode], generation: Int) {
-        guard entryRestoreGeneration == generation else { return }
-        cancelEntryRestore()
-        guard navPath != target else { return }
-        navPath = target
+    /// 标题菜单点「服务器名称」：把栈底设成真正的根目录 "/"。
+    /// 之后系统点当前 Tab pop 到栈底，落点就是 "/"（与菜单语义一致）。
+    func navigateToTrueRoot() {
+        rootPath = "/"
+        navPath = []
         searchText = ""
         isSearching = false
     }
 
-    private func cancelEntryRestore() {
-        pendingEntryRestore = false
-        entryRestoreGeneration += 1
+    /// 设为默认访问目录后归位：把该目录设为新的导航栈底并回到它。
+    func setAsDefaultDirectory(_ path: String) {
+        guard let id = ServerSession.shared.currentServer?.id else { return }
+        DefaultDirectoryStore.set(path, for: id)
+        rootPath = path
+        navPath = []
+        searchText = ""
+        isSearching = false
     }
 
-    /// 把默认目录绝对路径拆成从 "/home" 起的逐级节点（不含根 "/"）。
-    /// 例如 "/home/www" → [("/home","home"), ("/home/www","www")]；"/" → []。
-    static func pathChain(for path: String) -> [FileNode] {
-        let clean = path.hasSuffix("/") ? String(path.dropLast()) : path
-        guard !clean.isEmpty, clean != "/" else { return [] }
-        var result: [FileNode] = []
-        var accumulated = ""
-        for part in clean.split(separator: "/") {
-            accumulated += "/" + part
-            result.append(FileNode(path: accumulated, title: String(part)))
-        }
-        return result
-    }
 
     // MARK: - 连接与冷启动
 
@@ -469,11 +416,6 @@ final class FileBrowserModel: ObservableObject {
             }
         }
         await transfer(clipboard, operation: .copy, to: target)
-    }
-
-    func setAsDefaultDirectory(_ path: String) {
-        guard let id = ServerSession.shared.currentServer?.id else { return }
-        DefaultDirectoryStore.set(path, for: id)
     }
 
     // MARK: - 大小格式化（统一处理 0 字节，避免 ByteCountFormatter 输出 "Zero KB"）
