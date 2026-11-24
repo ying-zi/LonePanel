@@ -248,6 +248,19 @@ private struct DirectoryPage: View {
                     searchText = ""
                 }
             }
+            // 方案一：搜索态绑定在页上，离开即放弃。
+            // 搜索框展开时点了列表里的文件夹 push 下一级 → 导航栈深度增加，
+            // 说明用户用「点目录」这个明确动作放弃了对当前层的搜索；清掉本页搜索态，
+            // 返回时便是搜索框关闭、列表恢复完整的干净状态（不再残留搜索框）。
+            // 只在新页入栈（count 增大）且本页正处于搜索态时清；返回（count 减小）不动。
+            // 不碰 searchFocused —— isPresented 置 false 后系统自行 resign，
+            // 避开「键盘还在时双重 dismiss」导致的底部白区上顶闪烁。
+            .onChange(of: navPath.count) { oldCount, newCount in
+                if newCount > oldCount, isSearching {
+                    isSearching = false
+                    searchText = ""
+                }
+            }
             .refreshable { await load() }
             .task { await load() }
             // 断线重连成功后重新拉取当前目录（保留导航层级与选中态）。
