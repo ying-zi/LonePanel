@@ -401,7 +401,7 @@
 				Base,
 			);
 			mainGroup = A20000000000000000000001;
-			packageReferences = (050000000000000000000001 /* XCRemoteSwiftPackageReference "swift-nio-ssh" */, 050000000000000000000002 /* XCRemoteSwiftPackageReference "swift-crypto" */,);
+			packageReferences = (050000000000000000000001 /* XCRemoteSwiftPackageReference "swift-nio-ssh" */, 050000000000000000000002 /* XCRemoteSwiftPackageReference "swift-crypto" */, 050000000000000000000003 /* XCRemoteSwiftPackageReference "SwiftTerm" */,);
 			productRefGroup = A30000000000000000000001 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
