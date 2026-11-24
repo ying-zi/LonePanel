@@ -1,6 +1,66 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "%@ 项": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ items"
+          }
+        }
+      }
+    },
+    "%@（当前）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (Current)"
+          }
+        }
+      }
+    },
+    "%@（服务器命令）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (Server Command)"
+          }
+        }
+      }
+    },
+    "%@（默认）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (Default)"
+          }
+        }
+      }
+    },
+    "%d 个": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d items"
+          }
+        }
+      }
+    },
+    "%d/%d 项": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d/%d items"
+          }
+        }
+      }
+    },
     "Docker 容器管理": {
       "localizations": {
         "en": {
@@ -21,6 +81,36 @@
         }
       }
     },
+    "SSH 终端": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH Terminal"
+          }
+        }
+      }
+    },
+    "「%@」不支持在线预览，确认后将下载并打开系统分享菜单。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"%@\" cannot be previewed online. Download and open Share sheet?"
+          }
+        }
+      }
+    },
+    "「%@」已在当前目录，无法粘贴到原位置。请先移动到其他目录。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"%@\" is already in this folder. Move it elsewhere first."
+          }
+        }
+      }
+    },
     "上传文件": {
       "localizations": {
         "en": {
@@ -37,6 +127,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Download & Share"
+          }
+        }
+      }
+    },
+    "中断": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrupt"
+          }
+        }
+      }
+    },
+    "中断 (Ctrl+C)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrupt (Ctrl+C)"
+          }
+        }
+      }
+    },
+    "中断当前命令 (Ctrl+C)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrupt current command (Ctrl+C)"
           }
         }
       }
@@ -121,6 +241,36 @@
         }
       }
     },
+    "关闭": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
+    },
+    "关闭 Ctrl 锁定": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn off Ctrl lock"
+          }
+        }
+      }
+    },
+    "关闭后长内容不折行。若行太长被截断，可调小字号以显示更多列。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When off, long lines are not wrapped. If a line is truncated, reduce the font size to show more columns."
+          }
+        }
+      }
+    },
     "内容": {
       "localizations": {
         "en": {
@@ -167,6 +317,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Delete"
+          }
+        }
+      }
+    },
+    "删除「%@」吗？凭证也会一并从钥匙串移除，此操作不可撤销。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete \"%@\"? The credential will also be removed from Keychain. This cannot be undone."
           }
         }
       }
@@ -237,6 +397,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Coming Soon"
+          }
+        }
+      }
+    },
+    "发送": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send"
           }
         }
       }
@@ -341,12 +511,32 @@
         }
       }
     },
+    "复制（%d 项）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy (%d items)"
+          }
+        }
+      }
+    },
     "大小": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Size"
+          }
+        }
+      }
+    },
+    "失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed"
           }
         }
       }
@@ -367,6 +557,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Subfolders"
+          }
+        }
+      }
+    },
+    "字号": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Font Size"
           }
         }
       }
@@ -411,6 +611,16 @@
         }
       }
     },
+    "展开键盘": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Keyboard"
+          }
+        }
+      }
+    },
     "属主": {
       "localizations": {
         "en": {
@@ -427,6 +637,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "Attributes"
+          }
+        }
+      }
+    },
+    "已上传 %d 个文件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d file(s) uploaded"
+          }
+        }
+      }
+    },
+    "已占用缓存": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cache Used"
+          }
+        }
+      }
+    },
+    "开启 Ctrl 锁定": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on Ctrl lock"
+          }
+        }
+      }
+    },
+    "开启后，在 Docker、网站、数据库页面右下角显示终端快捷入口；文件和设置页不显示。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When enabled, a terminal shortcut appears at the bottom-right of Docker, Website and Database pages; not shown on Files or Settings."
+          }
+        }
+      }
+    },
+    "归档文件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archive"
           }
         }
       }
@@ -451,6 +711,16 @@
         }
       }
     },
+    "成功 %d 个；": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d succeeded;"
+          }
+        }
+      }
+    },
     "我的服务器": {
       "localizations": {
         "en": {
@@ -467,6 +737,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yes, Continue Deleting"
+          }
+        }
+      }
+    },
+    "打开终端": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Terminal"
           }
         }
       }
@@ -501,12 +781,32 @@
         }
       }
     },
+    "按虚拟列数排版，可左右滑动查看完整长行。列数越大单行显示越多，但全屏程序（如 vim、htop）会按此宽度排布。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lay out by virtual columns; swipe left/right to view full long lines. A larger column count shows more per line, but full-screen programs (e.g. vim, htop) will lay out at this width."
+          }
+        }
+      }
+    },
     "排序方式": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Sort By"
+          }
+        }
+      }
+    },
+    "排版": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Layout"
           }
         }
       }
@@ -537,6 +837,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Action Notice"
+          }
+        }
+      }
+    },
+    "收起终端": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapse Terminal"
+          }
+        }
+      }
+    },
+    "收起键盘": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Keyboard"
           }
         }
       }
@@ -581,6 +901,16 @@
         }
       }
     },
+    "文件名不能为空": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File name cannot be empty"
+          }
+        }
+      }
+    },
     "文件夹": {
       "localizations": {
         "en": {
@@ -607,6 +937,76 @@
           "stringUnit": {
             "state": "translated",
             "value": "Folder Name"
+          }
+        }
+      }
+    },
+    "文件预览": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File Preview"
+          }
+        }
+      }
+    },
+    "文稿": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Document"
+          }
+        }
+      }
+    },
+    "断开": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect"
+          }
+        }
+      }
+    },
+    "无搜索结果": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Results"
+          }
+        }
+      }
+    },
+    "无法获取": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unavailable"
+          }
+        }
+      }
+    },
+    "显示": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display"
+          }
+        }
+      }
+    },
+    "显示悬浮终端按钮": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Floating Terminal Button"
           }
         }
       }
@@ -651,152 +1051,42 @@
         }
       }
     },
-    "失败": {
+    "服务器连接失败": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Failed"
+            "value": "Server connection failed"
           }
         }
       }
     },
-    "测试结果": {
+    "未知用户": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Test Result"
+            "value": "Unknown User"
           }
         }
       }
     },
-    "测试连接": {
+    "未知用户 · 未知组": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Test Connection"
+            "value": "Unknown User · Unknown Group"
           }
         }
       }
     },
-    "添加服务器": {
+    "未知组": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add Server"
-          }
-        }
-      }
-    },
-    "清理": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Clear"
-          }
-        }
-      }
-    },
-    "清理全部缓存": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Clear All Cache"
-          }
-        }
-      }
-    },
-    "源代码": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Source Code"
-          }
-        }
-      }
-    },
-    "网站": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Website"
-          }
-        }
-      }
-    },
-    "网站管理": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Websites"
-          }
-        }
-      }
-    },
-    "获取信息": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Get Info"
-          }
-        }
-      }
-    },
-    "认证方式": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Authentication"
-          }
-        }
-      }
-    },
-    "设为默认": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Set as Default"
-          }
-        }
-      }
-    },
-    "设为默认访问目录": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Set as Default Directory"
-          }
-        }
-      }
-    },
-    "设置": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Settings"
-          }
-        }
-      }
-    },
-    "试试其他关键词": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Try another keyword"
+            "value": "Unknown Group"
           }
         }
       }
@@ -871,12 +1161,32 @@
         }
       }
     },
+    "正在统计磁盘占用…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculating disk usage…"
+          }
+        }
+      }
+    },
     "正在读取文件…": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Reading file…"
+          }
+        }
+      }
+    },
+    "正在连接…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting…"
           }
         }
       }
@@ -911,12 +1221,102 @@
         }
       }
     },
-    "请选择": {
+    "测试结果": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Select"
+            "value": "Test Result"
+          }
+        }
+      }
+    },
+    "测试连接": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Test Connection"
+          }
+        }
+      }
+    },
+    "添加服务器": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Server"
+          }
+        }
+      }
+    },
+    "清屏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Screen"
+          }
+        }
+      }
+    },
+    "清理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear"
+          }
+        }
+      }
+    },
+    "清理「%@」": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear \"%@\""
+          }
+        }
+      }
+    },
+    "清理全部缓存": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear All Cache"
+          }
+        }
+      }
+    },
+    "源代码": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source Code"
+          }
+        }
+      }
+    },
+    "现用": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current"
+          }
+        }
+      }
+    },
+    "用户": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "User"
           }
         }
       }
@@ -1011,12 +1411,42 @@
         }
       }
     },
+    "粘贴（%d 项）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste (%d items)"
+          }
+        }
+      }
+    },
     "纯文本文稿": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Plain Text"
+          }
+        }
+      }
+    },
+    "组": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Group"
+          }
+        }
+      }
+    },
+    "终端设置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal Settings"
           }
         }
       }
@@ -1051,82 +1481,22 @@
         }
       }
     },
-    "现用": {
+    "网站": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Current"
+            "value": "Website"
           }
         }
       }
     },
-    "用户": {
+    "网站管理": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "User"
-          }
-        }
-      }
-    },
-    "组": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Group"
-          }
-        }
-      }
-    },
-    "未知用户": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unknown User"
-          }
-        }
-      }
-    },
-    "未知组": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unknown Group"
-          }
-        }
-      }
-    },
-    "未知用户 · 未知组": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unknown User · Unknown Group"
-          }
-        }
-      }
-    },
-    "无搜索结果": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No Results"
-          }
-        }
-      }
-    },
-    "文件名不能为空": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "File name cannot be empty"
+            "value": "Websites"
           }
         }
       }
@@ -1141,12 +1511,132 @@
         }
       }
     },
+    "自动换行": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto Wrap"
+          }
+        }
+      }
+    },
+    "获取信息": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get Info"
+          }
+        }
+      }
+    },
+    "虚拟列数": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Virtual Columns"
+          }
+        }
+      }
+    },
     "认证失败": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Authentication failed"
+          }
+        }
+      }
+    },
+    "认证方式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Authentication"
+          }
+        }
+      }
+    },
+    "设为默认": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set as Default"
+          }
+        }
+      }
+    },
+    "设为默认访问目录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set as Default Directory"
+          }
+        }
+      }
+    },
+    "设置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        }
+      }
+    },
+    "试试其他关键词": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try another keyword"
+          }
+        }
+      }
+    },
+    "请先到「设置 → 我的服务器」添加并选择一个服务器": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Please add and select a server in Settings → My Servers first"
+          }
+        }
+      }
+    },
+    "请选择": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select"
+          }
+        }
+      }
+    },
+    "输入命令…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type a command…"
+          }
+        }
+      }
+    },
+    "连接": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect"
           }
         }
       }
@@ -1231,6 +1721,26 @@
         }
       }
     },
+    "重试": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
+          }
+        }
+      }
+    },
+    "长行自动折行显示。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long lines wrap automatically."
+          }
+        }
+      }
+    },
     "降序": {
       "localizations": {
         "en": {
@@ -1257,476 +1767,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Downloaded copies for preview and sharing"
-          }
-        }
-      }
-    },
-    "归档文件": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Archive"
-          }
-        }
-      }
-    },
-    "文稿": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Document"
-          }
-        }
-      }
-    },
-    "服务器连接失败": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Server connection failed"
-          }
-        }
-      }
-    },
-    "已占用缓存": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cache Used"
-          }
-        }
-      }
-    },
-    "文件预览": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "File Preview"
-          }
-        }
-      }
-    },
-    "正在统计磁盘占用…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Calculating disk usage…"
-          }
-        }
-      }
-    },
-    "无法获取": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unavailable"
-          }
-        }
-      }
-    },
-    "「%@」不支持在线预览，确认后将下载并打开系统分享菜单。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "\"%@\" cannot be previewed online. Download and open Share sheet?"
-          }
-        }
-      }
-    },
-    "「%@」已在当前目录，无法粘贴到原位置。请先移动到其他目录。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "\"%@\" is already in this folder. Move it elsewhere first."
-          }
-        }
-      }
-    },
-    "%@（当前）": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ (Current)"
-          }
-        }
-      }
-    },
-    "%@（默认）": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ (Default)"
-          }
-        }
-      }
-    },
-    "%@（服务器命令）": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ (Server Command)"
-          }
-        }
-      }
-    },
-    "%@ 项": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ items"
-          }
-        }
-      }
-    },
-    "%d/%d 项": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d/%d items"
-          }
-        }
-      }
-    },
-    "%d 个": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d items"
-          }
-        }
-      }
-    },
-    "复制（%d 项）": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copy (%d items)"
-          }
-        }
-      }
-    },
-    "粘贴（%d 项）": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paste (%d items)"
-          }
-        }
-      }
-    },
-    "清理「%@」": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Clear \"%@\""
-          }
-        }
-      }
-    },
-    "成功 %d 个；": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d succeeded;"
-          }
-        }
-      }
-    },
-    "已上传 %d 个文件": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d file(s) uploaded"
-          }
-        }
-      }
-    },
-    "删除「%@」吗？凭证也会一并从钥匙串移除，此操作不可撤销。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete \"%@\"? The credential will also be removed from Keychain. This cannot be undone."
-          }
-        }
-      }
-    },
-    "SSH 终端": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SSH Terminal"
-          }
-        }
-      }
-    },
-    "关闭": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Close"
-          }
-        }
-      }
-    },
-    "重试": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Retry"
-          }
-        }
-      }
-    },
-    "正在连接…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connecting…"
-          }
-        }
-      }
-    },
-    "打开终端": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open Terminal"
-          }
-        }
-      }
-    },
-    "显示悬浮终端按钮": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show Floating Terminal Button"
-          }
-        }
-      }
-    },
-    "请先到「设置 → 我的服务器」添加并选择一个服务器": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Please add and select a server in Settings → My Servers first"
-          }
-        }
-      }
-    },
-    "开启后，在 Docker、网站、数据库页面右下角显示终端快捷入口；文件和设置页不显示。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "When enabled, a terminal shortcut appears at the bottom-right of Docker, Website and Database pages; not shown on Files or Settings."
-          }
-        }
-      }
-    },
-    "中断 (Ctrl+C)": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Interrupt (Ctrl+C)"
-          }
-        }
-      }
-    },
-    "中断": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Interrupt"
-          }
-        }
-      }
-    },
-    "中断当前命令 (Ctrl+C)": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Interrupt current command (Ctrl+C)"
-          }
-        }
-      }
-    },
-    "输入命令…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Type a command…"
-          }
-        }
-      }
-    },
-    "发送": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Send"
-          }
-        }
-      }
-    },
-    "收起终端": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Collapse Terminal"
-          }
-        }
-      }
-    },
-    "连接": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connect"
-          }
-        }
-      }
-    },
-    "断开": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Disconnect"
-          }
-        }
-      }
-    },
-    "开启 Ctrl 锁定": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Turn on Ctrl lock"
-          }
-        }
-      }
-    },
-    "关闭 Ctrl 锁定": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Turn off Ctrl lock"
-          }
-        }
-      }
-    },
-    "终端设置": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Terminal Settings"
-          }
-        }
-      }
-    },
-    "字号": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Font Size"
-          }
-        }
-      }
-    },
-    "显示": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Display"
-          }
-        }
-      }
-    },
-    "自动换行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auto Wrap"
-          }
-        }
-      }
-    },
-    "关闭后长内容不折行。若行太长被截断，可调小字号以显示更多列。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "When off, long lines are not wrapped. If a line is truncated, reduce the font size to show more columns."
-          }
-        }
-      }
-    },
-    "清屏": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Clear Screen"
-          }
-        }
-      }
-    },
-    "收起键盘": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hide Keyboard"
-          }
-        }
-      }
-    },
-    "展开键盘": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show Keyboard"
           }
         }
       }
