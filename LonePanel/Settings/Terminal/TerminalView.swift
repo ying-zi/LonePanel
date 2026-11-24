@@ -31,24 +31,6 @@ final class TerminalKeyState: ObservableObject {
         // ED(2) 清屏 + 光标归位，交给 SwiftTerm 本地解释，不影响远端。
         terminalView?.feed(byteArray: Array("\u{1B}[2J\u{1B}[H".utf8)[...])
     }
-
-    /// 把自动换行偏好应用到本地仿真器（DECAWM：?7h 开 / ?7l 关）。
-    func applyAutoWrap(_ enabled: Bool) {
-        let seq = enabled ? "\u{1B}[?7h" : "\u{1B}[?7l"
-        terminalView?.feed(byteArray: Array(seq.utf8)[...])
-    }
-}
-
-/// 宽列模式的外层容器：只负责横向滚动，纵向滚动交给内层 TerminalView（scrollback）。
-private final class HorizontalTerminalScrollView: UIScrollView {
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        isDirectionalLockEnabled = true
-        showsVerticalScrollIndicator = false
-        showsHorizontalScrollIndicator = true
-        bounces = false
-    }
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
 
 /// SwiftTerm 官方 TerminalView 的 SwiftUI 包装。
@@ -57,17 +39,8 @@ private struct TerminalHostView: UIViewRepresentable {
     let keyState: TerminalKeyState
     let focusTick: Int
     let fontSize: Double
-    let autoWrap: Bool
-    /// > 0 时启用宽列横滚：视图物理宽度 = 虚拟列数 × 字符宽，外层横向 UIScrollView 承载。
-    let virtualColumns: Int
 
-    /// 与 SwiftTerm computeFontDimensions 保持一致：等宽字体下 "W" 的 advance 即单列宽。
-    private static func cellWidth(for fontSize: Double) -> CGFloat {
-        let font = UIFont.monospacedSystemFont(ofSize: CGFloat(fontSize), weight: .regular)
-        return max(1, "W".size(withAttributes: [.font: font]).width)
-    }
-
-    func makeUIView(context: Context) -> UIView {
+    func makeUIView(context: Context) -> SwiftTerm.TerminalView {
         let view = SwiftTerm.TerminalView(frame: .zero)
         view.terminalDelegate = context.coordinator
         // 禁用 SwiftTerm 自带键盘工具条，改用我们自己的快捷键栏。
@@ -81,116 +54,50 @@ private struct TerminalHostView: UIViewRepresentable {
         keyState.terminalView = view
 
         // 服务器字节 → SwiftTerm 仿真器。注册一次：只登记 handler，等布局完成后 markReady 回放。
-        // 每次喂入后做光标跟随（仅宽列模式生效），保证输入/回显时光标始终在可见窗口内。
-        let coordinator = context.coordinator
         session.byteBridge.register { [weak view] bytes in
             guard let view else { return }
-            let feed = {
-                view.feed(byteArray: bytes[...])
-                coordinator.followCursor(in: view)
-            }
             if Thread.isMainThread {
-                feed()
+                view.feed(byteArray: bytes[...])
             } else {
-                DispatchQueue.main.async(execute: feed)
+                DispatchQueue.main.async { view.feed(byteArray: bytes[...]) }
             }
         }
-
-        let container: UIView
-        if virtualColumns > 0 {
-            // 宽列模式：固定内层视图宽度为虚拟列宽，外层横向滚动承载。
-            let scroller = HorizontalTerminalScrollView()
-            scroller.delegate = context.coordinator
-            scroller.addSubview(view)
-            view.translatesAutoresizingMaskIntoConstraints = false
-            // +2pt 余量：确保 Int(width / cellWidth) 精确得到 virtualColumns 而非少一列。
-            let width = Self.cellWidth(for: fontSize) * CGFloat(virtualColumns) + 2
-            NSLayoutConstraint.activate([
-                view.leadingAnchor.constraint(equalTo: scroller.contentLayoutGuide.leadingAnchor),
-                view.trailingAnchor.constraint(equalTo: scroller.contentLayoutGuide.trailingAnchor),
-                view.topAnchor.constraint(equalTo: scroller.contentLayoutGuide.topAnchor),
-                view.bottomAnchor.constraint(equalTo: scroller.contentLayoutGuide.bottomAnchor),
-                view.widthAnchor.constraint(equalToConstant: width),
-                view.heightAnchor.constraint(equalTo: scroller.frameLayoutGuide.heightAnchor),
-            ])
-            coordinator.hostScrollView = scroller
-            container = scroller
-        } else {
-            // 窄屏模式：宽度交给 SwiftUI = 可见宽度，行为与之前一致。
-            view.translatesAutoresizingMaskIntoConstraints = false
-            container = view
-        }
-
-        // 稍延迟：等视图上 window、布局完成（列数确定）后，应用换行偏好 + 回放历史 + 聚焦。
+        // 稍延迟：等视图上 window、布局完成（列数确定）后回放历史 + 聚焦。
         // sizeChanged 会优先做这件事；这里作为兜底，覆盖「重建后列数未变、回调不来」的情况。
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            coordinator.initializeIfNeeded(view)
+            context.coordinator.initializeIfNeeded(view)
             view.becomeFirstResponder()
         }
-        return container
+        return view
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {
+    func updateUIView(_ uiView: SwiftTerm.TerminalView, context: Context) {
         if focusTick > 0 {
-            DispatchQueue.main.async { context.coordinator.terminalView?.becomeFirstResponder() }
+            DispatchQueue.main.async { uiView.becomeFirstResponder() }
         }
     }
 
-    static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
-        coordinator.terminalView?.terminalDelegate = nil
+    static func dismantleUIView(_ uiView: SwiftTerm.TerminalView, coordinator: Coordinator) {
+        uiView.terminalDelegate = nil
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(session: session, keyState: keyState, autoWrap: autoWrap)
+        Coordinator(session: session, keyState: keyState)
     }
 
-    final class Coordinator: NSObject, TerminalViewDelegate, UIScrollViewDelegate {
+    final class Coordinator: TerminalViewDelegate {
         let session: TerminalSession
         let keyState: TerminalKeyState
-        let autoWrap: Bool
-        /// 布局完成回调是否已处理（回放 + 应用换行偏好），只做一次。
+        /// 布局完成回调是否已处理（回放历史），只做一次。
         private var didInitialize = false
-        /// 内层终端视图（宽列模式下是外层 scrollView 的子视图）。
-        weak var terminalView: SwiftTerm.TerminalView?
-        /// 宽列模式的外层横向滚动容器。
-        weak var hostScrollView: UIScrollView?
-        /// 用户是否手动横向滚动过：手动接管后不再自动回中，避免与用户操作打架。
-        private var userHorizontalScroll = false
 
-        init(session: TerminalSession, keyState: TerminalKeyState, autoWrap: Bool) {
+        init(session: TerminalSession, keyState: TerminalKeyState) {
             self.session = session
             self.keyState = keyState
-            self.autoWrap = autoWrap
-        }
-
-        /// 宽列模式下把光标列滚入可见窗口。用户手动横滚后停止自动跟随，避免抢操作。
-        func followCursor(in view: SwiftTerm.TerminalView) {
-            guard let scroll = hostScrollView,
-                  scroll.contentSize.width > scroll.bounds.width,
-                  !userHorizontalScroll else { return }
-            // SwiftTerm 公开 caretFrame：origin.x 是光标像素列，width 是单列宽。
-            let caret = view.caretFrame
-            let caretX = caret.minX
-            let cell = max(1, caret.width)
-            let margin = cell * 3
-            let visibleMin = scroll.contentOffset.x
-            let visibleMax = visibleMin + scroll.bounds.width
-            if caretX < visibleMin + margin {
-                scroll.contentOffset.x = max(0, caretX - margin)
-            } else if caretX + margin > visibleMax {
-                scroll.contentOffset.x = min(scroll.contentSize.width - scroll.bounds.width, caretX + margin - scroll.bounds.width)
-            }
-        }
-
-        /// UIScrollViewDelegate：识别用户手动横滚。
-        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
-            if scrollView === hostScrollView { userHorizontalScroll = true }
         }
 
         /// 键盘/快捷键产生的字节发往远端。Ctrl 锁定时把字母转成对应控制字符。
         func send(source: SwiftTerm.TerminalView, data: ArraySlice<UInt8>) {
-            // 用户一开始输入即恢复光标自动跟随（此前可能手动滚到别处看内容）。
-            MainActor.assumeIsolated { userHorizontalScroll = false }
             let bytes: [UInt8] = data.map { byte in
                 if keyState.ctrlLocked {
                     if byte >= 0x61 && byte <= 0x7A { return byte - 0x60 } // a-z -> 0x01...
@@ -201,15 +108,12 @@ private struct TerminalHostView: UIViewRepresentable {
             MainActor.assumeIsolated { session.send(bytes) }
         }
 
-        /// 视图列数确定后做一次初始化：应用换行偏好 + 回放历史。幂等。
+        /// 视图列数确定后做一次初始化：回放历史。幂等。
         func initializeIfNeeded(_ view: SwiftTerm.TerminalView) {
             MainActor.assumeIsolated {
                 guard !didInitialize else { return }
                 didInitialize = true
                 keyState.terminalView = view
-                terminalView = view
-                // 先应用换行偏好，再回放历史，保证排版一致。
-                keyState.applyAutoWrap(autoWrap)
                 session.byteBridge.markReady()
             }
         }
@@ -240,8 +144,6 @@ struct TerminalView: View {
     @State private var focusTick = 0
     @State private var showSettings = false
     @AppStorage("com.lone.lonepanel.terminal.fontSize") private var fontSize = 14.0
-    @AppStorage("com.lone.lonepanel.terminal.autoWrap") private var autoWrap = true
-    @AppStorage("com.lone.lonepanel.terminal.virtualColumns") private var virtualColumns = 100
     @State private var keyboardShown = true
 
     var body: some View {
@@ -318,11 +220,9 @@ struct TerminalView: View {
             session: session,
             keyState: keyState,
             focusTick: focusTick,
-            fontSize: fontSize,
-            autoWrap: autoWrap,
-            virtualColumns: autoWrap ? 0 : virtualColumns
+            fontSize: fontSize
         )
-        .id("term-\(fontSize)-\(autoWrap)-\(autoWrap ? 0 : virtualColumns)")
+        .id("term-\(fontSize)")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay {
             if session.isConnecting && !session.isReady {
@@ -490,31 +390,10 @@ struct TerminalView: View {
                             Text("\(Int(fontSize)) pt")
                                 .foregroundStyle(.secondary)
                         }
-                        Slider(value: $fontSize, in: 11...22, step: 1)
+                        Slider(value: $fontSize, in: 12...18, step: 1)
                     }
                 } header: {
                     Text("显示")
-                }
-                Section {
-                    Toggle("自动换行", isOn: $autoWrap)
-                    if !autoWrap {
-                        HStack {
-                            Text("虚拟列数")
-                            Spacer()
-                            Text(verbatim: "\(virtualColumns) cols")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(virtualColumns) },
-                            set: { virtualColumns = Int($0) }
-                        ), in: 40...200, step: 10)
-                    }
-                } header: {
-                    Text("排版")
-                } footer: {
-                    Text(autoWrap
-                         ? "长行自动折行显示。"
-                         : "按虚拟列数排版，可左右滑动查看完整长行。列数越大单行显示越多，但全屏程序（如 vim、htop）会按此宽度排布。")
                 }
             }
             .navigationTitle("终端设置")

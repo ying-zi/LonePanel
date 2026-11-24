@@ -781,32 +781,12 @@
         }
       }
     },
-    "按虚拟列数排版，可左右滑动查看完整长行。列数越大单行显示越多，但全屏程序（如 vim、htop）会按此宽度排布。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lay out by virtual columns; swipe left/right to view full long lines. A larger column count shows more per line, but full-screen programs (e.g. vim, htop) will lay out at this width."
-          }
-        }
-      }
-    },
     "排序方式": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Sort By"
-          }
-        }
-      }
-    },
-    "排版": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Layout"
           }
         }
       }
@@ -1531,16 +1511,6 @@
         }
       }
     },
-    "虚拟列数": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Virtual Columns"
-          }
-        }
-      }
-    },
     "认证失败": {
       "localizations": {
         "en": {
@@ -1727,16 +1697,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Retry"
-          }
-        }
-      }
-    },
-    "长行自动折行显示。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Long lines wrap automatically."
           }
         }
       }
