@@ -5,23 +5,11 @@ import SwiftUI
 struct ContentView: View {
     @State private var selection: String = TabRegistry.modules.first?.id ?? ""
 
-    /// 点击「当前已选中」的 Tab 时，系统不会改 selection，但会调用 setter。
-    /// 借此拦截：文件模块回默认目录的意图交给单例 model 处理（其他模块仅正常切换）。
-    private var selectionBinding: Binding<String> {
-        Binding(
-            get: { selection },
-            set: { newValue in
-                if newValue == selection {
-                    FileBrowserModel.shared.handleCurrentTabReselected()
-                } else {
-                    selection = newValue
-                }
-            }
-        )
-    }
-
+    /// 用普通 $selection，不再拦截「再次点击当前 Tab」。
+    /// 文件模块把导航栈底设为默认目录后，iOS 26 点当前 Tab 系统级 pop 到栈底，
+    /// 落点天然就是默认目录，无需任何自定义 binding 拦截。
     var body: some View {
-        TabView(selection: selectionBinding) {
+        TabView(selection: $selection) {
             ForEach(TabRegistry.modules) { module in
                 module.view
                     .tabItem {
