@@ -56,10 +56,12 @@ struct FileBrowserView: View {
                 // 各页搜索状态独立，互不串味；切层级时随页面销毁自然收起，无残留、无闪烁。
             } else if model.hasConfiguredServer && !model.connectionFailed {
                 // 已配置服务器、正在连接（尚未失败）：显示加载动画。
-                // 用无标签转圈 + 独立文字，避免 ProgressView(label:) 自带的材质背景块
-                // 与页面底色不一致而显得突兀；这样动画直接融入背景。
+                // 这里处在 TabView 的 tab 根内容层，SwiftUI 的 ProgressView 在此环境会
+                // 被套上系统材质圆角块（浅灰方块），与页面底色不一致。改用 UIKit 原生
+                // UIActivityIndicatorView（系统各处通用的原生 spinner，绝非自定义绘制），
+                // 它不带任何背景，动画直接融入页面背景。
                 VStack(spacing: 12) {
-                    ProgressView()
+                    NativeSpinner()
                     Text("正在连接服务器…")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -1086,4 +1088,17 @@ struct FileUploadPicker: UIViewControllerRepresentable {
             onCancel?()
         }
     }
+}
+
+/// 系统原生 spinner：用 UIKit 的 UIActivityIndicatorView，避免 SwiftUI ProgressView
+/// 在 TabView 根内容层被套上材质背景块。它是 iOS 系统通用的原生加载指示器。
+private struct NativeSpinner: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIActivityIndicatorView {
+        let spinner = UIActivityIndicatorView(style: .medium)
+        spinner.color = .tertiaryLabel
+        spinner.startAnimating()
+        return spinner
+    }
+
+    func updateUIView(_ uiView: UIActivityIndicatorView, context: Context) {}
 }

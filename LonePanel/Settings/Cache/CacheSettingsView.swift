@@ -28,9 +28,10 @@ struct CacheSettingsView: View {
                         confirmAll = true
                     } label: {
                         Text("全部清理")
+                            .font(.subheadline.weight(.semibold))
                     }
                     .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+                    .frame(minHeight: 40)
                     .disabled(total == 0)
                 }
                 .padding(.vertical, 6)
@@ -57,7 +58,8 @@ struct CacheSettingsView: View {
                                 pendingCategory = item
                             }
                             .buttonStyle(.bordered)
-                            .font(.caption)
+                            .font(.subheadline.weight(.medium))
+                            .frame(minHeight: 40)
                         }
                     }
                 }
