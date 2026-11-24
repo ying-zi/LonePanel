@@ -16,7 +16,19 @@ final class TabNavigationCenter: ObservableObject {
 
     @Published var resetRequest: TabResetRequest?
 
+    /// 去重：iOS 26 TabView 的 selection binding setter 在单击时可能连续触发多次，
+    /// 若不拦截会对同一 Tab 连发多次重置，导致文件页导航栈反复 pop/push「横跳」。
+    private var lastTabID: String?
+    private var lastRequestTime: Date?
+
     func requestReset(tabID: String) {
+        let now = Date()
+        if let lastTabID, lastTabID == tabID,
+           let lastRequestTime, now.timeIntervalSince(lastRequestTime) < 0.4 {
+            return
+        }
+        lastTabID = tabID
+        lastRequestTime = now
         resetRequest = TabResetRequest(tabID: tabID, nonce: UUID())
     }
 }

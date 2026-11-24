@@ -87,7 +87,10 @@ struct FileBrowserView: View {
             }
         }
         // 单击当前文件 Tab：回默认目录入口（清导航栈、清剪贴板）。
-        .onReceive(TabNavigationCenter.shared.$resetRequest) { request in
+        // dropFirst：@Published 的 $publisher 在订阅时会立即发一次当前值，
+        // 若不跳过，切走再切回文件页时视图重建会收到「上一次点击」的旧请求，
+        // 误触发回根 —— 与点击时的连发叠加就表现为导航栈反复横跳 / 丢失位置。
+        .onReceive(TabNavigationCenter.shared.$resetRequest.dropFirst()) { request in
             guard let request, request.tabID == "files" else { return }
             model.resetNavigationToEntry()
             model.clearClipboard()
@@ -99,6 +102,30 @@ struct FileBrowserView: View {
             if newCount > oldCount, model.isSearching {
                 model.isSearching = false
                 model.searchText = ""
+            }
+        }
+        // 系统文件选择器挂在导航栈顶层（单例状态），不随目录页 push/pop 重建，
+        // 保证选择完成后的 completion 一定回调。用 .data 而非 .item：
+        // .item 含文件夹等抽象类型，iOS 26 选中目录后读取失败且看似「没反应」；
+        // .data 匹配任意数据文件并排除文件夹，是「选择所有文件」的标准写法。
+        .fileImporter(isPresented: $model.isUploadPickerPresented,
+                      allowedContentTypes: [.data],
+                      allowsMultipleSelection: true) { result in
+            let target = model.uploadTargetDirectory
+            switch result {
+            case .success(let urls):
+                Task { @MainActor in
+                    guard !urls.isEmpty else { model.endFileOperation(); return }
+                    await model.upload(files: urls, to: target)
+                    model.endFileOperation()
+                }
+            case .failure(let error):
+                Task { @MainActor in
+                    model.endFileOperation()
+                    // 用户主动取消（NSUserCancelledError code=2）不弹错误打扰。
+                    if (error as NSError).code == 2 { return }
+                    model.errorMessage = "选择文件失败：\(error.localizedDescription)"
+                }
             }
         }
         .quickLookPreview($previewURL)
@@ -214,8 +241,6 @@ private struct DirectoryPage: View {
     @State private var infoFile: RemoteFile?
     @State private var targetOperation: BatchOperation?
     @State private var targetFiles: [RemoteFile] = []
-    /// 上传：系统文件选择器，选中后把本地文件上传到当前 node.path。
-    @State private var showFileImporter = false
 
     var body: some View {
         pageContent
@@ -230,34 +255,6 @@ private struct DirectoryPage: View {
             .navigationBarBackButtonHidden(isSelecting || model.isBackgroundReconnecting)
             .safeAreaInset(edge: .bottom) { if isSelecting { batchActionBar } }
             .background(dialogHost)
-            // 上传：系统文件选择器支持多选；选中后上传到当前目录并刷新。
-            .fileImporter(isPresented: $showFileImporter,
-                          allowedContentTypes: [.item],
-                          allowsMultipleSelection: true) { result in
-                switch result {
-                case .success(let urls):
-                    Task { @MainActor in
-                        // 立即持锁：防止 showFileImporter 关闭的兜底复位与上传开始间出现空窗。
-                        model.beginFileOperation()
-                        await model.upload(files: urls, to: node.path)
-                        await load()
-                        model.endFileOperation()
-                    }
-                case .failure(let error):
-                    Task { @MainActor in
-                        model.endFileOperation()
-                        // 用户主动取消（NSUserCancelledError code=2）不弹错误打扰。
-                        if (error as NSError).code == 2 { return }
-                        model.errorMessage = "选择文件失败：\(error.localizedDescription)"
-                    }
-                }
-            }
-            // 点菜单项置位：选择器打开期间 App 进后台，抑制回前台静默重连。
-            // 复位统一交给 completion（success 上传结束 / failure 含用户取消）处理，
-            // 不在此处 on false 复位，避免与上传开始抢跑产生空窗。
-            .onChange(of: showFileImporter) { _, presenting in
-                if presenting { model.beginFileOperation() }
-            }
     }
 
     /// 所有弹窗集中在独立宿主，避免 body 的 modifier 链过长导致 type-check 超时。
@@ -524,12 +521,22 @@ private struct DirectoryPage: View {
                         .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 9))
                 }
             } else {
-                // 搜索入口完全交给系统：.searchToolbarBehavior(.minimize) 会在工具栏
-                // 提供唯一的放大镜按钮（在 ⋯ 右侧）。这里只放裸三点更多，不再自定义
-                // 放大镜，避免首页出现两个搜索按钮。
-                // 更多按钮在正常态与搜索态都常驻，下级目录不会因搜索态残留而按钮全消失。
-                moreMenu
-                    .padding(.trailing, 8)
+                // 首页（导航栈根页 "/"）：搜索入口完全交给系统的 .minimize 放大镜，
+                // 此处只放 ⋯，避免首页出现两个放大镜。
+                // 下级目录：系统 .minimize 放大镜不会出现在 push 出来的页面上，
+                // 因此补一个自定义放大镜，点击置 isSearching 让系统搜索框呈现。
+                // 更多按钮正常态/搜索态都常驻，不会因搜索态残留整片消失。
+                HStack(spacing: 18) {
+                    if node.path != "/" && !model.isSearching {
+                        Button { model.isSearching = true } label: {
+                            Image(systemName: "magnifyingglass")
+                                .frame(width: 28, height: 32)
+                                .contentShape(Rectangle())
+                        }
+                    }
+                    moreMenu
+                }
+                .padding(.trailing, 8)
             }
         }
     }
@@ -591,7 +598,13 @@ private struct DirectoryPage: View {
             } label: {
                 Label("新建文件夹", systemImage: "folder.badge.plus")
             }
-            Button { showFileImporter = true } label: {
+            Button {
+                // 记录目标目录并置位 picker：picker 由导航栈顶层统一承载，
+                // 不挂在会被 push/pop 重建的目录页上，completion 才不会丢失。
+                model.uploadTargetDirectory = node.path
+                model.beginFileOperation()
+                model.isUploadPickerPresented = true
+            } label: {
                 Label("上传文件", systemImage: "square.and.arrow.up.on.square")
             }
             // 粘贴：剪贴板非空时显示，把已拷贝的项目复制到当前目录。

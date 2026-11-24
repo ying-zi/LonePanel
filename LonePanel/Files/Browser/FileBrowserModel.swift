@@ -83,9 +83,13 @@ final class FileBrowserModel: ObservableObject {
 
     /// 显式回根：单击当前文件 Tab / 切换服务器时调用，重置到默认目录入口。
     /// 同时标记已初始化，避免之后切回 Tab 时 .task 再次用默认目录覆盖用户所在位置。
+    /// 幂等：目标与当前导航栈一致时不赋值——iOS 26 TabView 单击可能连发多次请求，
+    /// 若每次都新建数组赋给 NavigationStack.path，会反复触发 pop/push 动画（视觉「横跳」）。
     func resetNavigationToEntry() {
         navigationInitialized = true
-        navPath = Self.pathChain(for: entryPath)
+        let target = Self.pathChain(for: entryPath)
+        guard navPath != target else { return }
+        navPath = target
     }
 
     /// 把默认目录绝对路径拆成从 "/home" 起的逐级节点（不含根 "/"）。
@@ -449,6 +453,13 @@ final class FileBrowserModel: ObservableObject {
 
     // MARK: - 上传（本地文件 → 当前目录）
 
+    /// 系统文件选择器状态放在单例里，由导航栈顶层统一承载 picker：
+    /// 若挂在会被 push/pop 重建的目录页上，选择完成后的 completion 可能丢失，
+    /// 表现为「选完文件点确认没有任何反应」。
+    @Published var isUploadPickerPresented = false
+    /// 上传目标目录：点菜单时记录当前页路径，completion 里读取，避免捕获已销毁的页面。
+    @Published var uploadTargetDirectory = "/"
+
     /// 把系统文件选择器给出的本地文件逐个上传到目标目录，复用批量进度 HUD。
     /// 每个文件先读取 Data 再分块写回；失败只提示当前文件，不中断其余上传。
     func upload(files urls: [URL], to directory: String) async {
@@ -472,7 +483,21 @@ final class FileBrowserModel: ObservableObject {
             let reached = url.startAccessingSecurityScopedResource()
             defer { if reached { url.stopAccessingSecurityScopedResource() } }
             do {
-                let data = try Data(contentsOf: url)
+                // iOS 26 上 security-scoped URL 偶发 Data(contentsOf:) 直接读失败（"无权查看该文件"）。
+                // 先直读；失败则把文件复制到 App 临时目录再读，绕开对原始作用域 URL 的直接访问。
+                let data: Data
+                do {
+                    data = try Data(contentsOf: url)
+                } catch {
+                    let temp = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("LonePanel-upload-\(UUID().uuidString)")
+                        .appendingPathComponent(name)
+                    try FileManager.default.createDirectory(at: temp.deletingLastPathComponent(),
+                                                            withIntermediateDirectories: true)
+                    defer { try? FileManager.default.removeItem(at: temp.deletingLastPathComponent()) }
+                    try FileManager.default.copyItem(at: url, to: temp)
+                    data = try Data(contentsOf: temp)
+                }
                 let totalBytes = Int64(data.count)
                 try await client.writeFile(client.joined(directory, name), data: data) { written in
                     Task { @MainActor [weak self] in
@@ -503,6 +528,8 @@ final class FileBrowserModel: ObservableObject {
             let ok = succeeded > 0 ? "成功 \(succeeded) 个；" : ""
             errorMessage = "上传结束：\(ok)失败 \(failures.count) 个。\(failures.joined(separator: "\n"))"
         }
+        // 只要有文件成功写入，就通知各级目录页刷新，让新文件立即出现在列表里。
+        if succeeded > 0 { refreshToken &+= 1 }
     }
 
     // MARK: - 预览与导出（QuickLook / 系统分享面板）
