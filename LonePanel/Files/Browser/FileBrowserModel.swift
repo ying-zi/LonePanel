@@ -151,7 +151,7 @@ final class FileBrowserModel: ObservableObject {
         } catch {
             clearSession()
             connectionFailed = true
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
         }
     }
 
@@ -201,7 +201,7 @@ final class FileBrowserModel: ObservableObject {
         } catch {
             // 静默重连失败：保留快照界面不闪断，但明确弹窗告知连接失败，
             // 让用户知道当前会话可能已不可用、可手动重新连接。
-            errorMessage = "服务器连接失败：\(SSHSession.describe(error))"
+            errorMessage = "服务器连接失败：\(describeFileError(error))"
         }
     }
 
@@ -213,7 +213,7 @@ final class FileBrowserModel: ObservableObject {
             let raw = try await client.listDirectory(path)
             return sortEntries(raw)
         } catch {
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
             return []
         }
     }
@@ -266,7 +266,7 @@ final class FileBrowserModel: ObservableObject {
         do {
             try await client.makeDirectory(client.joined(path, trimmed))
         } catch {
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
         }
     }
 
@@ -275,7 +275,7 @@ final class FileBrowserModel: ObservableObject {
         do {
             try await client.rename(from: file.path, to: client.joined(parent, trimmed))
         } catch {
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
         }
     }
 
@@ -299,7 +299,7 @@ final class FileBrowserModel: ObservableObject {
                 for file in files { try await deleteRecursive(client, file) }
                 refreshToken &+= 1
             } catch {
-                errorMessage = SSHSession.describe(error)
+                errorMessage = describeFileError(error)
             }
         }
     }
@@ -377,7 +377,7 @@ final class FileBrowserModel: ObservableObject {
                     : "\(operation.rawValue)失败：\(reason)"
             }
         } catch {
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
         }
     }
 
@@ -387,7 +387,7 @@ final class FileBrowserModel: ObservableObject {
         do {
             try await client.writeFile(client.joined(path, trimmed), data: Data())
         } catch {
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
         }
     }
 
@@ -560,7 +560,7 @@ final class FileBrowserModel: ObservableObject {
                 }
                 succeeded += 1
             } catch {
-                failures.append("\(name)：\(SSHSession.describe(error))")
+                failures.append("\(name)：\(describeFileError(error))")
             }
         }
 
@@ -627,7 +627,7 @@ final class FileBrowserModel: ObservableObject {
             try data.write(to: url)
             return url
         } catch {
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
             return nil
         }
     }
@@ -641,7 +641,7 @@ final class FileBrowserModel: ObservableObject {
             let data = try await client.readFile(file.path, expectedSize: file.size)
             return String(data: data, encoding: .utf8)
         } catch {
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
             return nil
         }
     }
@@ -659,7 +659,7 @@ final class FileBrowserModel: ObservableObject {
             refreshToken &+= 1
             return true
         } catch {
-            errorMessage = SSHSession.describe(error)
+            errorMessage = describeFileError(error)
             return false
         }
     }
@@ -678,4 +678,14 @@ final class FileBrowserModel: ObservableObject {
     }
 
     func dismissError() { errorMessage = nil }
+}
+
+/// 文件模块统一的错误文案：SFTP 层错误自带人话（权限/不存在/超时等），直接呈现；
+/// 其余 SSH/NIO 底层错误交给 SSHSession.describe 翻译，绝不暴露原始报错。
+/// 放在 Files 层而非 Core 层，避免 Core 反向依赖文件模块的 SFTPError。
+private func describeFileError(_ error: Error) -> String {
+    if let e = error as? SFTPError, let text = e.localizedDescription {
+        return text
+    }
+    return SSHSession.describe(error)
 }

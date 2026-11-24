@@ -24,13 +24,17 @@ struct CacheSettingsView: View {
                             .monospacedDigit()
                     }
                     Spacer(minLength: 8)
+                    // 纯图标按钮：字号放大时不会像文字那样撑变形；
+                    // .destructive + .borderedProminent 呈系统红色实心垃圾桶。
                     Button(role: .destructive) {
                         confirmAll = true
                     } label: {
-                        Text("全部清理")
+                        Image(systemName: "trash")
+                            .font(.system(size: 18, weight: .semibold))
                     }
                     .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .frame(width: 46, height: 46)
+                    .accessibilityLabel("全部清理")
                     .disabled(total == 0)
                 }
                 .padding(.vertical, 6)
@@ -53,11 +57,17 @@ struct CacheSettingsView: View {
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Button("清理") {
+                            // 灰色垃圾桶：.bordered 配 .tint(.gray)，与顶部红色形成层级区分。
+                            Button {
                                 pendingCategory = item
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 16, weight: .medium))
                             }
                             .buttonStyle(.bordered)
-                            .controlSize(.large)
+                            .tint(.gray)
+                            .frame(width: 44, height: 44)
+                            .accessibilityLabel("清理")
                         }
                     }
                 }
