@@ -177,6 +177,8 @@ struct TerminalView: View {
     @ObservedObject private var session: TerminalSession
     @StateObject private var keyState = TerminalKeyState()
     @Environment(\.dismiss) private var dismiss
+    /// 有注入 = 入口态全屏终端（给设置入口）；无注入 = 设置页 push 的终端（给断开管理）。
+    @Environment(\.openSettings) private var openSettings
     @State private var focusTick = 0
     /// 字号面板是否内联展开（不再用模态弹窗，避免遮挡键盘）。
     @State private var showFontPanel = false
@@ -261,16 +263,18 @@ struct TerminalView: View {
                     }
                     .accessibilityLabel("收起终端")
                 case .pushed:
-                    if session.userDisconnected {
+                    // 入口态全屏终端：右上角是「设置」——它是用户进设置把其它模块开回来的
+                    // 唯一通道，此处不显示断开/连接（避免两个管理动作语义重叠、按钮堆积）。
+                    // 从设置页 push 的终端没有 openSettings 注入，走 else 显示连接管理。
+                    if openSettings != nil {
+                        SettingsGearButton()
+                    } else if session.userDisconnected {
                         Button {
                             Task { await session.activateForUser() }
                         } label: { Text("连接") }
                     } else {
                         Button { session.disconnect() } label: { Text("断开") }
                     }
-                    // 终端作为「入口态」全屏显示时，设置齿轮并入本导航栏。
-                    // 从设置页 push 进来的终端没有 openSettings 注入，自动隐藏。
-                    SettingsGearButton()
                 }
             }
         }

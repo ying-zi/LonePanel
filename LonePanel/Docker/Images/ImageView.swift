@@ -81,6 +81,8 @@ struct ImageView: View {
             }
         }
         .searchable(text: $searchText, prompt: "搜索镜像")
+        // 与容器页、文件模块统一：未聚焦时收缩为放大镜按钮。
+        .searchToolbarBehavior(.minimize)
         .refreshable { await load() }
         .task { await load() }
         .alert("删除镜像", isPresented: Binding(

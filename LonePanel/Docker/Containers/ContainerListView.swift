@@ -26,6 +26,8 @@ struct ContainerListView: View {
             }
         }
         .searchable(text: $model.searchText, prompt: "搜索容器名或镜像")
+        // 与文件模块统一：未聚焦时收缩为放大镜按钮，点击展开搜索框，工具栏保持干净。
+        .searchToolbarBehavior(.minimize)
         .refreshable { await model.refresh() }
         .task { await model.load() }
         .sheet(item: $moreContainer) { container in

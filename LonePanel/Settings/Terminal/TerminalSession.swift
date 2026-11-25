@@ -1,6 +1,25 @@
 import Foundation
 import SwiftUI
 
+/// 终端会话所依赖的 SSH 连接能力。系统终端与容器终端可注入不同连接：
+/// - 系统终端 → SharedSSHConnection（跨模块复用的通用连接）
+/// - 容器终端 → DockerSSHConnection（Docker 业务已验证可用的连接）
+/// 两者都提供「确保连接 + 开 shell」能力，TerminalSession 不关心具体是哪一条。
+@MainActor
+protocol SSHConnectionProviding: AnyObject {
+    var lastError: String? { get }
+    @discardableResult
+    func ensureConnected(force: Bool) async -> Bool
+    func openShell() async throws -> SSHShell
+    func openExecShell(command: String) async throws -> SSHShell
+    func closeShell()
+    func disconnect()
+}
+
+// 两条连接都实现同一协议；它们的方法签名已一致，此处仅声明遵循。
+extension SharedSSHConnection: SSHConnectionProviding {}
+extension DockerSSHConnection: SSHConnectionProviding {}
+
 /// 线程安全的字节桥：读循环在后台线程投递，SwiftUI 视图在主线程注册落地目标。
 /// 用独立对象而非 @MainActor 属性，避免大量输出时跨线程隔离开销。
 /// 同时缓存原始字节流——视图重建（收起再开 / 冷启动连接先于视图）时回放，
@@ -89,6 +108,8 @@ final class TerminalSession: ObservableObject, Identifiable {
     private var shell: SSHShell?
     private var readTask: Task<Void, Never>?
     private var noticeTask: Task<Void, Never>?
+    /// 开 shell 任务合并：冷启动保活与视图唤起可能并发，合并为一次，杜绝双 shell 竞争。
+    private var openTask: Task<Bool, Never>?
     /// 每次开 shell / 断开递增，用于判定读循环退出是「意外断开」还是「主动关闭」。
     private var generation = 0
 
@@ -96,8 +117,15 @@ final class TerminalSession: ObservableObject, Identifiable {
     /// 默认（单例）保持系统终端行为：开默认 shell、断线自动重连。
     private let execCommand: String?
     private let autoReconnect: Bool
+    /// 承载本会话的 SSH 连接。系统终端用通用连接，容器终端注入 Docker 连接。
+    private let connection: any SSHConnectionProviding
 
-    init(execCommand: String? = nil, autoReconnect: Bool = true) {
+    init(
+        connection: any SSHConnectionProviding = SharedSSHConnection.shared,
+        execCommand: String? = nil,
+        autoReconnect: Bool = true
+    ) {
+        self.connection = connection
         self.execCommand = execCommand
         self.autoReconnect = autoReconnect
     }
@@ -108,15 +136,28 @@ final class TerminalSession: ObservableObject, Identifiable {
     // MARK: - 保活入口
 
     /// App 前台 / 自动场景调用。用户主动断开过时跳过，尊重其意图。
+    /// 建连 + 开 shell 全程合并为单一任务：冷启动保活、视图唤起、前后台切换即使并发，
+    /// 也只会开一个 shell，从根上杜绝双 shell 竞争导致的「打开空白 / 连不上」。
     func ensureAlive(forceReconnect: Bool = false) async {
         guard !userDisconnected else { return }
-        let ok = await SharedSSHConnection.shared.ensureConnected(force: forceReconnect)
-        guard ok else {
-            errorMessage = SharedSSHConnection.shared.lastError
+        if isReady, shell != nil, !forceReconnect { return }
+        if let openTask {
+            await openTask.value
             return
         }
-        if isReady, shell != nil, !forceReconnect { return }
-        await openShell()
+        let task = Task<Bool, Never> { [weak self] in
+            guard let self else { return false }
+            let ok = await self.connection.ensureConnected(force: forceReconnect)
+            guard ok else {
+                self.errorMessage = self.connection.lastError
+                return false
+            }
+            await self.openShell()
+            return self.isReady
+        }
+        openTask = task
+        await task.value
+        openTask = nil
     }
 
     /// 用户主动打开/唤起终端：解除断开标记并连接。
@@ -126,6 +167,14 @@ final class TerminalSession: ObservableObject, Identifiable {
             errorMessage = nil
         }
         await ensureAlive()
+        // 首次唤起若因服务器尚未就绪 / 网络抖动失败，延迟重试一次——
+        // 覆盖「只开终端模块、App 刚启动就进终端」连不上的场景。
+        // 仅系统终端自动重试；容器 exec 终端由 Docker 连接保障，一次性会话不纠缠。
+        guard isSystemTerminal, !isReady, errorMessage != nil else { return }
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        if !isReady, !userDisconnected {
+            await ensureAlive(forceReconnect: true)
+        }
     }
 
     /// 用户主动重新连接：强制重建底层 SSH 连接与交互 shell。
@@ -133,14 +182,16 @@ final class TerminalSession: ObservableObject, Identifiable {
     /// 直接跳过 shell 复用，force 重建连接；成功后清掉错误并回放新会话。
     func reconnect() async {
         userDisconnected = false
-        isConnecting = true
         errorMessage = nil
-        defer { isConnecting = false }
-        // 先让旧读循环失效（generation++），避免它检测到断线后触发自动重连、与本次手动重连争用。
+        // 先等正在进行中的自动建连结束，避免它随后覆盖本次重连的 shell。
+        if let openTask { await openTask.value; self.openTask = nil }
+        // 让旧读循环失效（generation++），避免它检测到断线后触发自动重连、与本次重连争用。
         closeShellOnly()
-        let ok = await SharedSSHConnection.shared.ensureConnected(force: true)
+        isConnecting = true
+        defer { isConnecting = false }
+        let ok = await connection.ensureConnected(force: true)
         guard ok else {
-            errorMessage = SharedSSHConnection.shared.lastError
+            errorMessage = connection.lastError
             return
         }
         // 底层连接已强制重建，开一个全新 shell 完成重连。
@@ -156,12 +207,13 @@ final class TerminalSession: ObservableObject, Identifiable {
         errorMessage = nil
         defer { isConnecting = false }
         do {
-            // 注入命令时走独立 exec 通道（docker exec），否则开默认 shell。
+            // 注入命令时走 exec 通道（docker exec），否则开默认 shell。
+            // 两者都走本会话注入的连接，系统终端与容器终端物理隔离、互不干扰。
             let newShell: SSHShell
             if let command = execCommand {
-                newShell = try await SharedSSHConnection.shared.openExecShell(command: command)
+                newShell = try await connection.openExecShell(command: command)
             } else {
-                newShell = try await SharedSSHConnection.shared.openShell()
+                newShell = try await connection.openShell()
             }
             self.shell = newShell
             // 新连接 = 新会话，清掉上一次会话的回放缓冲。
@@ -194,7 +246,7 @@ final class TerminalSession: ObservableObject, Identifiable {
                 // 读循环非主动退出 => 连接意外断开。清理并在保活范围内自动重连。
                 self.shell = nil
                 self.isReady = false
-                SharedSSHConnection.shared.closeShell()
+                self.connection.closeShell()
                 if self.autoReconnect {
                     // 系统终端：断线自动重连。
                     self.showNotice("[连接中断，正在重连…]")
@@ -241,9 +293,9 @@ final class TerminalSession: ObservableObject, Identifiable {
     func disconnect() {
         userDisconnected = true
         closeShellOnly()
-        // 只有系统终端（单例）主动断开时才关闭共享连接；容器终端退出不动全局连接。
+        // 只有系统终端（单例）主动断开时才关闭其通用连接；容器终端退出不动连接。
         if execCommand == nil {
-            SharedSSHConnection.shared.disconnect()
+            connection.disconnect()
         }
         showNotice("[连接已断开]")
     }

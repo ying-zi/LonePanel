@@ -16,7 +16,7 @@ struct ContainerDetailView: View {
 
     var body: some View {
         List {
-            // 顶部：名称 + 状态 + 四按钮
+            // 顶部：名称 + 状态 + 按状态收敛的操作按钮（最多三个）
             Section {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
@@ -29,30 +29,11 @@ struct ContainerDetailView: View {
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
 
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                        actionButton("启动", systemImage: "play.fill", color: .green) {
-                            await model.service.startContainer(container.id)
-                        }
-                        .disabled(container.state == .running)
-
-                        actionButton("停止", systemImage: "pause.fill", color: .orange) {
-                            await model.service.stopContainer(container.id)
-                        }
-                        .disabled(container.state != .running)
-
-                        actionButton("重启", systemImage: "arrow.clockwise", color: .blue) {
-                            await model.service.restartContainer(container.id)
-                        }
-
-                        if container.state == .paused {
-                            actionButton("恢复", systemImage: "play.fill", color: .green) {
-                                await model.service.unpauseContainer(container.id)
-                            }
-                        } else {
-                            actionButton("暂停", systemImage: "pause.circle", color: .yellow) {
-                                await model.service.pauseContainer(container.id)
-                            }
-                            .disabled(container.state != .running)
+                    // 只显示当前状态下真正可用的操作，不再堆一排 disabled 按钮：
+                    // 运行中 → 停止 / 暂停 / 重启；暂停中 → 恢复 / 重启；已停止 → 启动。
+                    HStack(spacing: 10) {
+                        ForEach(0..<statusActions.count, id: \.self) { index in
+                            statusButton(at: index)
                         }
                     }
                     .padding(.top, 4)
@@ -264,6 +245,57 @@ struct ContainerDetailView: View {
 
     // MARK: - 操作按钮
 
+    /// 单个状态操作的定义。
+    private struct StatusAction {
+        let title: String
+        let systemImage: String
+        let color: Color
+        let run: () async -> Result<Void, DockerError>
+    }
+
+    /// 按容器状态返回真正可用的操作（最多三个），避免展示一堆 disabled 按钮。
+    private var statusActions: [StatusAction] {
+        let id = container.id
+        let service = model.service
+        switch container.state {
+        case .running:
+            return [
+                StatusAction(title: "停止", systemImage: "stop.fill", color: .orange) {
+                    await service.stopContainer(id)
+                },
+                StatusAction(title: "暂停", systemImage: "pause.fill", color: .yellow) {
+                    await service.pauseContainer(id)
+                },
+                StatusAction(title: "重启", systemImage: "arrow.clockwise", color: .blue) {
+                    await service.restartContainer(id)
+                },
+            ]
+        case .paused:
+            return [
+                StatusAction(title: "恢复", systemImage: "play.fill", color: .green) {
+                    await service.unpauseContainer(id)
+                },
+                StatusAction(title: "重启", systemImage: "arrow.clockwise", color: .blue) {
+                    await service.restartContainer(id)
+                },
+            ]
+        case .stopped:
+            return [
+                StatusAction(title: "启动", systemImage: "play.fill", color: .green) {
+                    await service.startContainer(id)
+                },
+            ]
+        }
+    }
+
+    /// 按索引取状态动作并生成按钮——避免 ViewBuilder 里元组闭包的复杂类型推断。
+    private func statusButton(at index: Int) -> some View {
+        let item = statusActions[index]
+        return actionButton(item.title, systemImage: item.systemImage, color: item.color) {
+            await item.run()
+        }
+    }
+
     private func actionButton(
         _ title: String,
         systemImage: String,
@@ -296,8 +328,14 @@ struct ContainerDetailView: View {
 
     private func openContainerTerminal() {
         let command = model.service.execCommand(for: container)
-        // 独立会话：带 PTY 执行 docker exec，退出不重连、不触碰全局 SSH 连接。
-        terminalSession = TerminalSession(execCommand: command, autoReconnect: false)
+        // 复用 Docker 业务这条已验证可用的连接来开 exec 通道——容器列表能刷出数据，
+        // 证明这条连接是通的；避免另起 SharedSSHConnection 时可能从未建立/已被断开。
+        // 独立 TerminalSession：带 PTY 执行 docker exec，退出不重连、不触碰全局连接。
+        terminalSession = TerminalSession(
+            connection: DockerSSHConnection.shared,
+            execCommand: command,
+            autoReconnect: false
+        )
     }
 
     // MARK: - 工具
