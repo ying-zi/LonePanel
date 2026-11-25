@@ -2,15 +2,15 @@ import SwiftUI
 
 // MARK: - 模块标识
 
-/// 全部可开关模块的稳定标识。新增插件模块时在此登记一个 id，并在 allModules 加一行。
+/// 全部可插拔模块的稳定标识。新增插件模块时在此登记一个 id，并在 TabRegistry 加一行。
+/// 注意：终端不是模块，而是 App 的底层能力（SSH），故不在这里——
+/// 它恒可用，所有内容模块关闭时 App 直接进入全屏终端。
 enum ModuleID: String, CaseIterable, Identifiable {
     case website
     case docker
     case database
     case files
-    /// 终端 UI 模块：不占 Tab，表现为悬浮按钮 + 设置页入口。
-    /// 关闭它只隐藏 UI 入口，底层 SSH 连接能力（底座）不受影响。
-    case terminalUI
+    /// 设置是唯一的核心底座模块，不可关闭；用户进设置管理其它模块与连接。
     case settings
 
     var id: String { rawValue }
@@ -21,8 +21,8 @@ enum ModuleID: String, CaseIterable, Identifiable {
 
 // MARK: - 模块开关状态（持久化 + 可观察）
 
-/// 模块开关的全局状态。底座能力（SSH/通知/日志）不在这里——它们不受开关影响。
-/// 约束：设置页不可关；至少保留一个可开关模块，否则用户会锁死在无内容的 App 里。
+/// 模块开关的全局状态。底座能力（SSH / 终端 / 通知 / 日志）不在这里受开关影响。
+/// 约束：设置页恒开不可关；内容模块允许全部关闭——此时 App 直接进入终端，是合法终态。
 final class ModuleVisibility: ObservableObject {
     static let shared = ModuleVisibility()
 
@@ -33,55 +33,43 @@ final class ModuleVisibility: ObservableObject {
     @Published private(set) var enabled: Set<ModuleID> = []
 
     private init() {
-        // 读持久化状态；未设置过的模块默认开启。核心模块强制开启。
-        var set: Set<ModuleID> = []
-        for id in ModuleID.allCases {
-            if id.isCore {
-                set.insert(id)
-                continue
-            }
+        // 清理历史残留：终端曾作为"终端界面"开关存在于模块体系，现已移除该标识。
+        store.removeObject(forKey: keyPrefix + "terminalUI")
+        // 设置页恒开；内容模块读持久化状态，未设置过默认开启。
+        // 全关是合法终态（进终端），不再强制兜底开 Docker。
+        var set: Set<ModuleID> = [.settings]
+        for id in ModuleID.allCases where !id.isCore {
             let key = keyPrefix + id.rawValue
-            if store.object(forKey: key) == nil {
-                set.insert(id) // 首次安装默认全开
-            } else if store.bool(forKey: key) {
+            if store.object(forKey: key) == nil || store.bool(forKey: key) {
                 set.insert(id)
             }
-        }
-        // 兜底：若持久态里一个非核心模块都没开，强制打开 Docker，避免空 App。
-        if set.subtracting([.settings]).isEmpty {
-            set.insert(.docker)
         }
         enabled = set
     }
 
-    /// 终端 UI 模块是否启用（悬浮按钮 + 设置页入口）。
-    /// 注意：关闭它不影响 SSH 底座连接，只隐藏 UI 入口。
-    var terminalUIEnabled: Bool {
-        isEnabled(.terminalUI)
-    }
-
-    /// 启用的、占 Tab 的模块数量（不含终端 UI / 设置）。
+    /// 启用的、占 Tab 的内容模块数量（不含设置页）。
     var enabledContentModuleCount: Int {
-        enabled.subtracting([.settings, .terminalUI]).count
+        enabled.subtracting([.settings]).count
     }
 
-    /// 根视图形态。决定 ContentView 是全屏、Tab 还是全屏终端。
+    /// 根视图形态。终端 UI 恒为底座、不参与判断，形态只由启用的内容模块数量决定。
     enum RootMode {
-        case tabs                       // 多模块：正常 TabView
-        case moduleFocus(TabModule)     // 仅一个内容模块 + 终端 UI 关：全屏该模块
-        case terminalFocus              // 仅终端 UI 开（内容模块全关）：全屏终端
+        case tabs                       // ≥2 个内容模块：正常 TabView
+        case moduleFocus(TabModule)     // 恰好 1 个内容模块：全屏该模块
+        case terminalFocus              // 0 个内容模块：全屏终端（底座兜底）
     }
 
     /// 当前根视图形态。
     var rootMode: RootMode {
-        let contentCount = enabledContentModuleCount
-        if contentCount == 0 && terminalUIEnabled {
+        switch enabledContentModuleCount {
+        case 0:
             return .terminalFocus
+        case 1:
+            if let module = singleModule { return .moduleFocus(module) }
+            return .tabs
+        default:
+            return .tabs
         }
-        if contentCount == 1 && !terminalUIEnabled, let module = singleModule {
-            return .moduleFocus(module)
-        }
-        return .tabs
     }
 
     func isEnabled(_ id: ModuleID) -> Bool {
@@ -91,13 +79,9 @@ final class ModuleVisibility: ObservableObject {
     /// 切换模块开关。返回是否成功（违反约束时返回 false 且不改变状态）。
     @discardableResult
     func set(_ id: ModuleID, enabled newValue: Bool) -> Bool {
-        guard !id.isCore else { return false } // 设置页不可关
-
-        if !newValue {
-            // 至少保留一个非核心模块
-            let remaining = enabled.subtracting([id, .settings])
-            guard !remaining.isEmpty else { return false }
-        }
+        // 设置页是恒开底座，不可关闭。
+        guard !id.isCore else { return false }
+        // 内容模块允许全部关闭——此时 App 进入全屏终端，是合法终态，不再强制保留一个。
 
         if newValue {
             enabled.insert(id)
