@@ -5,6 +5,7 @@ struct ContainerCard: View {
     let container: DockerContainer
     let model: ContainerListModel
     let onOpen: () -> Void
+    let onLogs: () -> Void
     let onMore: () -> Void
 
     var body: some View {
@@ -62,7 +63,7 @@ struct ContainerCard: View {
                     Divider()
 
                     // 下部：快捷操作
-                    ContainerActionsBar(container: container, model: model, onMore: onMore)
+                    ContainerActionsBar(container: container, model: model, onLogs: onLogs, onMore: onMore)
                         .padding(.top, 10)
                 }
                 .padding(.leading, 12)

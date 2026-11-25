@@ -69,6 +69,12 @@ struct DockerResourceUsage {
     var memLimitGB: Double = 0
     /// 内存百分比 0...100
     var memPercent: Double = 0
+    /// 网络 IO 原始文本，如 "1.13MB / 8.43MB"（下行 / 上行）
+    var netIO: String = ""
+    /// 磁盘 IO 原始文本，如 "35GB / 80.5GB"
+    var blockIO: String = ""
+    /// 进程数
+    var pids: String = ""
 
     var hasData: Bool { memLimitGB > 0 || cpuPercent > 0 }
 
@@ -159,6 +165,9 @@ struct DockerContainer: Identifiable, Hashable {
             let mem = DockerResourceUsage.parseMemUsage(stats.MemUsage)
             usage.memUsedGB = mem.used
             usage.memLimitGB = mem.limit
+            usage.netIO = stats.NetIO ?? ""
+            usage.blockIO = stats.BlockIO ?? ""
+            usage.pids = stats.PIDs ?? ""
         }
         self.usage = usage
     }
@@ -287,5 +296,27 @@ struct DockerInspectInfo {
             return ip.isEmpty || ip == "0.0.0.0" ? port : "\(ip):\(port)"
         }
         return parts.joined(separator: ", ")
+    }
+}
+
+// MARK: - 容器进程
+
+/// `docker top <id>` 的进程条目，对应详情页「进程」列表。
+struct DockerProcess: Identifiable, Hashable {
+    let pid: String
+    let user: String
+    let command: String
+
+    var id: String { pid }
+
+    /// 解析 `docker top -eo pid,user,args` 的输出：首行是表头，其余按 2+ 空格分列。
+    static func parse(_ text: String) -> [DockerProcess] {
+        let lines = text.split(separator: "\n").map { String($0) }
+        guard lines.count > 1 else { return [] }
+        return lines.dropFirst().compactMap { line in
+            let cols = line.split(whereSeparator: { $0 == " " }).map(String.init)
+            guard cols.count >= 3 else { return nil }
+            return DockerProcess(pid: cols[0], user: cols[1], command: cols.dropFirst(2).joined(separator: " "))
+        }
     }
 }

@@ -193,10 +193,11 @@ struct ImageLineView: View {
     }
 }
 
-/// 卡片操作栏：主操作 + 重启 + 更多。
+/// 卡片操作栏：主操作（按状态）+ 日志（任何状态可用）+ 更多（重启/暂停/删除等）。
 struct ContainerActionsBar: View {
     let container: DockerContainer
     let model: ContainerListModel
+    let onLogs: () -> Void
     let onMore: () -> Void
     @State private var acting = false
 
@@ -222,17 +223,10 @@ struct ContainerActionsBar: View {
             .controlSize(.small)
             .disabled(acting)
 
-            Button {
-                Task {
-                    acting = true
-                    defer { acting = false }
-                    _ = await model.restart(container)
-                    await model.refresh()
-                }
-            } label: {
+            Button(action: onLogs) {
                 HStack(spacing: 4) {
-                    Image(systemName: "arrow.clockwise")
-                    Text("重启")
+                    Image(systemName: "doc.text.magnifyingglass")
+                    Text("日志")
                         .minimumScaleFactor(0.7)
                         .lineLimit(1)
                 }
@@ -240,7 +234,6 @@ struct ContainerActionsBar: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(acting || container.state == .stopped)
 
             Button(action: onMore) {
                 Image(systemName: "ellipsis")
