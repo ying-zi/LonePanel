@@ -7,6 +7,8 @@ struct ContainerListView: View {
 
     @State private var moreContainer: DockerContainer?
     @State private var confirmRemove: DockerContainer?
+    @State private var logsContainer: DockerContainer?
+    @State private var confirmKill: DockerContainer?
 
     var body: some View {
         ZStack {
@@ -29,6 +31,26 @@ struct ContainerListView: View {
         .sheet(item: $moreContainer) { container in
             containerMoreSheet(container)
                 .presentationDetents([.medium])
+        }
+        .sheet(item: $logsContainer) { container in
+            ContainerLogsView(containerID: container.id, containerName: container.name)
+        }
+        .alert("强制停止容器", isPresented: Binding(
+            get: { confirmKill != nil },
+            set: { if !$0 { confirmKill = nil } }
+        )) {
+            Button("取消", role: .cancel) { confirmKill = nil }
+            Button("强制停止", role: .destructive) {
+                if let container = confirmKill {
+                    Task {
+                        _ = await model.service.killContainer(container.id)
+                        await model.refresh()
+                    }
+                    confirmKill = nil
+                }
+            }
+        } message: {
+            Text("强制停止「\(confirmKill?.name ?? "")」相当于 docker kill，容器内进程会立即被终止，未保存的数据可能丢失。仅在容器无响应时使用。")
         }
         .alert("删除容器", isPresented: Binding(
             get: { confirmRemove != nil },
@@ -54,6 +76,9 @@ struct ContainerListView: View {
     private var contentSections: some View {
         Group {
             Section {
+                overviewBar
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
                 filterBar
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
@@ -77,6 +102,7 @@ struct ContainerListView: View {
                             container: container,
                             model: model,
                             onOpen: { onOpenContainer(container) },
+                            onLogs: { logsContainer = container },
                             onMore: { moreContainer = container }
                         )
                         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
@@ -98,6 +124,49 @@ struct ContainerListView: View {
                 }
             }
         }
+    }
+
+    /// 全局状态概览：打开页面第一眼就知道整体健康度（运行/暂停/停止），点按直达对应筛选。
+    /// 这是工具类 App「打开即看全貌」的核心——同类监控 App（ServerBox / Beszel）共识。
+    private var overviewBar: some View {
+        HStack(spacing: 10) {
+            overviewCell(count: model.count(for: .running), title: "运行中", color: .green, filter: .running)
+            overviewCell(count: model.count(for: .paused), title: "暂停中", color: .orange, filter: .paused)
+            overviewCell(count: model.count(for: .stopped), title: "已停止", color: .gray, filter: .stopped)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    private func overviewCell(count: Int, title: String, color: Color, filter: ContainerFilter) -> some View {
+        Button {
+            withAnimation { model.filter = (model.filter == filter) ? .all : filter }
+        } label: {
+            VStack(spacing: 4) {
+                HStack(spacing: 3) {
+                    Circle()
+                        .fill(color)
+                        .frame(width: 7, height: 7)
+                    Text("\(count)")
+                        .font(.title3.weight(.bold).monospacedDigit())
+                        .foregroundStyle(.primary)
+                }
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(
+                Color(.secondarySystemGroupedBackground),
+                in: RoundedRectangle(cornerRadius: 12)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(model.filter == filter ? color.opacity(0.6) : Color.clear, lineWidth: 1.5)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     /// 筛选按钮：每档后面括号显示数量。
@@ -186,6 +255,19 @@ struct ContainerListView: View {
                         moreContainer = nil
                     } label: { Label("重启", systemImage: "arrow.clockwise") }
                     .disabled(container.state == .stopped)
+                }
+
+                Section {
+                    Button {
+                        moreContainer = nil
+                        logsContainer = container
+                    } label: { Label("查看日志", systemImage: "doc.text.magnifyingglass") }
+                    if container.state == .running {
+                        Button {
+                            moreContainer = nil
+                            confirmKill = container
+                        } label: { Label("强制停止", systemImage: "bolt.fill") }
+                    }
                 }
 
                 Section {

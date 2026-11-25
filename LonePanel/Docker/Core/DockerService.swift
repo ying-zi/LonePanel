@@ -119,6 +119,11 @@ final class DockerService {
         await mutate("docker rm -f \(id)", success: "容器已删除")
     }
 
+    /// 强制停止容器（docker kill），用于容器无响应、正常 stop 卡住的场景。
+    func killContainer(_ id: String) async -> Result<Void, DockerError> {
+        await mutate("docker kill \(id)", success: "容器已强制停止")
+    }
+
     // MARK: - 镜像 / Compose 操作
 
     func removeImage(_ id: String) async -> Result<Void, DockerError> {
@@ -156,14 +161,42 @@ final class DockerService {
     /// 读取容器日志（尾部 N 行）。日志页用定时器轮询实现自动刷新。
     func fetchLogs(containerID: String, tail: Int = 300) async -> Result<String, DockerError> {
         let result = await run("docker logs --tail \(tail) \(containerID)", timeout: 30)
+        return parseLogs(result)
+    }
+
+    /// 读取指定时间范围以来的日志（1Panel 同款：最近 10 分钟 / 1 小时 / 1 天）。
+    func fetchLogs(containerID: String, since: String) async -> Result<String, DockerError> {
+        let result = await run("docker logs --since \(since) \(containerID)", timeout: 30)
+        return parseLogs(result)
+    }
+
+    /// 读取全部日志（用于下载导出）。
+    func fetchAllLogs(containerID: String) async -> Result<String, DockerError> {
+        let result = await run("docker logs \(containerID)", timeout: 40)
+        return parseLogs(result)
+    }
+
+    private func parseLogs(_ result: (out: String, err: String, exit: Int)) -> Result<String, DockerError> {
+        // docker logs 把部分信息写到 stderr，stderr 有内容也算有效日志。
+        let combined = result.out + (result.out.isEmpty ? "" : "\n") + result.err
+        if !combined.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .success(combined)
+        }
         if result.exit != 0 {
-            // docker logs 把部分信息写到 stderr，stderr 有内容也算有效日志。
-            if !result.err.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return .success(result.err)
-            }
             return .failure(.commandFailed(message: firstError(result, "读取日志失败")))
         }
-        return .success(result.out)
+        return .success("")
+    }
+
+    // MARK: - 进程
+
+    /// 读取容器内进程列表（docker top），供详情页「进程」区展示。
+    func fetchProcesses(containerID: String) async -> Result<[DockerProcess], DockerError> {
+        let result = await run("docker top \(containerID) -eo pid,user,args", timeout: 20)
+        if result.exit != 0 {
+            return .failure(.commandFailed(message: firstError(result, "读取进程列表失败")))
+        }
+        return .success(DockerProcess.parse(result.out))
     }
 
     // MARK: - 容器终端命令

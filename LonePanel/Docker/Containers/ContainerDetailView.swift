@@ -7,9 +7,12 @@ struct ContainerDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var inspectInfo: DockerInspectInfo?
+    @State private var processes: [DockerProcess] = []
     @State private var acting = false
     @State private var showLogs = false
     @State private var terminalSession: TerminalSession?
+    @State private var confirmRemove = false
+    @State private var confirmKill = false
 
     var body: some View {
         List {
@@ -68,6 +71,16 @@ struct ContainerDetailView: View {
                     .padding(.vertical, 8)
                     Label(container.usage.memoryText, systemImage: "memorychip")
                         .font(.subheadline)
+                    // 1Panel 统计页核心指标：下行/上行、磁盘读写、进程数。
+                    if !container.usage.netIO.isEmpty {
+                        InfoRow(title: "网络 (收/发)", value: container.usage.netIO)
+                    }
+                    if !container.usage.blockIO.isEmpty {
+                        InfoRow(title: "磁盘 (读/写)", value: container.usage.blockIO)
+                    }
+                    if !container.usage.pids.isEmpty {
+                        InfoRow(title: "进程数", value: container.usage.pids)
+                    }
                 }
             }
 
@@ -86,20 +99,45 @@ struct ContainerDetailView: View {
                 .disabled(container.state != .running)
             }
 
+            // 进程列表（docker top）
+            if container.state == .running && !processes.isEmpty {
+                Section("进程（\(processes.count)）") {
+                    ForEach(processes) { proc in
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text("PID \(proc.pid)")
+                                    .font(.caption.monospaced.weight(.semibold))
+                                Spacer()
+                                Text(proc.user)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(proc.command)
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                                .truncationMode(.middle)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+
             // 基本信息
             Section("基本信息") {
                 InfoRow(title: "状态", value: container.statusText)
                 InfoRow(title: "镜像", value: container.image)
-                if let info = inspectInfo {
-                    if !info.created.isEmpty {
-                        InfoRow(title: "创建时间", value: formatCreated(info.created))
-                    }
-                    if !info.restartPolicy.isEmpty && info.restartPolicy != "no" {
-                        InfoRow(title: "重启策略", value: info.restartPolicy)
-                    }
-                    if !info.network.isEmpty {
-                        InfoRow(title: "网络", value: info.network)
-                    }
+                if let info = inspectInfo, !info.restartPolicy.isEmpty, info.restartPolicy != "no" {
+                    InfoRow(title: "重启策略", value: info.restartPolicy)
+                }
+                if let info = inspectInfo, !info.created.isEmpty {
+                    InfoRow(title: "创建时间", value: formatCreated(info.created))
+                }
+                if let info = inspectInfo, !info.network.isEmpty {
+                    InfoRow(title: "网络", value: info.network)
+                }
+                if !container.command.isEmpty {
+                    InfoRow(title: "启动命令", value: container.command)
                 }
             }
 
@@ -146,13 +184,39 @@ struct ContainerDetailView: View {
                     }
                 }
             }
+
+            // 危险操作
+            Section {
+                if container.state == .running {
+                    Button(role: .destructive) {
+                        confirmKill = true
+                    } label: {
+                        Label("强制停止", systemImage: "bolt.fill")
+                    }
+                }
+                Button(role: .destructive) {
+                    confirmRemove = true
+                } label: {
+                    Label("删除容器", systemImage: "trash")
+                }
+            } header: {
+                Text("危险操作")
+            } footer: {
+                Text("强制停止相当于 docker kill，删除会移除容器及其可写层，均不可撤销。")
+            }
         }
         .navigationTitle(container.name)
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            let result = await model.service.fetchInspect(containerID: container.id)
-            if case .success(let json) = result {
+            async let inspectTask = model.service.fetchInspect(containerID: container.id)
+            async let processesTask = model.service.fetchProcesses(containerID: container.id)
+            let inspectResult = await inspectTask
+            let processesResult = await processesTask
+            if case .success(let json) = inspectResult {
                 inspectInfo = DockerInspectInfo.parse(json)
+            }
+            if case .success(let list) = processesResult {
+                processes = list
             }
         }
         .sheet(isPresented: $showLogs) {
@@ -164,6 +228,30 @@ struct ContainerDetailView: View {
                 .presentationDragIndicator(.hidden)
                 .interactiveDismissDisabled(true)
                 .onDisappear { session.closeForContainer() }
+        }
+        .alert("强制停止容器", isPresented: $confirmKill) {
+            Button("取消", role: .cancel) {}
+            Button("强制停止", role: .destructive) {
+                Task {
+                    _ = await model.service.killContainer(container.id)
+                    await model.refresh()
+                    dismiss()
+                }
+            }
+        } message: {
+            Text("将立即终止容器内所有进程（docker kill），未保存的数据可能丢失。")
+        }
+        .alert("删除容器", isPresented: $confirmRemove) {
+            Button("取消", role: .cancel) {}
+            Button("删除", role: .destructive) {
+                Task {
+                    _ = await model.service.removeContainer(container.id)
+                    await model.refresh()
+                    dismiss()
+                }
+            }
+        } message: {
+            Text("确定删除容器「\(container.name)」吗？此操作不可撤销。")
         }
         .overlay {
             if acting {
