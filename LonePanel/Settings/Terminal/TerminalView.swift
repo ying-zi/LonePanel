@@ -169,13 +169,17 @@ struct TerminalView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // sheet 模式：自定义标题栏（整条可下拉关闭）；pushed 模式保留系统导航栏。
+                if presentation == .sheet { sheetTitleBar }
                 terminalArea
                 shortcutBar
             }
             .background(Color(uiColor: .systemBackground))
+            // sheet 模式隐藏系统导航栏，改用自定义标题栏；pushed 模式保留系统标题与工具栏。
+            .navigationBarHidden(presentation == .sheet)
             .navigationTitle("SSH 终端")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { toolbarContent }
+            .toolbar { if presentation != .sheet { toolbarContent } }
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
                 keyboardShown = true
             }
@@ -191,6 +195,53 @@ struct TerminalView: View {
                 if session.isReady { focusTick += 1 }
             }
         }
+    }
+
+    /// sheet 模式的自定义标题栏：视觉对齐系统 inline 导航栏，
+    /// 左侧字号按钮、居中标题、右侧清屏/收起。整条可下拉，下拉超过阈值即关闭面板。
+    /// 由于系统交互式下拉已被 interactiveDismissDisabled 禁用，终端区/键盘区拖拽不会关闭面板。
+    private var sheetTitleBar: some View {
+        HStack(spacing: 12) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { showFontPanel.toggle() }
+            } label: {
+                Text("Aa")
+                    .font(.system(size: 16, weight: .semibold, design: .serif))
+                    .foregroundStyle(showFontPanel ? TerminalTheme.lockBlue : Color.primary)
+            }
+            .help("字号设置")
+            .accessibilityLabel(showFontPanel ? "收起字号设置" : "字号设置")
+
+            Spacer()
+
+            Text("SSH 终端")
+                .font(.headline)
+
+            Spacer()
+
+            HStack(spacing: 16) {
+                Button { keyState.clearScreen() } label: {
+                    Image(systemName: "trash")
+                }
+                .help("清屏")
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                .accessibilityLabel("收起终端")
+            }
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 44)
+        .background(.bar)
+        // 整条标题栏可下拉关闭：只有从这里发起的向下拖拽才关闭，阈值 100pt。
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 24)
+                .onEnded { value in
+                    if value.translation.height > 100 { dismiss() }
+                }
+        )
     }
 
     // MARK: - 顶部栏
