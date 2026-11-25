@@ -193,6 +193,8 @@ struct ContainerDetailView: View {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)
                 Text(title)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)

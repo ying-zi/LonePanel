@@ -22,8 +22,10 @@ struct ContainerCard: View {
                         Text(container.name)
                             .font(.headline)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                         Spacer(minLength: 4)
                         StatusBadge(state: container.state)
+                            .fixedSize()
                     }
 
                     // 中部：运行中显示双环资源，暂停/停止显示镜像名
@@ -43,6 +45,7 @@ struct ContainerCard: View {
                                 .font(.caption.monospaced())
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.7)
                             if container.extraPortCount > 0 {
                                 Text("+\(container.extraPortCount)")
                                     .font(.caption2)
