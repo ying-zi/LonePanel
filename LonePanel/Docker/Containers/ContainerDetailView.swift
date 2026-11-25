@@ -106,7 +106,7 @@ struct ContainerDetailView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             HStack {
                                 Text("PID \(proc.pid)")
-                                    .font(.caption.monospaced.weight(.semibold))
+                                    .font(.caption.weight(.semibold).monospaced())
                                 Spacer()
                                 Text(proc.user)
                                     .font(.caption)
