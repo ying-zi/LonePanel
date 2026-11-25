@@ -11,15 +11,19 @@ struct ContainerListView: View {
     var body: some View {
         ZStack {
             List {
-                if let availability = model.availability, case .notInstalled = availability {
-                    availabilitySection(.notInstalled)
-                } else if let availability = model.availability, case .permissionDenied = availability {
-                    availabilitySection(.permissionDenied)
-                } else if let availability = model.availability, case .failed(let message) = availability {
-                    availabilitySection(.failed(message))
-                } else {
-                    contentSections
+                // 探测异常只作为顶部提示，不再阻断容器列表——照常尝试拉数据并显示真实结果。
+                if let availability = model.availability {
+                    switch availability {
+                    case .available: break
+                    case .notInstalled:
+                        availabilityBanner(title: availabilityTitle(.notInstalled), message: availabilityMessage(.notInstalled))
+                    case .permissionDenied:
+                        availabilityBanner(title: availabilityTitle(.permissionDenied), message: availabilityMessage(.permissionDenied))
+                    case .failed(let message):
+                        availabilityBanner(title: availabilityTitle(.failed(message)), message: message)
+                    }
                 }
+                contentSections
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
@@ -213,25 +217,26 @@ struct ContainerListView: View {
 
     // MARK: - 可用性提示
 
-    private func availabilitySection(_ availability: DockerAvailability) -> some View {
-        VStack(spacing: 14) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.largeTitle)
-                .foregroundStyle(.orange)
-            Text(availabilityTitle(availability))
-                .font(.headline)
-            Text(availabilityMessage(availability))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Button("重新检测") {
-                Task { await model.recheck() }
+    /// 行内提示条：探测异常时提示，但不遮挡下方的容器数据与错误信息。
+    private func availabilityBanner(title: String, message: String) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(title).font(.subheadline.weight(.semibold))
+                }
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("重新检测") {
+                    Task { await model.recheck() }
+                }
+                .font(.caption)
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.borderedProminent)
+            .padding(.vertical, 4)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 50)
-        .padding(.horizontal)
     }
 
     private func availabilityTitle(_ availability: DockerAvailability) -> String {

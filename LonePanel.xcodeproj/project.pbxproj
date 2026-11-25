@@ -67,6 +67,7 @@
 		D10000000000000000000054 /* ImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000054 /* ImageView.swift */; };
 		D10000000000000000000055 /* ComposeListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000055 /* ComposeListView.swift */; };
 		D10000000000000000000056 /* DockerSSHConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000056 /* DockerSSHConnection.swift */; };
+		D10000000000000000000057 /* DockerDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000057 /* DockerDiagnostics.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -128,6 +129,7 @@
 		C10000000000000000000054 /* ImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageView.swift; sourceTree = "<group>"; };
 		C10000000000000000000055 /* ComposeListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeListView.swift; sourceTree = "<group>"; };
 		C10000000000000000000056 /* DockerSSHConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerSSHConnection.swift; sourceTree = "<group>"; };
+		C10000000000000000000057 /* DockerDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerDiagnostics.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -275,6 +277,7 @@
 				C10000000000000000000045 /* DockerModels.swift */,
 				C10000000000000000000046 /* DockerService.swift */,
 				C10000000000000000000056 /* DockerSSHConnection.swift */,
+				C10000000000000000000057 /* DockerDiagnostics.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -560,6 +563,7 @@
 				D10000000000000000000054 /* ImageView.swift in Sources */,
 				D10000000000000000000055 /* ComposeListView.swift in Sources */,
 				D10000000000000000000056 /* DockerSSHConnection.swift in Sources */,
+				D10000000000000000000057 /* DockerDiagnostics.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

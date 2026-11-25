@@ -19,20 +19,24 @@ final class DockerService {
     // MARK: - 可用性探测
 
     /// 探测 Docker 是否可用：先看命令是否存在，再看服务端版本，最后判断权限。
+    /// 注意：探测命令同样走 `run`（带 sudo 包装）。之前用 runRaw 不带 sudo 会在
+    /// 「需要 sudo 才能访问 Docker」的服务器上把可用性误判为 notInstalled/permissionDenied，
+    /// 导致容器页被门槛挡住、根本不去拉数据——而镜像页无门槛所以能显示，症状极不一致。
     func checkAvailability() async -> DockerAvailability {
         guard await connection.ensureConnected() else {
             return .failed(connection.lastError ?? "连接失败")
         }
-        // 1. 命令是否存在（普通用户无 docker 组时 docker 命令存在但访问 socket 会失败）
-        let probe = await runRaw("command -v docker", timeout: 10)
+        // 1. 命令是否存在（带 sudo，与后续业务命令同一权限上下文）
+        let probe = await run("command -v docker", timeout: 10)
         if probe.exit != 0 || probe.out.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return .notInstalled
         }
-        // 2. 服务端版本：能返回即说明 daemon 可访问、权限足够。
-        let version = await runRaw("docker version --format '{{.Server.Version}}'", timeout: 15)
+        // 2. 服务端版本：exit=0 即说明 daemon 可访问、权限足够。
+        //    版本号为空也算可用（老版本 Docker 可能不支持该 format），真正的校验交给 list 命令。
+        let version = await run("docker version --format '{{.Server.Version}}'", timeout: 15)
         if version.exit == 0 {
             let v = version.out.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !v.isEmpty { return .available(version: v) }
+            return .available(version: v.isEmpty ? "已安装" : v)
         }
         // 3. 有输出但失败 → 多半是权限（不在 docker 组 / socket 权限）
         let combined = (version.out + version.err).lowercased()
@@ -195,14 +199,17 @@ final class DockerService {
     }
 
     private func executeOnce(_ command: String, timeout: Int, raw: Bool) async -> (out: String, err: String, exit: Int) {
+        let result: (out: String, err: String, exit: Int)
         do {
-            let result = raw
+            let exec = raw
                 ? try await connection.runRaw(command, timeoutSeconds: timeout)
                 : try await connection.run(command, timeoutSeconds: timeout)
-            return (result.stdout, result.stderr, Int(result.exitStatus))
+            result = (exec.stdout, exec.stderr, Int(exec.exitStatus))
         } catch {
-            return ("", SSHSession.describe(error), -1)
+            result = ("", SSHSession.describe(error), -1)
         }
+        DockerDiagnostics.shared.record(command: command, exit: result.exit, out: result.out, err: result.err)
+        return result
     }
 
     private func mutate(_ command: String, success: String) async -> Result<Void, DockerError> {
