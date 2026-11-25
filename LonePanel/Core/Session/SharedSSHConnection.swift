@@ -139,6 +139,13 @@ final class SharedSSHConnection: ObservableObject {
         return newShell
     }
 
+    /// 开一条独立的交互式 exec 通道（带 PTY 执行指定命令），供 Docker 容器终端使用。
+    /// 每次调用都是新通道、不复用全局 shell——容器终端与用户终端互不干扰。
+    func openExecShell(command: String) async throws -> SSHShell {
+        guard let session else { throw SSHConnectionError.closedUnexpectedly }
+        return try await session.openExec(command: command)
+    }
+
     func closeShell() {
         shell?.close()
         shell = nil

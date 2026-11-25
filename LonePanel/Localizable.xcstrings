@@ -1750,6 +1750,776 @@
           }
         }
       }
+    },
+    "容器": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Container"
+          }
+        }
+      }
+    },
+    "容器名或镜像": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Container name or image"
+          }
+        }
+      }
+    },
+    "容器日志": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Container Logs"
+          }
+        }
+      }
+    },
+    "容器已启动": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Container started"
+          }
+        }
+      }
+    },
+    "容器已停止": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Container stopped"
+          }
+        }
+      }
+    },
+    "容器已重启": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Container restarted"
+          }
+        }
+      }
+    },
+    "容器已暂停": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Container paused"
+          }
+        }
+      }
+    },
+    "容器已恢复": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Container resumed"
+          }
+        }
+      }
+    },
+    "容器已删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Container removed"
+          }
+        }
+      }
+    },
+    "镜像": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image"
+          }
+        }
+      }
+    },
+    "镜像已删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image removed"
+          }
+        }
+      }
+    },
+    "搜索镜像": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search images"
+          }
+        }
+      }
+    },
+    "没有镜像": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No images"
+          }
+        }
+      }
+    },
+    "没有匹配的镜像": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No matching images"
+          }
+        }
+      }
+    },
+    "使用中 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In use: %@"
+          }
+        }
+      }
+    },
+    "删除镜像": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Image"
+          }
+        }
+      }
+    },
+    "确定删除镜像「%@」吗？若镜像正被容器使用，删除会失败。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove image \"%@\"? This fails if the image is in use by a container."
+          }
+        }
+      }
+    },
+    "运行中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running"
+          }
+        }
+      }
+    },
+    "暂停中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paused"
+          }
+        }
+      }
+    },
+    "已停止": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped"
+          }
+        }
+      }
+    },
+    "全部": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All"
+          }
+        }
+      }
+    },
+    "运行中 ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running"
+          }
+        }
+      }
+    },
+    "启动": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start"
+          }
+        }
+      }
+    },
+    "停止": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        }
+      }
+    },
+    "重启": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart"
+          }
+        }
+      }
+    },
+    "暂停": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause"
+          }
+        }
+      }
+    },
+    "恢复": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume"
+          }
+        }
+      }
+    },
+    "正在读取容器…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading containers…"
+          }
+        }
+      }
+    },
+    "正在读取镜像…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading images…"
+          }
+        }
+      }
+    },
+    "正在读取日志…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading logs…"
+          }
+        }
+      }
+    },
+    "正在读取 Compose 项目…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading Compose projects…"
+          }
+        }
+      }
+    },
+    "读取容器列表失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load containers"
+          }
+        }
+      }
+    },
+    "读取镜像列表失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load images"
+          }
+        }
+      }
+    },
+    "读取容器详情失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load container details"
+          }
+        }
+      }
+    },
+    "读取日志失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load logs"
+          }
+        }
+      }
+    },
+    "操作已完成": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "没有容器": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No containers"
+          }
+        }
+      }
+    },
+    "没有匹配的容器": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No matching containers"
+          }
+        }
+      }
+    },
+    "确定删除容器「%@」吗？此操作不可撤销。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove container \"%@\"? This cannot be undone."
+          }
+        }
+      }
+    },
+    "重新检测": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check Again"
+          }
+        }
+      }
+    },
+    "未检测到 Docker": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Docker Not Found"
+          }
+        }
+      }
+    },
+    "无权访问 Docker": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Docker Access Denied"
+          }
+        }
+      }
+    },
+    "检测失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detection Failed"
+          }
+        }
+      }
+    },
+    "服务器上未找到 docker 命令。LonePanel 通过 SSH 调用原生 docker 命令，无需在服务端安装任何面板，但服务器本身需要安装 Docker。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The docker command was not found on the server. LonePanel calls native docker commands over SSH with no server-side panel required, but Docker itself must be installed."
+          }
+        }
+      }
+    },
+    "当前用户无权访问 Docker socket。请把用户加入 docker 组（sudo usermod -aG docker $USER 后重新登录），或在设置中检查执行权限。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The current user cannot access the Docker socket. Add the user to the docker group (sudo usermod -aG docker $USER, then re-login) or check execution permissions in Settings."
+          }
+        }
+      }
+    },
+    "删除容器": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Container"
+          }
+        }
+      }
+    },
+    "切换到卡片视图": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to card view"
+          }
+        }
+      }
+    },
+    "切换到列表视图": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to list view"
+          }
+        }
+      }
+    },
+    "模块": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Section"
+          }
+        }
+      }
+    },
+    "资源占用": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resource Usage"
+          }
+        }
+      }
+    },
+    "内存": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Memory"
+          }
+        }
+      }
+    },
+    "基本信息": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basic Info"
+          }
+        }
+      }
+    },
+    "端口映射": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Port Bindings"
+          }
+        }
+      }
+    },
+    "卷挂载": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume Mounts"
+          }
+        }
+      }
+    },
+    "环境变量（%@）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Environment Variables (%@)"
+          }
+        }
+      }
+    },
+    "状态": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status"
+          }
+        }
+      }
+    },
+    "创建时间": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Created"
+          }
+        }
+      }
+    },
+    "重启策略": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart Policy"
+          }
+        }
+      }
+    },
+    "未发布": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not published"
+          }
+        }
+      }
+    },
+    "连接终端": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect Terminal"
+          }
+        }
+      }
+    },
+    "会话已结束": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[Session ended]"
+          }
+        }
+      }
+    },
+    "容器终端": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Container Terminal"
+          }
+        }
+      }
+    },
+    "日志 · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Logs · %@"
+          }
+        }
+      }
+    },
+    "暂无日志": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No logs yet"
+          }
+        }
+      }
+    },
+    "自动刷新": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-refresh"
+          }
+        }
+      }
+    },
+    "停止自动刷新": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop auto-refresh"
+          }
+        }
+      }
+    },
+    "开启自动刷新": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start auto-refresh"
+          }
+        }
+      }
+    },
+    "立即刷新": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh Now"
+          }
+        }
+      }
+    },
+    "复制全部日志": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy All Logs"
+          }
+        }
+      }
+    },
+    "搜索关键词": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search keyword"
+          }
+        }
+      }
+    },
+    "没有 Compose 项目": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Compose projects"
+          }
+        }
+      }
+    },
+    "使用 docker compose 启动的项目会显示在这里。旧版 docker-compose 或 Docker 版本过低时可能不显示。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projects started with docker compose appear here. Legacy docker-compose or an outdated Docker version may not be detected."
+          }
+        }
+      }
+    },
+    "确定对「%@」执行%@吗？Compose 操作会同时影响该项目下的所有容器。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perform %@ on \"%@\"? Compose actions affect all containers in the project."
+          }
+        }
+      }
+    },
+    "操作确认": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm Action"
+          }
+        }
+      }
+    },
+    "启动 Compose 项目": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Compose Project"
+          }
+        }
+      }
+    },
+    "停止 Compose 项目": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop Compose Project"
+          }
+        }
+      }
+    },
+    "重启 Compose 项目": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart Compose Project"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
