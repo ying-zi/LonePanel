@@ -134,7 +134,7 @@ struct ContentView: View {
     /// 开关变化后，若当前 selection 已不在可见 Tab 中，切到第一个可见模块。
     private func ensureValidSelection() {
         let ids = visibleTabs.map(\.id)
-        if let current = selection, ids.contains(current) { return }
+        if ids.contains(selection) { return }
         selection = ids.first ?? ""
     }
 }
