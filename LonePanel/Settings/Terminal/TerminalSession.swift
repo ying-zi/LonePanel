@@ -46,6 +46,17 @@ final class TerminalByteBridge {
         if ready { handler?(bytes) }
     }
 
+    /// 屏幕被外部重置（如字号变化触发 SwiftTerm resetFont → resetToInitialState 清屏）后，
+    /// 重喂缓存字节重建画面，避免历史丢失。与 markReady 不同：不切 viewReady，可重复调用。
+    func replay() {
+        lock.lock()
+        guard viewReady, !buffer.isEmpty else { lock.unlock(); return }
+        let backlog = buffer
+        let handler = self.handler
+        lock.unlock()
+        handler?(backlog)
+    }
+
     func reset() {
         lock.lock()
         buffer.removeAll()
