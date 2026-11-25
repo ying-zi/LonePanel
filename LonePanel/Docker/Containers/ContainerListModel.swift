@@ -30,16 +30,13 @@ final class ContainerListModel: ObservableObject {
 
     let service = DockerService.shared
 
-    /// 首次进入与下拉刷新共用：先探测可用性，再拉数据。
+    /// 首次进入与下拉刷新共用：探测可用性 + 拉数据。
+    /// 探测失败不再硬阻断——照常拉一次容器列表，让真实错误直接呈现；
+    /// 探测结果降级为可选提示，避免因探测命令在特殊权限环境下失败而「一个容器都不显示」。
     func load() async {
         if availability == nil {
-            isLoading = true
-            let availability = await service.checkAvailability()
-            self.availability = availability
-            guard case .available = availability else {
-                isLoading = false
-                return
-            }
+            let result = await service.checkAvailability()
+            availability = result
         }
         await refresh()
     }

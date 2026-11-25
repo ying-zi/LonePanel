@@ -2520,6 +2520,46 @@
           }
         }
       }
+    },
+    "诊断": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diagnostics"
+          }
+        }
+      }
+    },
+    "已复制": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied"
+          }
+        }
+      }
+    },
+    "Docker 诊断": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Docker Diagnostics"
+          }
+        }
+      }
+    },
+    "尚无命令记录，请先进入容器或镜像页面刷新一次。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No command records yet. Open the Containers or Images tab to refresh once."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
