@@ -64,8 +64,9 @@ private struct TerminalHostView: UIViewRepresentable {
         }
         // 稍延迟：等视图上 window、布局完成（列数确定）后回放历史 + 聚焦。
         // sizeChanged 会优先做这件事；这里作为兜底，覆盖「重建后列数未变、回调不来」的情况。
+        // 宽度门槛：view 首次出现可能在动画中间态（极窄），此时回放会把历史挤成窄列。
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            context.coordinator.initializeIfNeeded(view)
+            if view.bounds.width >= 200 { context.coordinator.initializeIfNeeded(view) }
             view.becomeFirstResponder()
         }
         return view
@@ -120,8 +121,9 @@ private struct TerminalHostView: UIViewRepresentable {
 
         /// SwiftTerm 布局后回调实际列行。首次回调时视图列数已确定——此刻才回放历史字节，
         /// 避免「按默认 80 列排版后再改列数」导致文字被裁半截。
+        /// 列数门槛：动画中间态会回调极小列数（如 6），此时回放会把历史挤成窄条，故等到合理列数再回放。
         func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
-            initializeIfNeeded(source)
+            if newCols >= 20 { initializeIfNeeded(source) }
             MainActor.assumeIsolated { session.resize(columns: newCols, rows: newRows) }
         }
 
@@ -182,7 +184,10 @@ struct TerminalView: View {
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) { showFontPanel.toggle() }
             } label: {
-                Image(systemName: "textformat.size")
+                // 自定义 Aa 文字：iOS 26 下 SF Symbol textformat.size 会被渲染成"大小"等本地化名，
+                // 用确定的文字避免显示被系统改写。
+                Text("Aa")
+                    .font(.system(size: 16, weight: .semibold, design: .serif))
                     .foregroundStyle(showFontPanel ? TerminalTheme.lockBlue : Color.primary)
             }
             .help("字号设置")
@@ -263,7 +268,6 @@ struct TerminalView: View {
             if showFontPanel { fontPanel }
         }
         .animation(.easeInOut, value: session.notice)
-        .animation(.easeInOut(duration: 0.2), value: showFontPanel)
     }
 
     /// 内联展开的字号滑块条：一行「字号 [滑块] Npt」，宽 300pt，磨砂背景。
