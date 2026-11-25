@@ -63,10 +63,9 @@ struct FileBrowserView: View {
                 disconnectedView
             }
         }
-        // 页面背景固定铺满全屏、忽略键盘安全区：List 用 .scrollContentBackground(.hidden)
-        // 变为透明后，透出的就是这一层。键盘弹起/收起时底部露出的始终是同一背景色，
-        // 消除"白块跳动"。这与 iOS 原生做法（如 GitHub 客户端）一致——配键盘色无效，
-        // 关键是让背景铺满、不随键盘压缩。NavigationStack 外层只放这一片，各页共享。
+        // 列表之外的兜底背景：铺满全屏、忽略键盘安全区。键盘弹起/收起时列表外区域
+        // 始终露出同一背景色，减少"白块跳动"。列表本身恢复系统原生 grouped 样式，
+        // 由系统绘制整组大圆角卡片，与 Docker 容器页共用同一套语义色。
         .background(
             Color(uiColor: .systemGroupedBackground)
                 .ignoresSafeArea(.keyboard)
@@ -446,10 +445,6 @@ private struct DirectoryPage: View {
         List {
             ForEach(visibleEntries) { file in
                 rowView(for: file)
-                    // 与 Docker 卡片视图一致的卡片间距：行背景透明，由 FileRow 自己画白色圆角卡。
-                    .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
             }
             if isSelecting {
                 // 多选栏悬浮在底部，补占位避免遮住最后一行；仅多选态出现。
@@ -458,10 +453,9 @@ private struct DirectoryPage: View {
                     .listRowSeparator(.hidden)
             }
         }
+        // 恢复系统原生分组卡片：整组一个大圆角卡、行间细分隔线（iOS 设置页同款），
+        // 比"每行一张小卡"更连贯耐看。卡片色由系统按浅/深色自动取 secondarySystemGroupedBackground。
         .listStyle(.insetGrouped)
-        // 列表自身透明，露出 NavigationStack 外层那片铺满全屏、忽略键盘的固定背景。
-        // 这样底部不随键盘压缩变色，消除键盘 dismiss 时的白块跳动。
-        .scrollContentBackground(.hidden)
         .overlay { if isLoading && !entries.isEmpty { ProgressView() } }
     }
 
@@ -960,13 +954,7 @@ private struct FileRow: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
         .contentShape(Rectangle())
-        // 与 Docker 卡片视图统一：白色圆角卡片 + 轻阴影，浅色/深色模式层次一致。
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
     }
 
     private var meta: String {
