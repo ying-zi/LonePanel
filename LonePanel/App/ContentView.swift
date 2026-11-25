@@ -58,10 +58,12 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showTerminal) {
             TerminalView()
-                // 终端只有整屏一档：不要半屏，避免误触拖成半屏、以及键盘收起后停在半屏。
-                // 保留把手，下拉到底仍是关闭方式之一（与右上角收起按钮并存）。
+                // 终端只有整屏一档，不要半屏。
                 .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
+                // 禁用系统交互式下拉关闭：终端区/键盘区任何方向、任何次数的拖拽都不会关面板。
+                // 关闭改由自定义标题栏下拉手势 + 右上角收起按钮完成（见 TerminalView）。
+                .presentationDragIndicator(.hidden)
+                .interactiveDismissDisabled(true)
         }
     }
 }
