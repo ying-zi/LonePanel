@@ -150,8 +150,8 @@ struct ContainerDetailView: View {
         .navigationTitle(container.name)
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            if let result = await model.service.fetchInspect(containerID: container.id),
-               case .success(let json) = result {
+            let result = await model.service.fetchInspect(containerID: container.id)
+            if case .success(let json) = result {
                 inspectInfo = DockerInspectInfo.parse(json)
             }
         }
