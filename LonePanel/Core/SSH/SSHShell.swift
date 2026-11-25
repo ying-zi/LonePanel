@@ -57,6 +57,17 @@ final class SSHShell {
 extension SSHSession {
     /// 开一个交互式 shell 子通道：先 PTY 请求，成功后发 Shell 请求。
     func openShell(columns: Int = 80, rows: Int = 24) async throws -> SSHShell {
+        try await openInteractive(command: nil, columns: columns, rows: rows)
+    }
+
+    /// 开一个交互式 exec 子通道：带 PTY 执行指定命令（如 `docker exec -it <id> sh`）。
+    /// 与 openShell 共用通道逻辑，区别仅在第二个请求用 ExecRequest 而非 ShellRequest，
+    /// 因此容器内 vim/htop 等全屏交互程序与系统终端体验一致。
+    func openExec(command: String, columns: Int = 80, rows: Int = 24) async throws -> SSHShell {
+        try await openInteractive(command: command, columns: columns, rows: rows)
+    }
+
+    private func openInteractive(command: String?, columns: Int, rows: Int) async throws -> SSHShell {
         let ssh: NIOSSHHandler = try await withCheckedThrowingContinuation { continuation in
             channel.pipeline.handler(type: NIOSSHHandler.self).whenComplete { result in
                 switch result {
@@ -75,7 +86,9 @@ extension SSHSession {
                 return child.eventLoop.makeFailedFuture(SSHConnectionError.invalidChannelType)
             }
             return child.eventLoop.makeCompletedFuture {
-                let handler = ShellHandler(ready: ready, inbox: inbox, columns: columns, rows: rows)
+                let handler = ShellHandler(
+                    ready: ready, inbox: inbox, columns: columns, rows: rows, command: command
+                )
                 try child.pipeline.syncOperations.addHandler(handler)
             }
         }
@@ -97,15 +110,18 @@ private final class ShellHandler: ChannelDuplexHandler {
     private let inbox: ByteInbox
     private let columns: Int
     private let rows: Int
+    /// nil = 启动默认 shell；非 nil = 带 PTY 执行指定命令（docker exec）。
+    private let command: String?
     private var ptyRequested = false
     private var shellRequested = false
     private var resolved = false
 
-    init(ready: EventLoopPromise<Void>, inbox: ByteInbox, columns: Int, rows: Int) {
+    init(ready: EventLoopPromise<Void>, inbox: ByteInbox, columns: Int, rows: Int, command: String?) {
         self.ready = ready
         self.inbox = inbox
         self.columns = columns
         self.rows = rows
+        self.command = command
     }
 
     func channelActive(context: ChannelHandlerContext) {
@@ -133,8 +149,11 @@ private final class ShellHandler: ChannelDuplexHandler {
         if event is ChannelSuccessEvent {
             if !ptyRequested {
                 ptyRequested = true
-                let shell = SSHChannelRequestEvent.ShellRequest(wantReply: true)
-                context.triggerUserOutboundEvent(shell, promise: nil)
+                // 有命令则发 ExecRequest，否则发 ShellRequest——两者都要等第二次 Success 才算就绪。
+                let request: SSHChannelRequestEvent = command.map {
+                    SSHChannelRequestEvent.ExecRequest(command: $0, wantReply: true)
+                } ?? SSHChannelRequestEvent.ShellRequest(wantReply: true)
+                context.triggerUserOutboundEvent(request, promise: nil)
             } else if !shellRequested {
                 shellRequested = true
                 if !resolved { resolved = true; ready.succeed(()) }

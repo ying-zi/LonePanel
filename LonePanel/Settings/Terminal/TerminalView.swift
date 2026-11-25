@@ -171,8 +171,10 @@ private struct TerminalHostView: UIViewRepresentable {
 /// 内置 SSH 终端界面：上方为 SwiftTerm 完整终端，下方为混合 Ctrl 快捷键栏。
 struct TerminalView: View {
     var presentation: TerminalPresentation = .sheet
+    /// 导航栏标题：系统终端为「SSH 终端」，容器终端传容器名。
+    var title: String = "SSH 终端"
 
-    @ObservedObject private var session = TerminalSession.shared
+    @ObservedObject private var session: TerminalSession
     @StateObject private var keyState = TerminalKeyState()
     @Environment(\.dismiss) private var dismiss
     @State private var focusTick = 0
@@ -181,6 +183,14 @@ struct TerminalView: View {
     @AppStorage("com.lone.lonepanel.terminal.fontSize") private var fontSize = 14.0
     @State private var keyboardShown = true
 
+    /// 默认仍用系统终端单例——ContentView / SettingsView 的现有调用不受影响。
+    /// Docker 容器终端注入独立 exec 会话 + 容器名标题。
+    init(session: TerminalSession = .shared, presentation: TerminalPresentation = .sheet, title: String = "SSH 终端") {
+        self._session = ObservedObject(wrappedValue: session)
+        self.presentation = presentation
+        self.title = title
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -188,7 +198,7 @@ struct TerminalView: View {
                 shortcutBar
             }
             .background(Color(uiColor: .systemBackground))
-            .navigationTitle("SSH 终端")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
