@@ -406,8 +406,6 @@ private final class ExecCollector: ChannelDuplexHandler {
         switch payload.data {
         case .byteBuffer(var buffer):
             bytes = buffer.readBytes(length: buffer.readableBytes) ?? []
-        case .data(let data):
-            bytes = [UInt8](data)
         @unknown default:
             bytes = []
         }
