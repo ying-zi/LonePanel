@@ -13,6 +13,10 @@ struct TabModule: Identifiable {
     let configure: () -> Void
     /// 该模块是否显示悬浮终端按钮。文件/设置不需要，容器/网站/数据库需要。
     let showsFloatingTerminal: Bool
+    /// 是否核心模块（底座）：设置页不可被用户关闭。
+    let isCore: Bool
+    /// 模块注册到设置页的设置项（可为空）。用类型擦除，设置页只需遍历展示。
+    let settingsSection: AnyView?
 
     init(
         id: String,
@@ -20,7 +24,9 @@ struct TabModule: Identifiable {
         symbolName: String,
         view: AnyView,
         configure: @escaping () -> Void = {},
-        showsFloatingTerminal: Bool = false
+        showsFloatingTerminal: Bool = false,
+        isCore: Bool = false,
+        settingsSection: AnyView? = nil
     ) {
         self.id = id
         self.title = title
@@ -28,15 +34,19 @@ struct TabModule: Identifiable {
         self.view = view
         self.configure = configure
         self.showsFloatingTerminal = showsFloatingTerminal
+        self.isCore = isCore
+        self.settingsSection = settingsSection
     }
 
     /// 便捷构造：接受任意 View，内部做类型擦除。
+    /// 需要注册设置项的模块请用完整 init（直接传 settingsSection: AnyView?）。
     init<Content: View>(
         id: String,
         title: String,
         symbolName: String,
         configure: @escaping () -> Void = {},
         showsFloatingTerminal: Bool = false,
+        isCore: Bool = false,
         @ViewBuilder content: () -> Content
     ) {
         self.init(
@@ -45,7 +55,9 @@ struct TabModule: Identifiable {
             symbolName: symbolName,
             view: AnyView(content()),
             configure: configure,
-            showsFloatingTerminal: showsFloatingTerminal
+            showsFloatingTerminal: showsFloatingTerminal,
+            isCore: isCore,
+            settingsSection: nil
         )
     }
 }
