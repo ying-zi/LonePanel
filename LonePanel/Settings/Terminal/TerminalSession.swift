@@ -102,6 +102,9 @@ final class TerminalSession: ObservableObject, Identifiable {
         self.autoReconnect = autoReconnect
     }
 
+    /// 是否系统终端（单例默认 shell）。容器 exec 终端为 false——一次性会话，不显示重连。
+    var isSystemTerminal: Bool { execCommand == nil }
+
     // MARK: - 保活入口
 
     /// App 前台 / 自动场景调用。用户主动断开过时跳过，尊重其意图。
@@ -123,6 +126,25 @@ final class TerminalSession: ObservableObject, Identifiable {
             errorMessage = nil
         }
         await ensureAlive()
+    }
+
+    /// 用户主动重新连接：强制重建底层 SSH 连接与交互 shell。
+    /// 用于连接卡死、认证变更、网络恢复等「普通复用连接救不回来」的场景——
+    /// 直接跳过 shell 复用，force 重建连接；成功后清掉错误并回放新会话。
+    func reconnect() async {
+        userDisconnected = false
+        isConnecting = true
+        errorMessage = nil
+        defer { isConnecting = false }
+        // 先让旧读循环失效（generation++），避免它检测到断线后触发自动重连、与本次手动重连争用。
+        closeShellOnly()
+        let ok = await SharedSSHConnection.shared.ensureConnected(force: true)
+        guard ok else {
+            errorMessage = SharedSSHConnection.shared.lastError
+            return
+        }
+        // 底层连接已强制重建，开一个全新 shell 完成重连。
+        await openShell()
     }
 
     // MARK: - 连接 / 断开

@@ -61,3 +61,40 @@ struct TabModule: Identifiable {
         )
     }
 }
+
+// MARK: - 设置入口环境注入
+
+/// 打开设置页的动作。由根视图按「入口态 / 调用态」注入：
+/// - 入口态（单模块 / 纯终端形态）：注入动作，模块在自己的导航栏右上角显示设置齿轮；
+/// - 多模块形态：设置已是底部 Tab，不注入，右上角不重复出现；
+/// - 调用态（被其它模块以能力 API 唤起）：调用方不注入，齿轮自动隐藏，界面只干活。
+private struct OpenSettingsEnvironmentKey: EnvironmentKey {
+    static let defaultValue: (() -> Void)? = nil
+}
+
+extension EnvironmentValues {
+    var openSettings: (() -> Void)? {
+        get { self[OpenSettingsEnvironmentKey.self] }
+        set { self[OpenSettingsEnvironmentKey.self] = newValue }
+    }
+}
+
+/// 模块导航栏里的设置齿轮。仅当根视图注入了 openSettings（入口态）时出现。
+/// 各模块把它放进自己的 `.toolbar` trailing，与自身按钮由系统统一排布，
+/// 不再需要外层附加的独立顶栏——从根上消除双顶栏和右上角位置冲突。
+struct SettingsGearButton: View {
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        if let openSettings {
+            Button {
+                openSettings()
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 16, weight: .semibold))
+            }
+            .help("设置")
+            .accessibilityLabel("设置")
+        }
+    }
+}

@@ -71,6 +71,12 @@ struct DockerView: View {
                     }
                     .help("诊断")
                 }
+
+                // 设置入口：并入本模块导航栏 trailing，与视图切换按钮由系统统一排布。
+                // 入口态（单模块全屏）才出现；多模块形态与调用态下自动隐藏。
+                ToolbarItem(placement: .topBarTrailing) {
+                    SettingsGearButton()
+                }
             }
             .sheet(isPresented: $showDiagnostics) {
                 diagnosticsSheet
