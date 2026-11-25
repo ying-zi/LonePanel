@@ -380,6 +380,11 @@ private final class ExecCollector: ChannelDuplexHandler {
     private let gate: PromiseGate
     private var stdout = Data()
     private var stderr = Data()
+    /// ExitStatus 与 stdout 走两条独立 inbound 路径，退出码可能先于最后几批数据到达。
+    /// 收到退出码后不能立即兑现，否则在途数据被丢弃（表现为 exit=0 但 out 为空）。
+    private var exitStatus: Int?
+    private var settled = false
+    private var settleTask: Scheduled<Void>?
 
     init(command: String, gate: PromiseGate) {
         self.command = command
@@ -397,8 +402,15 @@ private final class ExecCollector: ChannelDuplexHandler {
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let payload = unwrapInboundIn(data)
-        guard case .byteBuffer(var buffer) = payload.data else { return }
-        let bytes = buffer.readBytes(length: buffer.readableBytes) ?? []
+        let bytes: [UInt8]
+        switch payload.data {
+        case .byteBuffer(var buffer):
+            bytes = buffer.readBytes(length: buffer.readableBytes) ?? []
+        case .data(let data):
+            bytes = [UInt8](data)
+        @unknown default:
+            bytes = []
+        }
         switch payload.type {
         case .channel: stdout.append(contentsOf: bytes)
         case .stdErr: stderr.append(contentsOf: bytes)
@@ -408,18 +420,37 @@ private final class ExecCollector: ChannelDuplexHandler {
 
     func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
         if let status = event as? SSHChannelRequestEvent.ExitStatus {
-            gate.succeed(SSHExecResult(
-                exitStatus: status.exitStatus,
-                stdout: String(decoding: stdout, as: UTF8.self),
-                stderr: String(decoding: stderr, as: UTF8.self)
-            ))
+            exitStatus = status.exitStatus
+            // 退出码可能抢在数据前面到达：延迟兑现兜底，给出途数据留出落地时间。
+            // 通道随后关闭 / 数据读完都会触发更早的 settle；这里只是保底。
+            settleTask = context.eventLoop.scheduleTask(in: .milliseconds(400)) { [weak self] in
+                self?.settle()
+            }
         } else {
             context.fireUserInboundEventTriggered(event)
         }
     }
 
+    func channelInactive(context: ChannelHandlerContext) {
+        settle()
+        context.fireChannelInactive()
+    }
+
     func handlerRemoved(context: ChannelHandlerContext) {
-        gate.fail(SSHConnectionError.closedUnexpectedly)
+        settle()
+    }
+
+    /// 只兑现一次。用已收到的退出码（缺失则 -1）与当前累积的输出组装结果。
+    private func settle() {
+        guard !settled else { return }
+        settled = true
+        settleTask?.cancel()
+        settleTask = nil
+        gate.succeed(SSHExecResult(
+            exitStatus: exitStatus ?? -1,
+            stdout: String(decoding: stdout, as: UTF8.self),
+            stderr: String(decoding: stderr, as: UTF8.self)
+        ))
     }
 
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
