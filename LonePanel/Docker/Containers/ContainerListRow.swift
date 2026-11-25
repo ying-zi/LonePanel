@@ -19,9 +19,11 @@ struct ContainerListRow: View {
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 8) {
                             Text(container.name)
-                                .font(.system(size: 15, weight: .semibold))
+                                .font(.subheadline.weight(.semibold))
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.75)
                             StatusBadge(state: container.state)
+                                .fixedSize()
                         }
                         Text(container.image)
                             .font(.caption.monospaced())
@@ -38,7 +40,7 @@ struct ContainerListRow: View {
                     Spacer(minLength: 0)
                     Button(action: onMore) {
                         Image(systemName: "ellipsis")
-                            .font(.system(size: 15))
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .frame(width: 32, height: 32)
                             .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 8))

@@ -12,6 +12,7 @@ struct ContainerLogsView: View {
     @State private var copied = false
     @State private var refreshTimer = TimerHolder()
     @Environment(\.dismiss) private var dismiss
+    @ScaledMetric(relativeTo: .caption2) private var logFontSize: CGFloat = 11
 
     private let service = DockerService.shared
 
@@ -37,7 +38,7 @@ struct ContainerLogsView: View {
                         .padding(.top, 80)
                     } else {
                         Text(displayedLogs)
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(.system(size: logFontSize, design: .monospaced))
                             .foregroundStyle(.primary)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)

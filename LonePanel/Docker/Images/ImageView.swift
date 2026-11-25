@@ -33,9 +33,10 @@ struct ImageView: View {
                                 .foregroundStyle(.tint)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(image.fullName)
-                                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                                    .font(.subheadline.weight(.medium).monospaced())
                                     .lineLimit(1)
                                     .truncationMode(.middle)
+                                    .minimumScaleFactor(0.8)
                                 HStack(spacing: 10) {
                                     Text(image.size)
                                     Text(image.createdSince)
@@ -52,7 +53,7 @@ struct ImageView: View {
                                 confirmRemove = image
                             } label: {
                                 Image(systemName: "trash")
-                                    .font(.system(size: 14))
+                                    .font(.subheadline)
                                     .foregroundStyle(.red)
                             }
                             .buttonStyle(.plain)
