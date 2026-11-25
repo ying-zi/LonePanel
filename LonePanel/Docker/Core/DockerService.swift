@@ -7,11 +7,14 @@ import Foundation
 final class DockerService {
     static let shared = DockerService()
 
-    private let connection = SharedSSHConnection.shared
+    /// 专用连接：与全局终端物理隔离，终端保活重连不再打断 Docker 命令。
+    private let connection = DockerSSHConnection.shared
     private let decoder: JSONDecoder = JSONDecoder()
 
-    /// 页面级命令超时：容器多时 docker ps/stats 可能稍慢，给 40 秒。
+    /// 页面级命令超时：容器多时 docker ps 可能稍慢，给 40 秒。
     private let listTimeout = 40
+    /// stats 是锦上添花的资源快照，容器多时可能较慢；给较短超时，超时不影响容器列表本身。
+    private let statsTimeout = 20
 
     // MARK: - 可用性探测
 
@@ -43,9 +46,10 @@ final class DockerService {
     // MARK: - 列表数据
 
     /// 拉取容器 + 资源快照，合并为展示模型。两者并发执行，缩短等待。
+    /// stats 超时或失败都不影响容器列表本身——资源只是锦上添花。
     func fetchContainers() async throws -> [DockerContainer] {
         async let psTask = run("docker ps -a --format '{{json .}}'", timeout: listTimeout)
-        async let statsTask = run("docker stats --no-stream --format '{{json .}}'", timeout: listTimeout)
+        async let statsTask = run("docker stats --no-stream --format '{{json .}}'", timeout: statsTimeout)
         let ps = await psTask
         let stats = await statsTask
 
@@ -170,20 +174,31 @@ final class DockerService {
 
     // MARK: - 内部工具
 
-    /// 带权限包装执行命令，把 (stdout, stderr, exit) 归一化。
+    /// 带权限包装执行命令。连接层异常时自动重连并重试一次。
     private func run(_ command: String, timeout: Int) async -> (out: String, err: String, exit: Int) {
-        do {
-            let result = try await connection.run(command, timeoutSeconds: timeout)
-            return (result.stdout, result.stderr, Int(result.exitStatus))
-        } catch {
-            return ("", SSHSession.describe(error), -1)
-        }
+        await runWithReconnect(command, timeout: timeout, raw: false)
     }
 
-    /// 不包装直接执行（仅探测阶段用）。
+    /// 不包装直接执行（仅探测阶段用），同样具备连接层重试。
     private func runRaw(_ command: String, timeout: Int) async -> (out: String, err: String, exit: Int) {
+        await runWithReconnect(command, timeout: timeout, raw: true)
+    }
+
+    /// 统一的重连重试包装：
+    /// - exit >= 0：命令确实在远端执行了（含 exit≠0 的命令失败），不重试，避免误操作。
+    /// - exit < 0：连接层异常（通道被重连打断 / 超时 / 连接已关闭），强制重建连接后重试一次。
+    private func runWithReconnect(_ command: String, timeout: Int, raw: Bool) async -> (out: String, err: String, exit: Int) {
+        let first = await executeOnce(command, timeout: timeout, raw: raw)
+        guard first.exit < 0 else { return first }
+        guard await connection.ensureConnected(force: true) else { return first }
+        return await executeOnce(command, timeout: timeout, raw: raw)
+    }
+
+    private func executeOnce(_ command: String, timeout: Int, raw: Bool) async -> (out: String, err: String, exit: Int) {
         do {
-            let result = try await connection.runRaw(command, timeoutSeconds: timeout)
+            let result = raw
+                ? try await connection.runRaw(command, timeoutSeconds: timeout)
+                : try await connection.run(command, timeoutSeconds: timeout)
             return (result.stdout, result.stderr, Int(result.exitStatus))
         } catch {
             return ("", SSHSession.describe(error), -1)
