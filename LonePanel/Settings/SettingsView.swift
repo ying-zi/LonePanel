@@ -5,15 +5,13 @@ struct SettingsView: View {
     @AppStorage("com.lone.lonepanel.terminal.floating") private var floatingEnabled = true
     @ObservedObject private var visibility = ModuleVisibility.shared
 
-    /// 从注册表汇总可供用户开关的模块（排除核心设置页）。
-    private var toggleableModules: [(id: ModuleID, title: String, symbol: String, core: Bool)] {
-        var list: [(id: ModuleID, title: String, symbol: String, core: Bool)] = []
+    /// 从注册表汇总可供用户开关的内容模块（排除恒开底座：设置页）。
+    private var toggleableModules: [(id: ModuleID, title: String, symbol: String)] {
+        var list: [(id: ModuleID, title: String, symbol: String)] = []
         for module in TabRegistry.modules {
-            guard let id = ModuleID(rawValue: module.id) else { continue }
-            list.append((id, module.title, module.symbolName, id.isCore))
+            guard let id = ModuleID(rawValue: module.id), !id.isCore else { continue }
+            list.append((id, module.title, module.symbolName))
         }
-        // 终端 UI 不占 Tab，单独补一项。
-        list.append((.terminalUI, "终端界面", "terminal", false))
         return list
     }
 
@@ -43,26 +41,19 @@ struct SettingsView: View {
                     }
                 }
 
-                // 终端 UI 模块的设置入口：跟随开关显隐。
-                if visibility.terminalUIEnabled {
-                    Section {
-                        NavigationLink {
-                            TerminalView(presentation: .pushed)
-                        } label: {
-                            Label("SSH 终端", systemImage: "terminal")
-                        }
-                    } header: {
-                        Text("终端")
+                // 终端：入口 + 悬浮开关合并为同一张卡片。终端是恒开底座，
+                // 不再有"终端界面"开关；关闭所有内容模块后，App 直接进入终端。
+                Section {
+                    NavigationLink {
+                        TerminalView(presentation: .pushed)
+                    } label: {
+                        Label("SSH 终端", systemImage: "terminal")
                     }
-                }
-
-                // 悬浮终端开关：仅终端 UI 模块启用时有意义。
-                if visibility.terminalUIEnabled {
-                    Section {
-                        Toggle("显示悬浮终端按钮", isOn: $floatingEnabled)
-                    } footer: {
-                        Text("开启后，在 Docker、网站、数据库页面右下角显示终端快捷入口。关闭终端界面模块后此开关隐藏。")
-                    }
+                    Toggle("显示悬浮终端按钮", isOn: $floatingEnabled)
+                } header: {
+                    Text("终端")
+                } footer: {
+                    Text("终端是全局底座能力，始终可用。关闭所有内容模块后，App 将直接进入 SSH 终端；悬浮按钮在多模块页面右下角提供快捷入口。")
                 }
 
                 // 模块管理：所有模块的开关。
@@ -73,34 +64,23 @@ struct SettingsView: View {
                 } header: {
                     Text("模块管理")
                 } footer: {
-                    Text("关闭的模块将不再显示在底部栏。设置与底座能力（SSH 连接、通知、日志）始终可用；至少保留一个模块。")
+                    Text("关闭的模块将不再显示在底部栏。设置与底座能力（SSH 连接、通知、日志、终端）始终可用；全部关闭后，App 将直接进入 SSH 终端。")
                 }
             }
             .navigationTitle("设置")
         }
     }
 
-    @ViewBuilder
     private func moduleToggleRow(
-        _ item: (id: ModuleID, title: String, symbol: String, core: Bool)
+        _ item: (id: ModuleID, title: String, symbol: String)
     ) -> some View {
-        if item.core {
-            HStack {
-                Label(item.title, systemImage: item.symbol)
-                Spacer()
-                Image(systemName: "lock.fill")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        Toggle(isOn: Binding(
+            get: { visibility.isEnabled(item.id) },
+            set: { newValue in
+                _ = visibility.set(item.id, enabled: newValue)
             }
-        } else {
-            Toggle(isOn: Binding(
-                get: { visibility.isEnabled(item.id) },
-                set: { newValue in
-                    _ = visibility.set(item.id, enabled: newValue)
-                }
-            )) {
-                Label(item.title, systemImage: item.symbol)
-            }
+        )) {
+            Label(item.title, systemImage: item.symbol)
         }
     }
 }

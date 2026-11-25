@@ -50,10 +50,10 @@ struct ContentView: View {
                 }
             }
         }
-        // 悬浮终端入口：仅多模块形态、终端 UI 模块启用、当前模块允许时出现。
+        // 悬浮终端入口：仅多模块形态、开关开启、当前模块允许时出现。
+        // 终端 UI 是恒开底座，全屏终端形态（terminalFocus）本身就是终端，无需悬浮入口。
         .overlay(alignment: .bottomTrailing) {
-            if visibility.terminalUIEnabled && floatingEnabled && !isFocused
-                && currentModuleShowsTerminal {
+            if floatingEnabled && !isFocused && currentModuleShowsTerminal {
                 terminalFab
             }
         }
