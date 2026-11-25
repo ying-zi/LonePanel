@@ -31,6 +31,12 @@ struct ModulePlaceholder: View {
             .frame(maxWidth: AppTheme.placeholderMaxWidth)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle(title)
+            .toolbar {
+                // 设置入口并入占位模块导航栏；入口态才显示。
+                ToolbarItem(placement: .topBarTrailing) {
+                    SettingsGearButton()
+                }
+            }
         }
     }
 }

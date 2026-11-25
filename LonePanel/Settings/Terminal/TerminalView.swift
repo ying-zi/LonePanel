@@ -236,7 +236,19 @@ struct TerminalView: View {
             .accessibilityLabel(showFontPanel ? "收起字号设置" : "字号设置")
         }
         ToolbarItem(placement: .topBarTrailing) {
-            HStack(spacing: 16) {
+            HStack(spacing: 14) {
+                // 重新连接：强制重建 SSH 连接与 shell。仅系统终端需要——
+                // 容器 exec 终端是一次性会话，重连无意义。
+                if session.isSystemTerminal {
+                    Button {
+                        Task { await session.reconnect() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .help("重新连接")
+                    .accessibilityLabel("重新连接")
+                    .disabled(session.isConnecting)
+                }
                 Button { keyState.clearScreen() } label: {
                     Image(systemName: "trash")
                 }
@@ -256,6 +268,9 @@ struct TerminalView: View {
                     } else {
                         Button { session.disconnect() } label: { Text("断开") }
                     }
+                    // 终端作为「入口态」全屏显示时，设置齿轮并入本导航栏。
+                    // 从设置页 push 进来的终端没有 openSettings 注入，自动隐藏。
+                    SettingsGearButton()
                 }
             }
         }

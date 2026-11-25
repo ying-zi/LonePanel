@@ -183,13 +183,22 @@ struct FileBrowserView: View {
     }
 
     private var disconnectedView: some View {
-        ContentUnavailableView {
-            Label("未连接服务器", systemImage: "server.rack")
-        } description: {
-            Text("请在「设置 → 我的服务器」中添加并连接一台服务器，然后重试")
-        } actions: {
-            Button("重新连接") { Task { await model.reconnect() } }
-                .buttonStyle(.borderedProminent)
+        NavigationStack {
+            ContentUnavailableView {
+                Label("未连接服务器", systemImage: "server.rack")
+            } description: {
+                Text("请在「设置 → 我的服务器」中添加并连接一台服务器，然后重试")
+            } actions: {
+                Button("重新连接") { Task { await model.reconnect() } }
+                    .buttonStyle(.borderedProminent)
+            }
+            // 未连接时也要能进设置：否则「只开文件模块 + 无服务器」会把用户锁死。
+            // 齿轮并入本导航栏 trailing；调用态下自动隐藏。
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    SettingsGearButton()
+                }
+            }
         }
     }
 
@@ -588,23 +597,27 @@ private struct DirectoryPage: View {
             }
         }
         ToolbarItem(placement: .topBarTrailing) {
-            if isSelecting {
-                // 完成按钮：纯大勾，无自定义背景色，颜色与系统搜索按钮一致（主色）。
-                // 背景交给 iOS 26 工具栏的玻璃胶囊，避免蓝底方块与胶囊叠在一起显突兀。
-                Button { resetSelection() } label: {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(.primary)
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
+            HStack(spacing: 12) {
+                if isSelecting {
+                    // 完成按钮：纯大勾，无自定义背景色，颜色与系统搜索按钮一致（主色）。
+                    // 背景交给 iOS 26 工具栏的玻璃胶囊，避免蓝底方块与胶囊叠在一起显突兀。
+                    Button { resetSelection() } label: {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
+                    }
+                } else {
+                    // 搜索栏已挂到每一页，系统为根页与每个子页各自提供原生放大镜，
+                    // 不再自定义放大镜按钮 —— 从根上杜绝「双放大镜」与
+                    // 「点了自定义放大镜却不出搜索框、按钮反而消失」的问题。
+                    // 只保留 ⋯，常驻不随搜索态消失。
+                    moreMenu
                 }
-            } else {
-                // 搜索栏已挂到每一页，系统为根页与每个子页各自提供原生放大镜，
-                // 不再自定义放大镜按钮 —— 从根上杜绝「双放大镜」与
-                // 「点了自定义放大镜却不出搜索框、按钮反而消失」的问题。
-                // 只保留 ⋯，常驻不随搜索态消失。
-                moreMenu
-                    .padding(.trailing, 8)
+                // 设置入口并入本页导航栏 trailing，由系统与 ⋯/完成统一排布，不再外挂顶栏。
+                // 入口态（单模块全屏）才出现；多模块形态与调用态下自动隐藏。
+                SettingsGearButton()
             }
         }
     }

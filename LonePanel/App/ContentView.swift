@@ -85,28 +85,19 @@ struct ContentView: View {
     @ViewBuilder
     private func focusView<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .safeAreaInset(edge: .top) {
-                // 顶部细条放设置入口：用户靠它进设置把其它模块开回来。
-                HStack {
-                    Spacer()
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .frame(width: 36, height: 36)
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("设置")
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 4)
-            }
+            // 入口态：注入设置动作，模块会把齿轮放进「自己的」导航栏 trailing。
+            // 调用态不经过这里，openSettings 为 nil，齿轮自动隐藏——只干活、不暴露入口。
+            .environment(\.openSettings, openSettingsAction)
             .sheet(isPresented: $showSettings) {
+                // 设置页自身不需要设置入口；清除注入，避免它 push 的终端也显示齿轮。
                 SettingsView()
+                    .environment(\.openSettings, nil)
             }
+    }
+
+    /// 入口态注入的设置动作：捕获的是 @State 存储，视图重建后仍指向同一状态。
+    private var openSettingsAction: () -> Void {
+        { showSettings = true }
     }
 
     // MARK: - 悬浮终端按钮
