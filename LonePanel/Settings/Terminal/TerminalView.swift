@@ -45,6 +45,10 @@ private struct TerminalHostView: UIViewRepresentable {
         view.terminalDelegate = context.coordinator
         // 禁用 SwiftTerm 自带键盘工具条，改用我们自己的快捷键栏。
         view.inputAccessoryView = nil
+        // 关闭弹性回弹：终端回滚到顶/到底后继续下拉时，不再把滚动手势传给外层 sheet
+        // 触发下拉关闭；拖顶部把手关闭走 sheet 自己的手势，不受影响。
+        view.bounces = false
+        view.alwaysBounceVertical = false
         view.font = UIFont.monospacedSystemFont(ofSize: CGFloat(fontSize), weight: .regular)
         view.autocapitalizationType = .none
         view.autocorrectionType = .no
