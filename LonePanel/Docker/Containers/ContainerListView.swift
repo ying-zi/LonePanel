@@ -12,17 +12,7 @@ struct ContainerListView: View {
         ZStack {
             List {
                 // 探测异常只作为顶部提示，不再阻断容器列表——照常尝试拉数据并显示真实结果。
-                if let availability = model.availability {
-                    switch availability {
-                    case .available: break
-                    case .notInstalled:
-                        availabilityBanner(title: availabilityTitle(.notInstalled), message: availabilityMessage(.notInstalled))
-                    case .permissionDenied:
-                        availabilityBanner(title: availabilityTitle(.permissionDenied), message: availabilityMessage(.permissionDenied))
-                    case .failed(let message):
-                        availabilityBanner(title: availabilityTitle(.failed(message)), message: message)
-                    }
-                }
+                availabilityWarning
                 contentSections
             }
             .listStyle(.insetGrouped)
@@ -216,6 +206,20 @@ struct ContainerListView: View {
     }
 
     // MARK: - 可用性提示
+
+    /// 顶部警告条：仅当探测判定异常时出现；用 if case 判断（ViewBuilder 不支持 switch）。
+    @ViewBuilder
+    private var availabilityWarning: some View {
+        if let availability = model.availability {
+            if case .notInstalled = availability {
+                availabilityBanner(title: availabilityTitle(.notInstalled), message: availabilityMessage(.notInstalled))
+            } else if case .permissionDenied = availability {
+                availabilityBanner(title: availabilityTitle(.permissionDenied), message: availabilityMessage(.permissionDenied))
+            } else if case .failed(let message) = availability {
+                availabilityBanner(title: availabilityTitle(.failed(message)), message: message)
+            }
+        }
+    }
 
     /// 行内提示条：探测异常时提示，但不遮挡下方的容器数据与错误信息。
     private func availabilityBanner(title: String, message: String) -> some View {
