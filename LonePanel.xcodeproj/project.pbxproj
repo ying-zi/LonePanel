@@ -115,17 +115,17 @@
 		C10000000000000000000042 /* TerminalPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPreferences.swift; sourceTree = "<group>"; };
 		C10000000000000000000043 /* TerminalSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSession.swift; sourceTree = "<group>"; };
 		C10000000000000000000044 /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
-		C10000000000000000000045 /* DockerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DockerModels.swift; sourceTree = "<group>"; };
-		C10000000000000000000046 /* DockerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DockerService.swift; sourceTree = "<group>"; };
-		C10000000000000000000047 /* ContainerListModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Containers/ContainerListModel.swift; sourceTree = "<group>"; };
-		C10000000000000000000048 /* ContainerCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Containers/ContainerCard.swift; sourceTree = "<group>"; };
-		C10000000000000000000049 /* ContainerListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Containers/ContainerListRow.swift; sourceTree = "<group>"; };
-		C10000000000000000000050 /* ContainerListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Containers/ContainerListView.swift; sourceTree = "<group>"; };
-		C10000000000000000000051 /* ContainerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Containers/ContainerDetailView.swift; sourceTree = "<group>"; };
-		C10000000000000000000052 /* ContainerLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Containers/ContainerLogsView.swift; sourceTree = "<group>"; };
-		C10000000000000000000053 /* DockerSharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/DockerSharedViews.swift; sourceTree = "<group>"; };
-		C10000000000000000000054 /* ImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Images/ImageView.swift; sourceTree = "<group>"; };
-		C10000000000000000000055 /* ComposeListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Compose/ComposeListView.swift; sourceTree = "<group>"; };
+		C10000000000000000000045 /* DockerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerModels.swift; sourceTree = "<group>"; };
+		C10000000000000000000046 /* DockerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerService.swift; sourceTree = "<group>"; };
+		C10000000000000000000047 /* ContainerListModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerListModel.swift; sourceTree = "<group>"; };
+		C10000000000000000000048 /* ContainerCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerCard.swift; sourceTree = "<group>"; };
+		C10000000000000000000049 /* ContainerListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerListRow.swift; sourceTree = "<group>"; };
+		C10000000000000000000050 /* ContainerListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerListView.swift; sourceTree = "<group>"; };
+		C10000000000000000000051 /* ContainerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerDetailView.swift; sourceTree = "<group>"; };
+		C10000000000000000000052 /* ContainerLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerLogsView.swift; sourceTree = "<group>"; };
+		C10000000000000000000053 /* DockerSharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerSharedViews.swift; sourceTree = "<group>"; };
+		C10000000000000000000054 /* ImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageView.swift; sourceTree = "<group>"; };
+		C10000000000000000000055 /* ComposeListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeListView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
