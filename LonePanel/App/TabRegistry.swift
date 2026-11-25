@@ -136,3 +136,34 @@ enum TabRegistry {
         SettingsTab.module,
     ]
 }
+
+// MARK: - 模块能力总线（跨模块调用的统一 API）
+
+/// 模块间互调的唯一通道。任一模块只调用这里的方法，不直接引用别的模块视图/模型。
+/// 设计原则（对齐"入口态 / 调用态"架构）：
+/// - 关闭某模块的入口 ≠ 关闭它的能力：即便文件 Tab 被关，这里仍能调起文件浏览能力。
+/// - 调用态"只干活"：以独立会话呈现、注入上下文参数（目标路径）、不读写用户偏好、
+///   不污染单例导航栈；用户看完下拉即走，App 状态原地不动。
+final class ModuleCoordinator: ObservableObject {
+    static let shared = ModuleCoordinator()
+
+    /// 一次跨模块文件浏览请求。Identifiable 便于 .sheet(item:) 呈现。
+    struct FileOpenTarget: Identifiable {
+        let id = UUID()
+        /// 要打开的目录（服务器上绝对路径，如卷挂载的 Source）。
+        let path: String
+        /// 呈现标题（如容器名 + 挂载点）。
+        let title: String
+    }
+
+    @Published var fileOpenTarget: FileOpenTarget?
+
+    /// 统一 API：请求"文件模块"打开某个服务器目录（调用态）。
+    /// - Parameters:
+    ///   - path: 服务器绝对路径
+    ///   - title: 调用态标题
+    func openFiles(at path: String, title: String) {
+        // 即便文件 Tab 未启用，能力仍可用——这里不检查 ModuleVisibility。
+        fileOpenTarget = FileOpenTarget(path: path, title: title)
+    }
+}

@@ -65,7 +65,7 @@ struct ContainerDetailView: View {
                 }
             }
 
-            // 入口
+            // 入口：日志（docker logs 读落盘历史，停止/暂停态仍可查）与终端（需 running）。
             Section {
                 Button {
                     showLogs = true
@@ -78,6 +78,12 @@ struct ContainerDetailView: View {
                     Label("连接终端", systemImage: "terminal")
                 }
                 .disabled(container.state != .running)
+            } footer: {
+                if container.state == .paused {
+                    Text("容器已暂停，docker exec 无法进入；恢复运行后可连接终端。日志仍可查看历史输出。")
+                } else if container.state == .stopped {
+                    Text("容器已停止，启动后可连接终端；日志仍可查看历史输出。")
+                }
             }
 
             // 进程列表（docker top）
@@ -137,20 +143,42 @@ struct ContainerDetailView: View {
                 }
             }
 
-            // 卷挂载
+            // 卷挂载：点条目调用文件模块（调用态）打开宿主机上的卷目录。
             if let info = inspectInfo, !info.mounts.isEmpty {
-                Section("卷挂载") {
+                Section {
                     ForEach(info.mounts, id: \.destination) { mount in
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(mount.destination)
-                                .font(.subheadline)
-                            Text(mount.source)
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
+                        Button {
+                            ModuleCoordinator.shared.openFiles(
+                                at: mount.source,
+                                title: "\(container.name) · \(mount.destination)"
+                            )
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "folder")
+                                    .foregroundStyle(.blue)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(mount.destination)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.primary)
+                                    Text(mount.source)
+                                        .font(.caption.monospaced())
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                }
+                                Spacer()
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                     }
+                } header: {
+                    Text("卷挂载")
+                } footer: {
+                    Text("点按任意挂载点，调用文件模块打开该目录（只读浏览）。")
                 }
             }
 

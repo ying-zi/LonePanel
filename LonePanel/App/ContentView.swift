@@ -4,6 +4,7 @@ import SwiftUI
 /// 采用 iOS 26 Liquid Glass 浮动标签栏。
 struct ContentView: View {
     @ObservedObject private var visibility = ModuleVisibility.shared
+    @ObservedObject private var coordinator = ModuleCoordinator.shared
     @AppStorage("com.lone.lonepanel.terminal.floating") private var floatingEnabled = true
     @State private var selection: String = ""
     @ObservedObject private var terminal = TerminalSession.shared
@@ -61,6 +62,12 @@ struct ContentView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
                 .interactiveDismissDisabled(true)
+        }
+        // 跨模块调用态：文件能力由其它模块（如容器卷）经 ModuleCoordinator 唤起。
+        // 呈现独立的调用态浏览器，不注入设置入口、不触碰单例导航栈与用户偏好。
+        .sheet(item: $coordinator.fileOpenTarget) { target in
+            FileCallView(target: target)
+                .presentationDetents([.large])
         }
         .onAppear { ensureValidSelection() }
         .onChange(of: visibility.enabled) { _, _ in ensureValidSelection() }

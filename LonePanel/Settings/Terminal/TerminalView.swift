@@ -2,10 +2,11 @@ import SwiftUI
 import UIKit
 import SwiftTerm
 
-/// 终端的呈现方式，决定右上角操作按钮的语义。
+/// 终端的呈现方式，决定右上角辅助按钮的语义。
+/// 全形态统一：右上角恒定一个「重新连接」圆形箭头；此处只决定附带按钮。
 enum TerminalPresentation {
-    case sheet   // 悬浮按钮弹出：右上角为「收起」
-    case pushed  // 设置页推入：右上角为「断开 / 连接」
+    case sheet   // 悬浮按钮弹出：附带「收起」
+    case pushed  // 推入（仅终端全屏 / 设置页）：入口态附带「设置」，否则无
 }
 
 /// 终端主题色：Ctrl 锁定、按压反馈统一使用同一蓝。
@@ -239,22 +240,18 @@ struct TerminalView: View {
         }
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 14) {
-                // 重新连接：强制重建 SSH 连接与 shell。仅系统终端需要——
-                // 容器 exec 终端是一次性会话，重连无意义。
-                if session.isSystemTerminal {
-                    Button {
-                        Task { await session.reconnect() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .help("重新连接")
-                    .accessibilityLabel("重新连接")
-                    .disabled(session.isConnecting)
+                // 全形态统一：右上角恒定一个「重新连接」圆形箭头。
+                // SSH 是整个 App 的生命线，断开会导致全局失效，故不再把「断开/连接」
+                // 做成终端随手操作；连接状态由设置页统一管理，这里只提供"重连自救"。
+                Button {
+                    Task { await session.reconnect() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
                 }
-                Button { keyState.clearScreen() } label: {
-                    Image(systemName: "trash")
-                }
-                .help("清屏")
+                .help("重新连接")
+                .accessibilityLabel("重新连接")
+                .disabled(session.isConnecting)
+
                 switch presentation {
                 case .sheet:
                     Button { dismiss() } label: {
@@ -263,17 +260,10 @@ struct TerminalView: View {
                     }
                     .accessibilityLabel("收起终端")
                 case .pushed:
-                    // 入口态全屏终端：右上角是「设置」——它是用户进设置把其它模块开回来的
-                    // 唯一通道，此处不显示断开/连接（避免两个管理动作语义重叠、按钮堆积）。
-                    // 从设置页 push 的终端没有 openSettings 注入，走 else 显示连接管理。
+                    // 全形态唯一的区别：入口态（仅终端模块全屏）才显示设置齿轮——
+                    // 它是用户进设置把其它模块开回来的唯一通道；设置页 push 的终端无注入，自动隐藏。
                     if openSettings != nil {
                         SettingsGearButton()
-                    } else if session.userDisconnected {
-                        Button {
-                            Task { await session.activateForUser() }
-                        } label: { Text("连接") }
-                    } else {
-                        Button { session.disconnect() } label: { Text("断开") }
                     }
                 }
             }
@@ -373,10 +363,11 @@ struct TerminalView: View {
         VStack(spacing: 8) {
             if keyState.ctrlLocked {
                 // 展开行：只留最高频的三个，完整文字「Ctrl + X」撑宽。
+                // 第三项由原 Ctrl+D 改为 Ctrl+L 清屏（垃圾桶已从右上角移除，清屏收在这里）。
                 HStack(spacing: 8) {
                     comboKey("Ctrl + C", byte: 0x03)
                     comboKey("Ctrl + Z", byte: 0x1A)
-                    comboKey("Ctrl + D", byte: 0x04)
+                    comboKey("Ctrl + L", byte: 0x0C)
                 }
                 .frame(maxWidth: 460)
                 .transition(.move(edge: .bottom).combined(with: .opacity))

@@ -76,10 +76,14 @@ final class TerminalByteBridge {
         handler?(backlog)
     }
 
+    /// 新会话开始：清空回放缓冲。
+    /// 注意：绝不重置 viewReady —— 视图一旦布局完成并回放过，它就已经"活着"，
+    /// 后续服务器字节应当实时投递。若这里把 viewReady 打回 false，而 markReady
+    /// 的 didInitialize 守卫又只允许回放一次，则开 shell 晚于视图就绪时
+    /// （仅终端模块冷启动、容器终端）所有输出只进缓存不落地 → 空壳。
     func reset() {
         lock.lock()
         buffer.removeAll()
-        viewReady = false
         lock.unlock()
     }
 }
@@ -216,8 +220,15 @@ final class TerminalSession: ObservableObject, Identifiable {
                 newShell = try await connection.openShell()
             }
             self.shell = newShell
-            // 新连接 = 新会话，清掉上一次会话的回放缓冲。
+            // 新连接 = 新会话，清掉上一次会话的回放缓冲（保留 viewReady）。
             byteBridge.reset()
+            // 系统终端注入一条本地连接横幅：让"连接成功"有明确视觉反馈
+            // （用户反馈空壳时无法判断是否连上）。容器 exec 终端不注入，避免污染 docker exec 输出。
+            if execCommand == nil {
+                let name = ServerSession.shared.currentServer?.name ?? "服务器"
+                let banner = "\r\n\u{1B}[1;32m● 已连接到 \(name)\u{1B}[0m\r\n\u{1B}[2m  LonePanel SSH 终端 · 直接输入命令开始操作\u{1B}[0m\r\n\r\n"
+                byteBridge.deliver(Array(banner.utf8))
+            }
             isReady = true
             startReading(newShell, token: token)
         } catch {
