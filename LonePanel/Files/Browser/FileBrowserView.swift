@@ -446,6 +446,10 @@ private struct DirectoryPage: View {
         List {
             ForEach(visibleEntries) { file in
                 rowView(for: file)
+                    // 与 Docker 卡片视图一致的卡片间距：行背景透明，由 FileRow 自己画白色圆角卡。
+                    .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
             if isSelecting {
                 // 多选栏悬浮在底部，补占位避免遮住最后一行；仅多选态出现。
@@ -956,7 +960,13 @@ private struct FileRow: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
         .contentShape(Rectangle())
+        // 与 Docker 卡片视图统一：白色圆角卡片 + 轻阴影，浅色/深色模式层次一致。
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
     }
 
     private var meta: String {

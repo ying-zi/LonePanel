@@ -14,6 +14,7 @@ struct ContainerListRow: View {
             HStack(spacing: 0) {
                 StatusStripe(state: container.state)
                     .clipShape(RoundedRectangle(cornerRadius: 2))
+                    .padding(.vertical, 11)
 
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 5) {
@@ -53,7 +54,7 @@ struct ContainerListRow: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.06), radius: 3, x: 0, y: 1)
+        .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpen)
     }
