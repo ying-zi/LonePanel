@@ -58,7 +58,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showTerminal) {
             TerminalView()
-                .presentationDetents([.medium, .large])
+                // 终端只有整屏一档：不要半屏，避免误触拖成半屏、以及键盘收起后停在半屏。
+                // 保留把手，下拉到底仍是关闭方式之一（与右上角收起按钮并存）。
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
     }
