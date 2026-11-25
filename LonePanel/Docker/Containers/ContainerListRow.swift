@@ -10,7 +10,7 @@ struct ContainerListRow: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            Color(.secondarySystemBackground)
+            Color(.secondarySystemGroupedBackground)
             HStack(spacing: 0) {
                 StatusStripe(state: container.state)
                     .clipShape(RoundedRectangle(cornerRadius: 2))
@@ -53,6 +53,7 @@ struct ContainerListRow: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.06), radius: 3, x: 0, y: 1)
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpen)
     }

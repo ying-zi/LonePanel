@@ -9,8 +9,10 @@ struct ContainerCard: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
+            // 用 grouped cell 专用白色背景（secondarySystemGroupedBackground），
+            // 与页面 systemGroupedBackground 拉开层次，让卡片轮廓清晰可见。
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.secondarySystemBackground))
+                .fill(Color(.secondarySystemGroupedBackground))
 
             HStack(spacing: 0) {
                 StatusStripe(state: container.state)
@@ -66,6 +68,7 @@ struct ContainerCard: View {
                 .padding(.vertical, 14)
             }
         }
+        .shadow(color: .black.opacity(0.06), radius: 3, x: 0, y: 1)
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpen)
     }
