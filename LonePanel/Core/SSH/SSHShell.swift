@@ -150,10 +150,16 @@ private final class ShellHandler: ChannelDuplexHandler {
             if !ptyRequested {
                 ptyRequested = true
                 // 有命令则发 ExecRequest，否则发 ShellRequest——两者都要等第二次 Success 才算就绪。
-                let request: SSHChannelRequestEvent = command.map {
-                    SSHChannelRequestEvent.ExecRequest(command: $0, wantReply: true)
-                } ?? SSHChannelRequestEvent.ShellRequest(wantReply: true)
-                context.triggerUserOutboundEvent(request, promise: nil)
+                // 用显式 if/else：两个请求类型不同，不能用 ?? 合并。
+                if let command {
+                    context.triggerUserOutboundEvent(
+                        SSHChannelRequestEvent.ExecRequest(command: command, wantReply: true), promise: nil
+                    )
+                } else {
+                    context.triggerUserOutboundEvent(
+                        SSHChannelRequestEvent.ShellRequest(wantReply: true), promise: nil
+                    )
+                }
             } else if !shellRequested {
                 shellRequested = true
                 if !resolved { resolved = true; ready.succeed(()) }
