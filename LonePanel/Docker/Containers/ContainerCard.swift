@@ -15,8 +15,10 @@ struct ContainerCard: View {
                 .fill(Color(.secondarySystemGroupedBackground))
 
             HStack(spacing: 0) {
+                // 色条做成卡片内部的小圆角条，上下留白，避免像挂在卡片外侧。
                 StatusStripe(state: container.state)
                     .clipShape(RoundedRectangle(cornerRadius: 2))
+                    .padding(.vertical, 14)
 
                 VStack(alignment: .leading, spacing: 0) {
                     // 上部：名称 + 状态
@@ -68,7 +70,9 @@ struct ContainerCard: View {
                 .padding(.vertical, 14)
             }
         }
-        .shadow(color: .black.opacity(0.06), radius: 3, x: 0, y: 1)
+        // 先裁成圆角再投影，保证色条/内容都严格落在卡片圆角内，阴影不会漏出直角。
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpen)
     }
