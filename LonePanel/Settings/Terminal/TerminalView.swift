@@ -73,6 +73,16 @@ private struct TerminalHostView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: SwiftTerm.TerminalView, context: Context) {
+        // 字号变化只更新字体，绝不重建视图：SwiftTerm 的 font setter 内部会
+        // resetFont() 重算单元格并 resize 重排历史；重建会丢失 first responder，
+        // 导致键盘闪烁，并打断正在进行的 Slider 拖拽手势（只能一格一格跳）。
+        if context.coordinator.currentFontSize != fontSize {
+            context.coordinator.currentFontSize = fontSize
+            uiView.font = UIFont.monospacedSystemFont(ofSize: CGFloat(fontSize), weight: .regular)
+            // font setter 内部 resetFont 会清屏，同步重喂缓存字节按新列宽重建画面，历史不丢。
+            // 必须同步：异步排队会在连续拖动时多次回放导致历史重复；font setter 返回时清屏已完成。
+            session.byteBridge.replay()
+        }
         if focusTick > 0 {
             DispatchQueue.main.async { uiView.becomeFirstResponder() }
         }
@@ -83,18 +93,21 @@ private struct TerminalHostView: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(session: session, keyState: keyState)
+        Coordinator(session: session, keyState: keyState, fontSize: fontSize)
     }
 
     final class Coordinator: TerminalViewDelegate {
         let session: TerminalSession
         let keyState: TerminalKeyState
+        /// 当前已应用到 SwiftTerm 的字号，用于 updateUIView 检测变化后原地更新字体。
+        var currentFontSize: Double
         /// 布局完成回调是否已处理（回放历史），只做一次。
         private var didInitialize = false
 
-        init(session: TerminalSession, keyState: TerminalKeyState) {
+        init(session: TerminalSession, keyState: TerminalKeyState, fontSize: Double) {
             self.session = session
             self.keyState = keyState
+            self.currentFontSize = fontSize
         }
 
         /// 键盘/快捷键产生的字节发往远端。Ctrl 锁定时把字母转成对应控制字符。
@@ -222,7 +235,8 @@ struct TerminalView: View {
     // MARK: - 终端显示区
 
     /// SwiftTerm 终端视图 + 连接状态覆盖层。
-    /// 用 id 绑定字号：字号变化时重建视图并按新字号回放历史，重新排版。
+    /// 字号变化通过 updateUIView 原地更新字体（SwiftTerm 内部 resetFont 重排），
+    /// 不用 id 重建视图——重建会丢焦点导致键盘闪烁、打断滑块拖拽手势。
     private var terminalArea: some View {
         TerminalHostView(
             session: session,
@@ -230,7 +244,6 @@ struct TerminalView: View {
             focusTick: focusTick,
             fontSize: fontSize
         )
-        .id("term-\(fontSize)")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay {
             if session.isConnecting && !session.isReady {
@@ -261,6 +274,17 @@ struct TerminalView: View {
                     .background(.regularMaterial, in: Capsule())
                     .padding(.top, 8)
                     .transition(.opacity)
+            }
+        }
+        // 点击面板以外的终端区域时收起字号面板。放在面板 overlay 之下，
+        // 确保先命中面板（滑块可拖）；面板收起后本层消失，终端交互不受影响。
+        .overlay {
+            if showFontPanel {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.2)) { showFontPanel = false }
+                    }
             }
         }
         // 内联字号面板：悬浮在终端顶部，不弹模态窗，键盘在底部互不遮挡。
