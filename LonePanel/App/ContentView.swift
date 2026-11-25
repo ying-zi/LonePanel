@@ -16,10 +16,21 @@ struct ContentView: View {
         visibility.enabledTabModules
     }
 
-    /// 当前选中的模块是否显示悬浮终端按钮。
+    /// 当前形态下是否显示悬浮终端按钮。按根形态分别判定：
+    /// - 多模块：取当前选中 Tab 的配置；
+    /// - 单模块全屏：直接用 rootMode 携带的模块——此形态下 TabView 未渲染，
+    ///   selection 可能是旧值/空值，绝不能依赖它；
+    /// - 纯终端全屏：本身就是终端，无需悬浮入口。
     private var currentModuleShowsTerminal: Bool {
-        guard let module = visibleTabs.first(where: { $0.id == selection }) else { return false }
-        return module.showsFloatingTerminal
+        switch visibility.rootMode {
+        case .tabs:
+            guard let module = visibleTabs.first(where: { $0.id == selection }) else { return false }
+            return module.showsFloatingTerminal
+        case .moduleFocus(let module):
+            return module.showsFloatingTerminal
+        case .terminalFocus:
+            return false
+        }
     }
 
     /// 悬浮终端按钮颜色：蓝=已连接，红=已断开，橙=连接中/自动重连。
@@ -29,11 +40,11 @@ struct ContentView: View {
         return .orange
     }
 
-    /// 是否处于全屏聚焦形态（单模块 / 纯终端）——此时不显示悬浮终端按钮。
-    private var isFocused: Bool {
+    /// 悬浮终端底边距：多模块形态要避开底部 Tab 栏，单模块全屏没有 Tab 栏、贴底即可。
+    private var fabBottomPadding: CGFloat {
         switch visibility.rootMode {
-        case .moduleFocus, .terminalFocus: return true
-        case .tabs: return false
+        case .tabs: return 90
+        case .moduleFocus, .terminalFocus: return 28
         }
     }
 
@@ -50,10 +61,11 @@ struct ContentView: View {
                 }
             }
         }
-        // 悬浮终端入口：仅多模块形态、开关开启、当前模块允许时出现。
-        // 终端 UI 是恒开底座，全屏终端形态（terminalFocus）本身就是终端，无需悬浮入口。
+        // 悬浮终端入口：开关开启 + 当前形态宿主模块允许时出现。
+        // 单模块全屏（moduleFocus）里容器/网站/数据库同样要有悬浮终端——只留一个模块
+        // 恰恰是最需要终端兜底的场景；纯终端形态（terminalFocus）本身就是终端，自动隐藏。
         .overlay(alignment: .bottomTrailing) {
-            if floatingEnabled && !isFocused && currentModuleShowsTerminal {
+            if floatingEnabled && currentModuleShowsTerminal {
                 terminalFab
             }
         }
@@ -122,7 +134,7 @@ struct ContentView: View {
         }
         .buttonStyle(.plain)
         .padding(.trailing, 20)
-        .padding(.bottom, 90)
+        .padding(.bottom, fabBottomPadding)
         .accessibilityLabel("打开终端")
         .transition(.scale.combined(with: .opacity))
         .animation(.spring(response: 0.3), value: currentModuleShowsTerminal)
