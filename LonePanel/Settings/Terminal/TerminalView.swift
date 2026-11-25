@@ -33,6 +33,21 @@ final class TerminalKeyState: ObservableObject {
     }
 }
 
+/// 默认用系统英文键盘的 SwiftTerm 终端视图。
+/// 终端里敲命令/路径都是 ASCII，中文输入法容易带出候选栏、误输入标点；
+/// 通过覆写 UIResponder 的 textInputMode 指定英文键盘（官方支持，非私有 API）。
+/// 前提：用户已在系统设置中添加英文键盘；未添加则回退系统默认，不影响使用。
+private final class EnglishKeyboardTerminalView: SwiftTerm.TerminalView {
+    override var textInputMode: UITextInputMode? {
+        for mode in UITextInputMode.activeInputModes {
+            if let lang = mode.primaryLanguage, lang.hasPrefix("en") {
+                return mode
+            }
+        }
+        return super.textInputMode
+    }
+}
+
 /// SwiftTerm 官方 TerminalView 的 SwiftUI 包装。
 private struct TerminalHostView: UIViewRepresentable {
     let session: TerminalSession
@@ -41,7 +56,7 @@ private struct TerminalHostView: UIViewRepresentable {
     let fontSize: Double
 
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
-        let view = SwiftTerm.TerminalView(frame: .zero)
+        let view = EnglishKeyboardTerminalView(frame: .zero)
         view.terminalDelegate = context.coordinator
         // 禁用 SwiftTerm 自带键盘工具条，改用我们自己的快捷键栏。
         view.inputAccessoryView = nil
@@ -169,17 +184,13 @@ struct TerminalView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // sheet 模式：自定义标题栏（整条可下拉关闭）；pushed 模式保留系统导航栏。
-                if presentation == .sheet { sheetTitleBar }
                 terminalArea
                 shortcutBar
             }
             .background(Color(uiColor: .systemBackground))
-            // sheet 模式隐藏系统导航栏，改用自定义标题栏；pushed 模式保留系统标题与工具栏。
-            .navigationBarHidden(presentation == .sheet)
             .navigationTitle("SSH 终端")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { if presentation != .sheet { toolbarContent } }
+            .toolbar { toolbarContent }
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
                 keyboardShown = true
             }
@@ -195,53 +206,6 @@ struct TerminalView: View {
                 if session.isReady { focusTick += 1 }
             }
         }
-    }
-
-    /// sheet 模式的自定义标题栏：视觉对齐系统 inline 导航栏，
-    /// 左侧字号按钮、居中标题、右侧清屏/收起。整条可下拉，下拉超过阈值即关闭面板。
-    /// 由于系统交互式下拉已被 interactiveDismissDisabled 禁用，终端区/键盘区拖拽不会关闭面板。
-    private var sheetTitleBar: some View {
-        HStack(spacing: 12) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) { showFontPanel.toggle() }
-            } label: {
-                Text("Aa")
-                    .font(.system(size: 16, weight: .semibold, design: .serif))
-                    .foregroundStyle(showFontPanel ? TerminalTheme.lockBlue : Color.primary)
-            }
-            .help("字号设置")
-            .accessibilityLabel(showFontPanel ? "收起字号设置" : "字号设置")
-
-            Spacer()
-
-            Text("SSH 终端")
-                .font(.headline)
-
-            Spacer()
-
-            HStack(spacing: 16) {
-                Button { keyState.clearScreen() } label: {
-                    Image(systemName: "trash")
-                }
-                .help("清屏")
-                Button { dismiss() } label: {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 16, weight: .semibold))
-                }
-                .accessibilityLabel("收起终端")
-            }
-        }
-        .padding(.horizontal, 16)
-        .frame(height: 44)
-        .background(.bar)
-        // 整条标题栏可下拉关闭：只有从这里发起的向下拖拽才关闭，阈值 100pt。
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 24)
-                .onEnded { value in
-                    if value.translation.height > 100 { dismiss() }
-                }
-        )
     }
 
     // MARK: - 顶部栏

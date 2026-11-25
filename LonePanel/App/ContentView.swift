@@ -60,8 +60,7 @@ struct ContentView: View {
             TerminalView()
                 // 终端只有整屏一档，不要半屏。
                 .presentationDetents([.large])
-                // 禁用系统交互式下拉关闭：终端区/键盘区任何方向、任何次数的拖拽都不会关面板。
-                // 关闭改由自定义标题栏下拉手势 + 右上角收起按钮完成（见 TerminalView）。
+                // 只让右上角向下箭头关闭终端：禁用系统下拉（终端区/键盘区拖拽都不关）、隐藏把手。
                 .presentationDragIndicator(.hidden)
                 .interactiveDismissDisabled(true)
         }
