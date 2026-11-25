@@ -26,22 +26,19 @@ final class DockerService {
         guard await connection.ensureConnected() else {
             return .failed(connection.lastError ?? "连接失败")
         }
-        // 1. 命令是否存在（带 sudo，与后续业务命令同一权限上下文）
-        let probe = await run("command -v docker", timeout: 10)
-        if probe.exit != 0 || probe.out.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return .notInstalled
-        }
-        // 2. 服务端版本：exit=0 即说明 daemon 可访问、权限足够。
-        //    版本号为空也算可用（老版本 Docker 可能不支持该 format），真正的校验交给 list 命令。
+        // 用「docker version」一条命令同时验证：命令存在 + daemon 可访问 + 权限足够。
+        // 注意：必须是 docker 外部命令（可用 sudo 包装），不能用 command -v（shell 内建，加 sudo 会报 command not found）。
+        // 版本号为空也算可用（老版本 Docker 可能不支持该 format），真正校验交给 list 命令。
         let version = await run("docker version --format '{{.Server.Version}}'", timeout: 15)
         if version.exit == 0 {
             let v = version.out.trimmingCharacters(in: .whitespacesAndNewlines)
             return .available(version: v.isEmpty ? "已安装" : v)
         }
-        // 3. 有输出但失败 → 多半是权限（不在 docker 组 / socket 权限）
+        // 失败 → 依据错误文本区分「没装」与「无权访问」
         let combined = (version.out + version.err).lowercased()
         if combined.contains("permission denied") || combined.contains("permission") ||
-           combined.contains("cannot connect") || combined.contains("dial unix") {
+           combined.contains("cannot connect") || combined.contains("dial unix") ||
+           combined.contains("not found") || combined.contains("not recognized") {
             return .permissionDenied
         }
         return .notInstalled
@@ -52,7 +49,7 @@ final class DockerService {
     /// 拉取容器 + 资源快照，合并为展示模型。两者并发执行，缩短等待。
     /// stats 超时或失败都不影响容器列表本身——资源只是锦上添花。
     func fetchContainers() async throws -> [DockerContainer] {
-        async let psTask = run("docker ps -a --format '{{json .}}'", timeout: listTimeout)
+        async let psTask = runNonEmpty("docker ps -a --format '{{json .}}'", timeout: listTimeout)
         async let statsTask = run("docker stats --no-stream --format '{{json .}}'", timeout: statsTimeout)
         let ps = await psTask
         let stats = await statsTask
@@ -82,7 +79,7 @@ final class DockerService {
 
     /// 拉取镜像列表。
     func fetchImages() async throws -> [DockerImage] {
-        let result = await run("docker images --format '{{json .}}'", timeout: listTimeout)
+        let result = await runNonEmpty("docker images --format '{{json .}}'", timeout: listTimeout)
         if result.exit != 0 {
             throw DockerError.commandFailed(message: firstError(result, "读取镜像列表失败"))
         }
@@ -196,6 +193,20 @@ final class DockerService {
         guard first.exit < 0 else { return first }
         guard await connection.ensureConnected(force: true) else { return first }
         return await executeOnce(command, timeout: timeout, raw: raw)
+    }
+
+    /// 列表类命令专用：底层偶发「exit=0 但 stdout 为空」（退出码抢在数据前到达），
+    /// 遇到空输出时最多重试 2 次。真实空列表（确实没有容器/镜像）重试后仍为空，结果不变。
+    private func runNonEmpty(_ command: String, timeout: Int) async -> (out: String, err: String, exit: Int) {
+        var result = await run(command, timeout: timeout)
+        var attempts = 0
+        while result.exit == 0 &&
+              result.out.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+              attempts < 2 {
+            attempts += 1
+            result = await run(command, timeout: timeout)
+        }
+        return result
     }
 
     private func executeOnce(_ command: String, timeout: Int, raw: Bool) async -> (out: String, err: String, exit: Int) {
