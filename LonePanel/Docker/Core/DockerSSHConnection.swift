@@ -111,6 +111,24 @@ final class DockerSSHConnection: ObservableObject {
         return try await session.execute(command, timeoutSeconds: timeoutSeconds)
     }
 
+    // MARK: - 交互式 shell（供容器终端复用本条已验证连接）
+
+    /// 在 Docker 这条连接上开带 PTY 的 exec 通道，执行 `docker exec -it ... sh`。
+    /// 容器终端复用本连接，避免另起 SharedSSHConnection 时可能从未建立/已被断开的问题。
+    func openExecShell(command: String) async throws -> SSHShell {
+        guard let session else { throw SSHConnectionError.closedUnexpectedly }
+        return try await session.openExec(command: command)
+    }
+
+    func openShell() async throws -> SSHShell {
+        guard let session else { throw SSHConnectionError.closedUnexpectedly }
+        return try await session.openShell()
+    }
+
+    func closeShell() {
+        // Docker 连接的 exec 通道是一次性的，由 SSHShell 自身 close；此处无需缓存清理。
+    }
+
     func disconnect() {
         session?.close()
         session = nil
