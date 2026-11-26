@@ -578,6 +578,8 @@ enum BuiltinPacks {
         d["Compress"] = "压缩"
         d["Extract"] = "解压"
         d["Archive Name"] = "压缩包名称"
+        d["Format"] = "格式"
+        d["Compress %@ selected items into this folder."] = "将所选的 %@ 个项目压缩到此文件夹。"
         d["Selected items will be compressed into a .tar.gz archive in this folder."] = "所选项目将被压缩为此目录下的一个 .tar.gz 压缩包。"
         d["Extract \"%@\" into the current folder?"] = "将“%@”解压到当前文件夹？"
         d["Compress failed: server refused the operation"] = "压缩失败：服务器拒绝了该操作"

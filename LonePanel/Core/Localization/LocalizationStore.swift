@@ -115,6 +115,21 @@ final class LocalizationStore: ObservableObject {
 
     func removePack(id: String) {
         customPacks.removeAll { $0.id == id }
+        // 必须从磁盘删掉该包的 JSON，否则重启后 loadLocal() 又把它读回来（「删了又复活」）。
+        let fm = FileManager.default
+        let localFile = url(forPackID: id)
+        if fm.fileExists(atPath: localFile.path) {
+            try? fm.removeItem(at: localFile)
+        }
+        // 同步删 iCloud Drive 镜像，避免换设备后又同步回来。
+        if iCloudSyncEnabled, iCloudAvailable,
+           let container = fm.url(forUbiquityContainerIdentifier: nil) {
+            let remote = container.appendingPathComponent(packsDirName, isDirectory: true)
+                                   .appendingPathComponent("\(id).json")
+            if fm.fileExists(atPath: remote.path) {
+                try? fm.removeItem(at: remote)
+            }
+        }
         persistCustomPacks()
         // 删掉正在生效的包则即时回退英文
         if currentID == id { select("en") }

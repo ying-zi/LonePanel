@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.76.1`，版本 1.76.1（详见第 9 节） |
+| 当前基线 | tag `t1.76.2`，版本 1.76.2（详见第 9 节） |
 
 ---
 
@@ -242,6 +242,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **t1.75** | **①翻译模板导出彻底修复：不再把 UIActivityViewController 当 SwiftUI sheet root，改为 SharePresenter 找 keyWindow 顶层 VC 直接 present；②底部 Tab 标题切语言即时生效：TabModule.title 改存英文 key，展示点统一 L10n.t（static let 首次求值固化的坑）；③终端编辑菜单本地化：method swizzling 替换 SwiftTerm 1.2.1 的 canPerformAction（public 非 open 无法 override），屏蔽系统英文标准项，willShowMenu 塞入走 L10n 的中文 UIMenuItem；④容器运行时长「多一个 s」修复：单位替换不再拿译文当搜索 key，复数优先；⑤补排序菜单选中项 Name 走 L10n、中文包补 Paste=粘贴；⑥单模块右上角 UI 统一：文件页把 ⋯+齿轮从手写 HStack 拆成独立 ToolbarItem，与 Docker/数据库/终端一致由系统排胶囊** |
 | **t1.76** | **①终端复制粘贴菜单「全没了」致命回归修复：t1.75 的 method swizzling 全局替换 canPerformAction 把系统标准项全屏蔽、自定义项又没挂上导致菜单空白；先尝试 override editMenu 但 SwiftTerm 1.2.1 父类无可 override 的 editMenu 属性（编译失败 error: property does not override），最终彻底回退——完全不碰菜单，用 SwiftTerm 原生系统菜单（英文但复制粘贴功能 100% 恢复）。系统编辑菜单标题跟随 developmentRegion 是系统级限制，App 内切语言改不了，本地化菜单留到项目收尾再评估；②删除自定义语言包确认弹窗 confirmationDialog（iPad 带错位箭头的 popover）改普通居中 alert；③容器日志页右上角 ⋯+关闭从手写 HStack 拆成独立 ToolbarItem，间距与其他页统一；④文件模块日期显示跟随 App 内语言（新增 L10n.currentLocale/dateTimeText，DateFormatter medium 含时分秒）而非系统 locale，列表与详情统一；⑤新增文件压缩/解压：model 走远端 tar/unzip/7z/rar 命令，contextMenu 与多选工具条加入口，压缩包名输入 + 解压确认弹窗，含中文翻译** |
 | **t1.76.1** | **修复压缩失败（tar: xxx: Cannot stat: No such file or directory）：compress 里 -C 误切到父目录，但源项是相对当前目录的 basename，导致 tar 在父目录找不到文件。改为 -C 当前目录；产物用绝对路径写到当前目录，因明确列出 basename（非 "."）不会把归档自身打进去** |
+| **t1.76.2** | **①压缩支持格式选择：新增 ArchiveFormat(.tar.gz/.zip)，压缩参数表独立 sheet（CompressSheet，alert 里放 Picker 不可靠），model 按格式走 tar -czf 或 zip -r，自动去旧后缀按所选格式补；②自定义语言包删除后重启复活修复：removePack 只从内存数组删+persistCustomPacks（只写存活包、从不删文件），磁盘 JSON 和 iCloud 镜像都没删，重启 loadLocal 又读回。改为显式删除本地 + iCloud 的 <id>.json** |
 
 ---
 

@@ -251,6 +251,7 @@ private struct DirectoryPage: View {
     /// 压缩：记录待压缩项 + 归档名输入。
     @State private var compressFiles: [RemoteFile] = []
     @State private var archiveName = ""
+    @State private var archiveFormat: FileBrowserModel.ArchiveFormat = .tarGz
     @State private var pendingCompress = false
     /// 解压：待解压的归档文件（确认后解压到当前目录）。
     @State private var extractFile: RemoteFile?
@@ -337,16 +338,18 @@ private struct DirectoryPage: View {
                 }
             }
         }
-        .alert(L10n.t("Compress"), isPresented: $pendingCompress) {
-            TextField(L10n.t("Archive Name"), text: $archiveName)
-            Button(L10n.t("Cancel"), role: .cancel) { compressFiles = []; archiveName = "" }
-            Button(L10n.t("Compress")) {
+        .sheet(isPresented: $pendingCompress) {
+            CompressSheet(name: $archiveName, format: $archiveFormat, itemCount: compressFiles.count) {
                 let files = compressFiles
                 let name = archiveName
-                Task { await model.compress(files, in: node.path, named: name); compressFiles = []; archiveName = ""; await load() }
+                let fmt = archiveFormat
+                Task {
+                    await model.compress(files, in: node.path, named: name, format: fmt)
+                    compressFiles = []
+                    archiveName = ""
+                    await load()
+                }
             }
-        } message: {
-            Text(L10n.t("Selected items will be compressed into a .tar.gz archive in this folder."))
         }
         .alert(L10n.t("Extract"), isPresented: $pendingExtract) {
             Button(L10n.t("Cancel"), role: .cancel) { extractFile = nil }
@@ -1196,4 +1199,53 @@ private struct NativeSpinner: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UIActivityIndicatorView, context: Context) {}
+}
+
+/// 压缩参数表：输入归档名 + 选择 .tar.gz / .zip 格式。
+/// 用独立 sheet（而非 alert）承载 Picker，SwiftUI alert 里放 Picker 渲染不可靠。
+private struct CompressSheet: View {
+    @Binding var name: String
+    @Binding var format: FileBrowserModel.ArchiveFormat
+    let itemCount: Int
+    let onCompress: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(L10n.t("Archive Name")) {
+                    TextField(L10n.t("Archive Name"), text: $name)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                }
+                Section(L10n.t("Format")) {
+                    Picker(L10n.t("Format"), selection: $format) {
+                        ForEach(FileBrowserModel.ArchiveFormat.allCases) { f in
+                            Text(f.displayName).tag(f)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                Section {
+                    Text(L10n.f("Compress %@ selected items into this folder.", String(describing: itemCount)))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle(L10n.t("Compress"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L10n.t("Cancel")) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L10n.t("Compress")) {
+                        onCompress()
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
 }

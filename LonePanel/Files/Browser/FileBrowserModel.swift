@@ -306,17 +306,37 @@ final class FileBrowserModel: ObservableObject {
 
     // MARK: - 压缩 / 解压（走远端 shell 命令，失败给出可读错误）
 
-    /// 把选中的多项压缩成当前目录下的一个 .tar.gz 归档。
-    /// 用 tar -czf，源项按 basename 引入（不带绝对路径），解压后不会套出整条路径。
-    func compress(_ files: [RemoteFile], in directory: String, named name: String) async {
+    /// 压缩格式：.tar.gz（通用，保留权限/符号链接）或 .zip（Windows/图形界面通用）。
+    enum ArchiveFormat: String, CaseIterable, Identifiable {
+        case tarGz = "tar.gz"
+        case zip = "zip"
+        var id: String { rawValue }
+        var displayName: String { self == .tarGz ? ".tar.gz" : ".zip" }
+    }
+
+    /// 把选中的多项压缩成当前目录下的一个归档。
+    /// 源项按 basename 引入（不带绝对路径），解压后不会套出整条路径。
+    func compress(_ files: [RemoteFile], in directory: String, named name: String, format: ArchiveFormat = .tarGz) async {
         guard let client, !files.isEmpty, let trimmed = validName(name) else { return }
-        // 统一补 .tar.gz 后缀，避免用户漏写导致产物无扩展名、后续无法识别。
-        let archiveName = trimmed.hasSuffix(".tar.gz") ? trimmed : trimmed + ".tar.gz"
-        // basename 是相对「当前目录」的，tar 必须 -C 到当前目录再按 basename 取源，
-        // 不能切到父目录（否则 Cannot stat）。产物用绝对路径写到当前目录，
-        // 因明确列出 basename（非 "."），不会把正在生成的归档自身打进去。
+        let ext = format.rawValue
+        // 去掉用户可能自带的后缀，统一按所选格式补，避免出现 .tar.gz.zip。
+        var base = trimmed
+        for suffix in [".tar.gz", ".tgz", ".zip"] {
+            if base.hasSuffix(suffix) { base = String(base.dropLast(suffix.count)); break }
+        }
+        let archiveName = base + "." + ext
+        let archivePath = shellQuote(client.joined(directory, archiveName))
+        // basename 相对「当前目录」，工作目录必须 -C 到当前目录（否则 Cannot stat）。
+        // 明确列出 basename（非 "."），不会把正在生成的归档自身打进去。
         let basenames = files.map { shellQuote(($0.path as NSString).lastPathComponent) }.joined(separator: " ")
-        let script = "tar -czf \(shellQuote(client.joined(directory, archiveName))) -C \(shellQuote(directory)) \(basenames)"
+        let script: String
+        switch format {
+        case .tarGz:
+            script = "tar -czf \(archivePath) -C \(shellQuote(directory)) \(basenames)"
+        case .zip:
+            // zip 不常驻于极简镜像，失败时给出可读错误（stderr 已透传）。
+            script = "cd \(shellQuote(directory)) && zip -r \(archivePath) \(basenames)"
+        }
         do {
             let result = try await client.execute(script, timeoutSeconds: 120)
             if result.exitStatus == 0 {
