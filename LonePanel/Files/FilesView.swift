@@ -119,3 +119,28 @@ struct FileCallView: View {
         loaded = true
     }
 }
+
+// MARK: - 通用目录选择承载器（供调用方在本地层级呈现 FileCallView）
+
+/// 把目录选择调用态以 sheet 挂在「调用方自己的视图层级」上，而不是 App 根视图。
+/// 关键：当调用方本身就是一个 sheet（如新建容器表单）时，若改用根视图的全局
+/// fileOpenTarget 弹 sheet，系统会因「祖先弹 sheet 时收起后代 sheet」把表单一起关掉；
+/// 挂在这里则形成正确的 sheet 嵌套，选完目录只关选择器、表单原样保留。
+/// 任何需要「从服务器挑一个目录」的场景都可复用：持有 item 状态 + 挂 .folderPicker。
+struct FolderPickerHost: ViewModifier {
+    @Binding var item: ModuleCoordinator.FileOpenTarget?
+
+    func body(content: Content) -> some View {
+        content.sheet(item: $item) { target in
+            FileCallView(target: target)
+                .presentationDetents([.large])
+        }
+    }
+}
+
+extension View {
+    /// 本地承载目录选择调用态；item 由调用方持有，回传走 target.onPick。
+    func folderPicker(item: Binding<ModuleCoordinator.FileOpenTarget?>) -> some View {
+        modifier(FolderPickerHost(item: item))
+    }
+}

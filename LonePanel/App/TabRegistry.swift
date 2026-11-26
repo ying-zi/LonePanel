@@ -157,12 +157,22 @@ final class ModuleCoordinator: ObservableObject {
         fileOpenTarget = FileOpenTarget(path: path, title: title)
     }
 
-    /// 统一 API：请求"文件模块"打开目录选择器（调用态），用户选中的目录经 onPick 回传。
-    /// 与 openFiles 同样是调用态：独立会话、不污染单例导航栈与偏好。
-    func pickDirectory(at path: String, title: String, onPick: @escaping (String) -> Void) {
+    /// 构造一个目录选择目标，交给调用方在自己的视图层级里承载呈现。
+    /// - 供「调用方本身就是 sheet」的场景复用（如新建容器表单）：用本地 .folderPicker(item:) 承载，
+    ///   避免从 App 根视图再弹 sheet 时把上层的表单 sheet 一起收起。
+    func directoryPickTarget(at path: String, title: String,
+                             onPick: @escaping (String) -> Void) -> FileOpenTarget {
         var target = FileOpenTarget(path: path, title: title)
         target.pickDirectory = true
         target.onPick = onPick
-        fileOpenTarget = target
+        return target
+    }
+
+    /// 统一 API：请求"文件模块"打开目录选择器（调用态），用户选中的目录经 onPick 回传。
+    /// 与 openFiles 同样是调用态：独立会话、不污染单例导航栈与偏好。
+    /// 注意：适用于从页面（非 sheet 内）发起；若调用方本身是 sheet，请改用
+    /// directoryPickTarget + 本地 .folderPicker(item:)，否则上层 sheet 会被系统收起。
+    func pickDirectory(at path: String, title: String, onPick: @escaping (String) -> Void) {
+        fileOpenTarget = directoryPickTarget(at: path, title: title, onPick: onPick)
     }
 }

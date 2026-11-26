@@ -12,6 +12,9 @@ struct ContainerCreateView: View {
     @State private var isRunning = false
     @State private var error: String?
     @State private var showImagePicker = false
+    /// 本地目录选择目标：本表单本身是 sheet，必须用本地 .folderPicker 承载选择器，
+    /// 才能做到「选完目录只关选择器、新建容器表单不收起」。
+    @State private var mountPickTarget: ModuleCoordinator.FileOpenTarget?
 
     private let service = DockerService.shared
 
@@ -50,6 +53,8 @@ struct ContainerCreateView: View {
                 }
                 .presentationDetents([.medium, .large])
             }
+            // 目录选择器挂在本表单（sheet）自己的层级：选完只关选择器，表单不收起。
+            .folderPicker(item: $mountPickTarget)
             .task {
                 async let img = try? service.fetchImages()
                 async let net = service.fetchNetworks()
@@ -145,7 +150,7 @@ struct ContainerCreateView: View {
                     // 宿主路径：显示当前值，点击调起文件模块选择目录并回传。
                     Button {
                         let current = mount.hostPath.isEmpty ? "/" : mount.hostPath
-                        ModuleCoordinator.shared.pickDirectory(
+                        mountPickTarget = ModuleCoordinator.shared.directoryPickTarget(
                             at: current,
                             title: "选择宿主目录"
                         ) { picked in

@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Docker 模块主视图：顶部分段切换 容器 / 镜像 / Compose。
-/// 容器页右上角提供卡片/列表视图切换；详情页走 NavigationStack 推入。
+/// 右上角统一为「搜索 + 更多」，与文件模块一致：搜索由容器列表的 .searchable 提供，
+/// 新建容器 / 视图切换 / 诊断收进「更多」，避免多个按钮挤宽导航栏。详情页走 NavigationStack 推入。
 struct DockerView: View {
     enum Section: String, CaseIterable {
         case containers = "容器"
@@ -48,42 +49,41 @@ struct DockerView: View {
                     .frame(width: 240)
                 }
 
-                // 视图切换按钮：只在容器页显示，图标指向「切换后的视图」。
+                // 更多操作：与文件模块统一，右上角只保留系统搜索放大镜 + 本「更多」菜单。
+                // 视图切换 / 新建容器 / 诊断全部收进这里，避免多个按钮挤宽导航栏。
                 ToolbarItem(placement: .topBarTrailing) {
-                    if section == .containers {
-                        Button {
-                            withAnimation {
-                                containerModel.viewMode = (containerModel.viewMode == .cards) ? .list : .cards
+                    Menu {
+                        if section == .containers {
+                            Button {
+                                showCreate = true
+                            } label: {
+                                Label("新建容器", systemImage: "plus")
                             }
+                            Button {
+                                withAnimation {
+                                    containerModel.viewMode = (containerModel.viewMode == .cards) ? .list : .cards
+                                }
+                            } label: {
+                                Label(containerModel.viewMode == .cards ? "列表视图" : "卡片视图",
+                                      systemImage: containerModel.viewMode == .cards ? "list.bullet" : "square.grid.2x2")
+                            }
+                            Divider()
+                        }
+                        // 诊断：查看最近 Docker 命令的退出码与原始输出，排查连接/权限问题。
+                        Button {
+                            showDiagnostics = true
+                            copied = false
                         } label: {
-                            Image(systemName: containerModel.viewMode == .cards ? "list.bullet" : "square.grid.2x2")
+                            Label("诊断", systemImage: "ladybug")
                         }
-                        .help(containerModel.viewMode == .cards ? "切换到列表视图" : "切换到卡片视图")
-                    }
-                }
-
-                // 新建容器：只在容器页显示，置于工具栏最右（系统按 placement 顺序排布）。
-                ToolbarItem(placement: .topBarTrailing) {
-                    if section == .containers {
-                        Button { showCreate = true } label: {
-                            Image(systemName: "plus")
-                        }
-                        .help("新建容器")
-                    }
-                }
-
-                // 诊断按钮：查看最近 Docker 命令的退出码与原始输出，便于排查连接/权限问题。
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showDiagnostics = true
-                        copied = false
                     } label: {
-                        Image(systemName: "ladybug.fill")
+                        // 与文件模块一致：系统文件 App 的更多按钮是裸三点，不套圆圈。
+                        Image(systemName: "ellipsis")
+                            .font(.title3)
                     }
-                    .help("诊断")
                 }
 
-                // 设置入口：并入本模块导航栏 trailing，与视图切换按钮由系统统一排布。
+                // 设置入口：并入本模块导航栏 trailing，由系统与「更多」统一排布。
                 // 入口态（单模块全屏）才出现；多模块形态与调用态下自动隐藏。
                 ToolbarItem(placement: .topBarTrailing) {
                     SettingsGearButton()
