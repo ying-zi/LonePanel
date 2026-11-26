@@ -67,8 +67,10 @@ final class FileBrowserModel: ObservableObject {
 
     private var client: SFTPClient?
     private var connectedServerID: UUID?
+    /// 建连时记下的服务器代次；与 ServerSession.connectionEpoch 不符即判过期。
+    private var connectedEpoch: Int = -1
 
-    var serverName: String { ServerSession.shared.currentServer?.name ?? "服务器文件" }
+    var serverName: String { ServerSession.shared.currentServer?.name ?? L10n.t("Server Files") }
 
     /// 冷启动/单击 Tab 回根时的入口路径：未设默认目录进 "/"。
     var entryPath: String {
@@ -121,10 +123,11 @@ final class FileBrowserModel: ObservableObject {
     func connectIfNeeded(force: Bool = false) async {
         guard let info = ServerSession.shared.currentServer else {
             clearSession()
-            errorMessage = "请先在「设置 → 我的服务器」添加并连接一台服务器"
+            errorMessage = L10n.t("Add and connect a server in Settings > My Servers first")
             return
         }
-        if !force, connectedServerID == info.id, isConnected { return }
+        let epoch = ServerSession.shared.connectionEpoch
+        if !force, connectedServerID == info.id, connectedEpoch == epoch, isConnected { return }
 
         clearSession()
         isLoading = true
@@ -146,6 +149,7 @@ final class FileBrowserModel: ObservableObject {
             )
             self.client = try await SFTPClient.connect(session: ssh)
             self.connectedServerID = info.id
+            self.connectedEpoch = ServerSession.shared.connectionEpoch
             self.isConnected = true
             self.refreshToken &+= 1
         } catch {
@@ -159,6 +163,7 @@ final class FileBrowserModel: ObservableObject {
         client?.close()
         client = nil
         connectedServerID = nil
+        connectedEpoch = -1
         isConnected = false
     }
 
@@ -201,7 +206,7 @@ final class FileBrowserModel: ObservableObject {
         } catch {
             // 静默重连失败：保留快照界面不闪断，但明确弹窗告知连接失败，
             // 让用户知道当前会话可能已不可用、可手动重新连接。
-            errorMessage = "服务器连接失败：\(describeFileError(error))"
+            errorMessage = "Server connection failed: \(describeFileError(error))"
         }
     }
 
@@ -255,7 +260,7 @@ final class FileBrowserModel: ObservableObject {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         guard !trimmed.contains("/") && !trimmed.contains("\0") else {
-            errorMessage = "名称不能包含「/」等非法字符"
+            errorMessage = L10n.t("Name cannot contain invalid characters like \"/\"")
             return nil
         }
         return trimmed
@@ -292,7 +297,7 @@ final class FileBrowserModel: ObservableObject {
                 return
             }
             let reason = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            errorMessage = reason.isEmpty ? "删除失败：服务器拒绝了操作" : "删除失败：\(reason)"
+            errorMessage = reason.isEmpty ? L10n.t("Delete failed: server refused the operation") : L10n.f("Delete failed: %@", String(describing: (reason)))
         } catch {
             // exec 通道不可用（服务端禁用命令执行）：回退纯 SFTP 递归删除。
             do {
@@ -301,6 +306,93 @@ final class FileBrowserModel: ObservableObject {
             } catch {
                 errorMessage = describeFileError(error)
             }
+        }
+    }
+
+    // MARK: - 压缩 / 解压（走远端 shell 命令，失败给出可读错误）
+
+    /// 压缩格式：.tar.gz（通用，保留权限/符号链接）或 .zip（Windows/图形界面通用）。
+    enum ArchiveFormat: String, CaseIterable, Identifiable {
+        case tarGz = "tar.gz"
+        case zip = "zip"
+        var id: String { rawValue }
+        var displayName: String { self == .tarGz ? ".tar.gz" : ".zip" }
+    }
+
+    /// 把选中的多项压缩成当前目录下的一个归档。
+    /// 源项按 basename 引入（不带绝对路径），解压后不会套出整条路径。
+    func compress(_ files: [RemoteFile], in directory: String, named name: String, format: ArchiveFormat = .tarGz) async {
+        guard let client, !files.isEmpty, let trimmed = validName(name) else { return }
+        let ext = format.rawValue
+        // 去掉用户可能自带的后缀，统一按所选格式补，避免出现 .tar.gz.zip。
+        var base = trimmed
+        for suffix in [".tar.gz", ".tgz", ".zip"] {
+            if base.hasSuffix(suffix) { base = String(base.dropLast(suffix.count)); break }
+        }
+        let archiveName = base + "." + ext
+        let archivePath = shellQuote(client.joined(directory, archiveName))
+        // basename 相对「当前目录」，工作目录必须 -C 到当前目录（否则 Cannot stat）。
+        // 明确列出 basename（非 "."），不会把正在生成的归档自身打进去。
+        let basenames = files.map { shellQuote(($0.path as NSString).lastPathComponent) }.joined(separator: " ")
+        let script: String
+        switch format {
+        case .tarGz:
+            script = "tar -czf \(archivePath) -C \(shellQuote(directory)) \(basenames)"
+        case .zip:
+            // zip 不常驻于极简镜像，失败时给出可读错误（stderr 已透传）。
+            script = "cd \(shellQuote(directory)) && zip -r \(archivePath) \(basenames)"
+        }
+        do {
+            let result = try await client.execute(script, timeoutSeconds: 120)
+            if result.exitStatus == 0 {
+                refreshToken &+= 1
+            } else {
+                let reason = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                errorMessage = reason.isEmpty
+                    ? L10n.t("Compress failed: server refused the operation")
+                    : L10n.f("Compress failed: %@", String(describing: (reason)))
+            }
+        } catch {
+            errorMessage = describeFileError(error)
+        }
+    }
+
+    /// 把归档解压到指定目录。按扩展名选择工具，覆盖 tar/gz/bz2/xz/zip/7z/rar。
+    func extract(_ file: RemoteFile, into directory: String) async {
+        guard let client else { return }
+        let ext = (file.name as NSString).pathExtension.lowercased()
+        let src = shellQuote(file.path)
+        let dst = shellQuote(directory)
+        let command: String
+        switch ext {
+        case "zip":
+            command = "unzip -o \(src) -d \(dst)"
+        case "tar", "gz", "tgz":
+            command = "tar -xzf \(src) -C \(dst)"
+        case "bz2", "tbz2":
+            command = "tar -xjf \(src) -C \(dst)"
+        case "xz", "txz":
+            command = "tar -xJf \(src) -C \(dst)"
+        case "7z":
+            command = "7z x -y -o\(dst) \(src)"
+        case "rar":
+            command = "unrar x -o+ \(src) \(dst)/"
+        default:
+            // 单文件 .gz（非 tar 包）：gunzip -c 输出到同目录去掉 .gz 的文件。
+            command = "gzip -cd \(src) > \(shellQuote(client.joined(directory, (file.name as NSString).deletingPathExtension)))"
+        }
+        do {
+            let result = try await client.execute(command, timeoutSeconds: 120)
+            if result.exitStatus == 0 {
+                refreshToken &+= 1
+            } else {
+                let reason = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                errorMessage = reason.isEmpty
+                    ? L10n.t("Extract failed: server refused the operation")
+                    : L10n.f("Extract failed: %@", String(describing: (reason)))
+            }
+        } catch {
+            errorMessage = describeFileError(error)
         }
     }
 
@@ -325,7 +417,7 @@ final class FileBrowserModel: ObservableObject {
     /// 全程发布整体进度（已完成项/总项数），避免多文件或大文件夹粘贴时界面毫无变化。
     func transfer(_ files: [RemoteFile], operation: BatchOperation, to target: String) async {
         guard let client, !files.isEmpty else { return }
-        let title = operation == .copy ? "正在复制" : "正在移动"
+        let title = operation == .copy ? L10n.t("Copying") : L10n.t("Moving")
         batchProgress = BatchProgress(title: title, completed: 0, total: files.count,
                                       detail: files.first?.name ?? "", transferredBytes: 0, totalBytes: 0)
         defer { batchProgress = nil }
@@ -353,11 +445,11 @@ final class FileBrowserModel: ObservableObject {
                 }
             }
             batchProgress = BatchProgress(title: title, completed: files.count, total: files.count,
-                                          detail: "完成", transferredBytes: 0, totalBytes: 0)
+                                          detail: L10n.t("Done"), transferredBytes: 0, totalBytes: 0)
             return
         } catch {
             // 纯 SFTP 失败，继续尝试 SSH 命令回退（单条命令无法细分，显示不确定进度）。
-            batchProgress = BatchProgress(title: "\(title)（服务器命令）", completed: 0,
+            batchProgress = BatchProgress(title: L10n.f("%@ (server command)", String(describing: (title))), completed: 0,
                                           total: 0, detail: files.first?.name ?? "",
                                           transferredBytes: 0, totalBytes: 0)
         }
@@ -373,8 +465,8 @@ final class FileBrowserModel: ObservableObject {
             if result.exitStatus != 0 {
                 let reason = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
                 errorMessage = reason.isEmpty
-                    ? "\(operation.rawValue)失败：服务器拒绝了操作"
-                    : "\(operation.rawValue)失败：\(reason)"
+                    ? L10n.f("%@ failed: server refused the operation", L10n.t(operation.rawValue))
+                    : L10n.f("%@ failed: %@", L10n.t(operation.rawValue), reason)
             }
         } catch {
             errorMessage = describeFileError(error)
@@ -411,7 +503,7 @@ final class FileBrowserModel: ObservableObject {
         for file in clipboard {
             let sourceParent = (file.path as NSString).deletingLastPathComponent
             if (sourceParent as NSString).standardizingPath == normalizedTarget {
-                errorMessage = "「\(file.name)」已在当前目录，无法粘贴到原位置。请先移动到其他目录。"
+                errorMessage = "\"\(file.name)\" is already in this folder and cannot be pasted here. Move it elsewhere first."
                 return
             }
         }
@@ -497,9 +589,9 @@ final class FileBrowserModel: ObservableObject {
 
     /// 把 UID/GID 解析成可读的「用户 · 组」；缺映射时回退为数字。
     func ownerDisplay(uid: UInt32?, gid: UInt32?) -> String {
-        let user = uid.flatMap { uidNames[$0] } ?? uid.map { "UID \($0)" } ?? "未知用户"
-        let group = gid.flatMap { gidNames[$0] } ?? gid.map { "GID \($0)" } ?? "未知组"
-        return "\(user) · \(group)"
+        let user = uid.flatMap { uidNames[$0] } ?? uid.map { "UID \($0)" } ?? L10n.t("Unknown User")
+        let group = gid.flatMap { gidNames[$0] } ?? gid.map { "GID \($0)" } ?? L10n.t("Unknown Group")
+        return L10n.f("%@ · %@", String(describing: (user)), String(describing: (group)))
     }
 
     // MARK: - 上传（本地文件 → 当前目录）
@@ -519,11 +611,11 @@ final class FileBrowserModel: ObservableObject {
         isFileOperationActive = true
         defer { isFileOperationActive = false }
         guard let client else {
-            errorMessage = "上传失败：未连接到服务器，请重新连接后重试"
+            errorMessage = L10n.t("Upload failed: not connected to server. Reconnect and retry.")
             return
         }
 
-        let title = "正在上传"
+        let title = L10n.t("Uploading")
         var succeeded = 0
         var failures: [String] = []
 
@@ -566,7 +658,7 @@ final class FileBrowserModel: ObservableObject {
 
         // 完成态停留约 0.8 秒让用户看清，再清除 HUD。
         batchProgress = BatchProgress(title: title, completed: urls.count, total: urls.count,
-                                      detail: failures.isEmpty ? "完成" : "部分失败",
+                                      detail: failures.isEmpty ? L10n.t("Done") : L10n.t("Partial Failure"),
                                       transferredBytes: 0, totalBytes: 0)
         try? await Task.sleep(nanoseconds: 800_000_000)
         if batchProgress?.title == title { batchProgress = nil }
@@ -574,10 +666,10 @@ final class FileBrowserModel: ObservableObject {
         // 明确的成功/失败反馈——此前成功无任何提示、失败只在逐文件 catch 里，
         // 小文件秒传时进度 HUD 一闪而过，用户感知就是「点了没反应」。
         if failures.isEmpty {
-            errorMessage = succeeded == 1 ? "已上传 1 个文件" : "已上传 \(succeeded) 个文件"
+            errorMessage = succeeded == 1 ? L10n.t("Uploaded 1 file") : L10n.f("Uploaded %@ files", String(describing: (succeeded)))
         } else {
-            let ok = succeeded > 0 ? "成功 \(succeeded) 个；" : ""
-            errorMessage = "上传结束：\(ok)失败 \(failures.count) 个。\(failures.joined(separator: "\n"))"
+            let ok = succeeded > 0 ? "\(succeeded) succeeded; " : ""
+            errorMessage = "Upload finished: \(ok) failed \(failures.count). \(failures.joined(separator: "\n"))"
         }
         // 只要有文件成功写入，就通知各级目录页刷新，让新文件立即出现在列表里。
         if succeeded > 0 { refreshToken &+= 1 }

@@ -116,6 +116,9 @@ final class TerminalSession: ObservableObject, Identifiable {
     private var openTask: Task<Bool, Never>?
     /// 每次开 shell / 断开递增，用于判定读循环退出是「意外断开」还是「主动关闭」。
     private var generation = 0
+    /// 打开当前 shell 时记下的服务器代次。切服后代次变化，ensureAlive 不再复用旧 shell，
+    /// 避免"终端仍连着旧服务器"——这是跨模块联动（如网站反代→容器详情）正确性的前提。
+    private var shellEpoch = -1
 
     /// 注入式为 Docker 容器终端服务：带 PTY 执行指定命令，且会话结束不自动重连。
     /// 默认（单例）保持系统终端行为：开默认 shell、断线自动重连。
@@ -144,19 +147,25 @@ final class TerminalSession: ObservableObject, Identifiable {
     /// 也只会开一个 shell，从根上杜绝双 shell 竞争导致的「打开空白 / 连不上」。
     func ensureAlive(forceReconnect: Bool = false) async {
         guard !userDisconnected else { return }
-        if isReady, shell != nil, !forceReconnect { return }
+        let currentEpoch = ServerSession.shared.connectionEpoch
+        // 切服（或删服改默认）后代次变化：旧 shell 连的是旧服务器，必须先主动关闭，
+        // 否则短路复用会让所有终端操作打到旧机器。容器 exec 终端是一次性会话，切服即停。
+        let serverChanged = shellEpoch != currentEpoch
+        if serverChanged && shell != nil { closeShellOnly() }
+        if isReady, shell != nil, !forceReconnect, !serverChanged { return }
         if let openTask {
             await openTask.value
             return
         }
         let task = Task<Bool, Never> { [weak self] in
             guard let self else { return false }
-            let ok = await self.connection.ensureConnected(force: forceReconnect)
+            // 服务器已变时用 force 重建底层连接，杜绝复用连向旧机器的 SSH 会话。
+            let ok = await self.connection.ensureConnected(force: forceReconnect || serverChanged)
             guard ok else {
                 self.errorMessage = self.connection.lastError
                 return false
             }
-            await self.openShell()
+            await self.openShell(epoch: currentEpoch)
             return self.isReady
         }
         openTask = task
@@ -204,7 +213,7 @@ final class TerminalSession: ObservableObject, Identifiable {
 
     // MARK: - 连接 / 断开
 
-    private func openShell() async {
+    private func openShell(epoch: Int? = nil) async {
         generation += 1
         let token = generation
         isConnecting = true
@@ -220,13 +229,15 @@ final class TerminalSession: ObservableObject, Identifiable {
                 newShell = try await connection.openShell()
             }
             self.shell = newShell
+            self.shellEpoch = epoch ?? ServerSession.shared.connectionEpoch
             // 新连接 = 新会话，清掉上一次会话的回放缓冲（保留 viewReady）。
             byteBridge.reset()
             // 系统终端注入一条本地连接横幅：让"连接成功"有明确视觉反馈
             // （用户反馈空壳时无法判断是否连上）。容器 exec 终端不注入，避免污染 docker exec 输出。
             if execCommand == nil {
-                let name = ServerSession.shared.currentServer?.name ?? "服务器"
-                let banner = "\r\n\u{1B}[1;32m● 已连接到 \(name)\u{1B}[0m\r\n\u{1B}[2m  LonePanel SSH 终端 · 直接输入命令开始操作\u{1B}[0m\r\n\r\n"
+                let name = ServerSession.shared.currentServer?.name ?? L10n.t("Server")
+                // 只保留"已连接到"这一行；第二行提示语已按反馈移除。
+                let banner = "\r\n\u{1B}[1;32m● \(L10n.t("Connected to")) \(name)\u{1B}[0m\r\n\r\n"
                 byteBridge.deliver(Array(banner.utf8))
             }
             isReady = true
@@ -260,13 +271,13 @@ final class TerminalSession: ObservableObject, Identifiable {
                 self.connection.closeShell()
                 if self.autoReconnect {
                     // 系统终端：断线自动重连。
-                    self.showNotice("[连接中断，正在重连…]")
+                    self.showNotice(L10n.t("[Connection lost, reconnecting...]"))
                     if !self.userDisconnected {
                         Task { await self.ensureAlive(forceReconnect: true) }
                     }
                 } else {
                     // 容器终端：会话结束即停（用户 exit 或容器退出），不重连、只提示。
-                    self.showNotice("[会话已结束]")
+                    self.showNotice(L10n.t("[Session ended]"))
                 }
             }
         }
@@ -308,7 +319,7 @@ final class TerminalSession: ObservableObject, Identifiable {
         if execCommand == nil {
             connection.disconnect()
         }
-        showNotice("[连接已断开]")
+        showNotice(L10n.t("[Disconnected]"))
     }
 
     /// 容器终端视图退出：仅关闭本会话的 exec 通道，不触碰共享 SSH 连接。

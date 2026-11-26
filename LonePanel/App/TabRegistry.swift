@@ -131,23 +131,96 @@ enum TabRegistry {
 final class ModuleCoordinator: ObservableObject {
     static let shared = ModuleCoordinator()
 
-    /// 一次跨模块文件浏览请求。Identifiable 便于 .sheet(item:) 呈现。
+    /// 一次跨模块文件请求。Identifiable 便于 .sheet(item:) 呈现。
     struct FileOpenTarget: Identifiable {
         let id = UUID()
         /// 要打开的目录（服务器上绝对路径，如卷挂载的 Source）。
         let path: String
         /// 呈现标题（如容器名 + 挂载点）。
         let title: String
+        /// true = 目录选择模式：浏览并点「选择当前目录」回传路径（供容器挂载目录等场景）。
+        /// false = 只读浏览模式：看完下拉即走。
+        var pickDirectory = false
+        /// 目录选择模式的回传闭包：参数是用户选中的目录绝对路径。
+        /// 用闭包而非 @Binding，让调用方（可能是 sheet 内的表单）无需持有 Binding。
+        var onPick: ((String) -> Void)?
     }
 
-    @Published var fileOpenTarget: FileOpenTarget?
+    /// 一次跨模块"容器详情"请求。调用方（如网站反代关联容器）只持有容器 ID，
+    /// 不引用容器模块的任何视图/模型——目标由容器模块自己的调用态视图按 ID 加载。
+    struct ContainerOpenTarget: Identifiable {
+        let id = UUID()
+        /// 容器完整 ID（十六进制），调用态按此在当前服务器拉取真实容器。
+        let containerID: String
+        /// 呈现标题（如"反代关联的容器"）。
+        let title: String
+    }
 
-    /// 统一 API：请求"文件模块"打开某个服务器目录（调用态）。
+    /// 跨模块调用的统一载荷。所有能力互调都经由这一个通道：
+    /// 新增一种能力 = 加一个 case + 一个 Target + 对应的调用态视图，调用方永远只依赖本类型。
+    /// 典型场景：网站模块反代关联容器 → openContainerDetail → 容器详情调用态。
+    enum ModuleCall: Identifiable {
+        case files(FileOpenTarget)
+        case containerDetail(ContainerOpenTarget)
+
+        var id: UUID {
+            switch self {
+            case .files(let t): return t.id
+            case .containerDetail(let t): return t.id
+            }
+        }
+    }
+
+    /// 统一的跨模块调用出口。ContentView 只挂这一个 sheet，按 case 分派调用态视图。
+    @Published var activeCall: ModuleCall?
+
+    /// 文件调用态的兼容视图：供仍以 `$fileOpenTarget` 绑定的调用方/ modifier 使用。
+    /// 读写都映射到统一通道，确保"单一通道"下旧代码零改动仍可用。
+    var fileOpenTarget: FileOpenTarget? {
+        get {
+            if case .files(let t) = activeCall { return t }
+            return nil
+        }
+        set {
+            if let newValue {
+                activeCall = .files(newValue)
+            } else if case .files = activeCall {
+                activeCall = nil
+            }
+        }
+    }
+
+    /// 统一 API：请求"文件模块"打开某个服务器目录（调用态，只读浏览）。
     /// - Parameters:
     ///   - path: 服务器绝对路径
     ///   - title: 调用态标题
     func openFiles(at path: String, title: String) {
         // 即便文件 Tab 未启用，能力仍可用——这里不检查 ModuleVisibility。
-        fileOpenTarget = FileOpenTarget(path: path, title: title)
+        activeCall = .files(FileOpenTarget(path: path, title: title))
+    }
+
+    /// 统一 API：请求"容器模块"打开某个容器详情（调用态，只读为主）。
+    /// 供网站反代关联容器、编排详情跳转等跨模块场景使用；关入口不关能力。
+    func openContainerDetail(id: String, title: String) {
+        activeCall = .containerDetail(ContainerOpenTarget(containerID: id, title: title))
+    }
+
+    /// 构造一个目录选择目标，交给调用方在自己的视图层级里承载呈现。
+    /// - 供「调用方本身就是 sheet」的场景复用（如新建容器表单）：用本地 .folderPicker(item:) 承载，
+    ///   避免从 App 根视图再弹 sheet 时把上层的表单 sheet 一起收起。
+    func directoryPickTarget(at path: String, title: String,
+                             onPick: @escaping (String) -> Void) -> FileOpenTarget {
+        var target = FileOpenTarget(path: path, title: title)
+        target.pickDirectory = true
+        target.onPick = onPick
+        return target
+    }
+
+    /// 统一 API：请求"文件模块"打开目录选择器（调用态），用户选中的目录经 onPick 回传。
+    /// 与 openFiles 同样是调用态：独立会话、不污染单例导航栈与偏好。
+    /// 注意：适用于从页面（非 sheet 内）发起；若调用方本身是 sheet，请改用
+    /// directoryPickTarget + 本地 .folderPicker(item:)，否则上层 sheet 会被系统收起。
+    func pickDirectory(at path: String, title: String, onPick: @escaping (String) -> Void) {
+        fileOpenTarget = directoryPickTarget(at: path, title: title, onPick: onPick)
     }
 }

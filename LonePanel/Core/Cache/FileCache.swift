@@ -76,9 +76,12 @@ final class FileCache {
                     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                             withIntermediateDirectories: true)
                     try data.write(to: url, options: .atomic)
-                    // 覆盖写：先扣除旧条目占用
+                    // 覆盖写：删除旧文件，但若新旧路径相同（同 key + 同扩展名 → 同哈希名），
+                    // 删除的就是上面刚 atomic 写入的新文件——导致该 key 永久无法命中缓存。
+                    // 因此仅当路径确实不同时才删旧文件。
                     if let old = self.entries[key] {
-                        try? FileManager.default.removeItem(at: self.fileURL(for: old))
+                        let oldURL = self.fileURL(for: old)
+                        if oldURL != url { try? FileManager.default.removeItem(at: oldURL) }
                     }
                     self.entries[key] = entry
                     self.evictIfNeededLocked()

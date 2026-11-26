@@ -24,7 +24,7 @@ final class DockerService {
     /// 导致容器页被门槛挡住、根本不去拉数据——而镜像页无门槛所以能显示，症状极不一致。
     func checkAvailability() async -> DockerAvailability {
         guard await connection.ensureConnected() else {
-            return .failed(connection.lastError ?? "连接失败")
+            return .failed(connection.lastError ?? L10n.t("Connection Failed"))
         }
         // 用「docker version」一条命令同时验证：命令存在 + daemon 可访问 + 权限足够。
         // 注意：必须是 docker 外部命令（可用 sudo 包装），不能用 command -v（shell 内建，加 sudo 会报 command not found）。
@@ -32,7 +32,7 @@ final class DockerService {
         let version = await run("docker version --format '{{.Server.Version}}'", timeout: 15)
         if version.exit == 0 {
             let v = version.out.trimmingCharacters(in: .whitespacesAndNewlines)
-            return .available(version: v.isEmpty ? "已安装" : v)
+            return .available(version: v.isEmpty ? L10n.t("Installed") : v)
         }
         // 失败 → 依据错误文本区分「没装」与「无权访问」
         let combined = (version.out + version.err).lowercased()
@@ -55,7 +55,7 @@ final class DockerService {
         let stats = await statsTask
 
         if ps.exit != 0 {
-            throw DockerError.commandFailed(message: firstError(ps, "读取容器列表失败"))
+            throw DockerError.commandFailed(message: firstError(ps, L10n.t("Failed to load containers")))
         }
 
         let rows = decodeLines(DockerPSRow.self, ps.out)
@@ -81,7 +81,7 @@ final class DockerService {
     func fetchImages() async throws -> [DockerImage] {
         let result = await runNonEmpty("docker images --format '{{json .}}'", timeout: listTimeout)
         if result.exit != 0 {
-            throw DockerError.commandFailed(message: firstError(result, "读取镜像列表失败"))
+            throw DockerError.commandFailed(message: firstError(result, L10n.t("Failed to load images")))
         }
         return decodeLines(DockerImageRow.self, result.out).map(DockerImage.init)
     }
@@ -96,38 +96,145 @@ final class DockerService {
     // MARK: - 容器操作
 
     func startContainer(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker start \(id)", success: "容器已启动")
+        await mutate("docker start \(id)", success: L10n.t("Container started"))
     }
 
     func stopContainer(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker stop \(id)", success: "容器已停止")
+        await mutate("docker stop \(id)", success: L10n.t("Container stopped"))
     }
 
     func restartContainer(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker restart \(id)", success: "容器已重启")
+        await mutate("docker restart \(id)", success: L10n.t("Container restarted"))
     }
 
     func pauseContainer(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker pause \(id)", success: "容器已暂停")
+        await mutate("docker pause \(id)", success: L10n.t("Container paused"))
     }
 
     func unpauseContainer(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker unpause \(id)", success: "容器已恢复")
+        await mutate("docker unpause \(id)", success: L10n.t("Container resumed"))
     }
 
     func removeContainer(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker rm -f \(id)", success: "容器已删除")
+        await mutate("docker rm -f \(id)", success: L10n.t("Container removed"))
     }
 
     /// 强制停止容器（docker kill），用于容器无响应、正常 stop 卡住的场景。
     func killContainer(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker kill \(id)", success: "容器已强制停止")
+        await mutate("docker kill \(id)", success: L10n.t("Container force-stopped"))
+    }
+
+    // MARK: - 创建容器（对标 1Panel）
+
+    /// 拉取镜像。progress 由 docker 自己写到 stderr，这里只判定结果。
+    func pullImage(_ reference: String) async -> Result<Void, DockerError> {
+        let ref = reference.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !ref.isEmpty else { return .failure(.commandFailed(message: L10n.t("Image name cannot be empty"))) }
+        // pull 可能较慢（大镜像），给 180 秒；超时不用 mutate 的默认 30 秒。
+        let result = await run("docker pull \(ShellQuote.quote(ref))", timeout: 180)
+        if result.exit == 0 { return .success(()) }
+        return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to pull image"))))
+    }
+
+    /// 拉取网络列表（名字），供创建表单选择。bridge/host/none 固定项由 UI 补，这里只取自定义网络。
+    func fetchNetworks() async -> [String] {
+        let result = await run("docker network ls --format '{{.Name}}'", timeout: 20)
+        guard result.exit == 0 else { return [] }
+        return result.out.split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// 按规格创建并启动容器（docker run -d），返回新容器 ID。
+    /// 命令构造纪律：所有外部输入经 ShellQuote.quote；端口/数值在 Spec 层已校验。
+    func createContainer(_ spec: ContainerCreateSpec) async -> Result<String, DockerError> {
+        if let error = spec.validate() {
+            return .failure(.commandFailed(message: error))
+        }
+        // 需要时先拉镜像；失败直接返回，不继续 run。
+        if spec.pullImage {
+            switch await pullImage(spec.image) {
+            case .failure(let e): return .failure(e)
+            case .success: break
+            }
+        }
+
+        let command = Self.buildRunCommand(spec)
+        let result = await run(command, timeout: 60)
+        guard result.exit == 0 else {
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to create container"))))
+        }
+        let id = result.out.trimmingCharacters(in: .whitespacesAndNewlines)
+        return .success(id)
+    }
+
+    /// 构造 `docker run -d ...` 命令。独立静态方法便于审查与复用（如命令预览）。
+    static func buildRunCommand(_ spec: ContainerCreateSpec) -> String {
+        var parts: [String] = ["docker", "run", "-d"]
+
+        parts += ["--name", ShellQuote.quote(spec.name.trimmingCharacters(in: .whitespacesAndNewlines))]
+
+        // 网络
+        let network = spec.network.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !network.isEmpty { parts += ["--network", ShellQuote.quote(network)] }
+
+        // 重启策略：on-failure 不带次数，交由用户填 "on-failure:5" 这种完整值。
+        let restart = spec.restartPolicy.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !restart.isEmpty, restart != "no" { parts += ["--restart", ShellQuote.quote(restart)] }
+
+        // 端口映射
+        for p in spec.ports where ContainerCreateSpec.validPort(p.hostPort) && ContainerCreateSpec.validPort(p.containerPort) {
+            let proto = p.proto == "udp" ? "/udp" : ""
+            parts += ["-p", ShellQuote.quote("\(p.hostPort):\(p.containerPort)\(proto)")]
+        }
+
+        // 目录挂载
+        for m in spec.mounts where m.hostPath.hasPrefix("/") && m.containerPath.hasPrefix("/") {
+            let mode = m.readOnly ? ":ro" : ":rw"
+            parts += ["-v", ShellQuote.quote("\(m.hostPath):\(m.containerPath)\(mode)")]
+        }
+
+        // 环境变量
+        for e in spec.env where ContainerCreateSpec.validEnvKey(e.key) {
+            parts += ["-e", ShellQuote.quote("\(e.key)=\(e.value)")]
+        }
+
+        // 资源限制
+        let memory = spec.memory.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !memory.isEmpty, ContainerCreateSpec.validMemory(memory) {
+            parts += ["--memory", ShellQuote.quote(memory)]
+        }
+        let cpus = spec.cpus.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cpus.isEmpty, Double(cpus) != nil {
+            parts += ["--cpus", ShellQuote.quote(cpus)]
+        }
+
+        // 高级
+        let hostname = spec.hostname.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !hostname.isEmpty { parts += ["--hostname", ShellQuote.quote(hostname)] }
+        if spec.privileged { parts.append("--privileged") }
+        let workdir = spec.workdir.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !workdir.isEmpty { parts += ["-w", ShellQuote.quote(workdir)] }
+        let entrypoint = spec.entrypoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !entrypoint.isEmpty { parts += ["--entrypoint", ShellQuote.quote(entrypoint)] }
+
+        // 镜像（末尾位置参数）
+        parts.append(ShellQuote.quote(spec.image.trimmingCharacters(in: .whitespacesAndNewlines)))
+
+        // 启动命令及参数：按空格切分，逐段转义，避免注入。
+        let command = spec.command.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !command.isEmpty {
+            parts += command.split(whereSeparator: { $0 == " " || $0 == "\n" })
+                .map { ShellQuote.quote(String($0)) }
+        }
+
+        return parts.joined(separator: " ")
     }
 
     // MARK: - 镜像 / Compose 操作
 
     func removeImage(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker rmi \(id)", success: "镜像已删除")
+        await mutate("docker rmi \(id)", success: L10n.t("Image removed"))
     }
 
     func composeAction(_ name: String, configFile: String, action: ComposeAction) async -> Result<Void, DockerError> {
@@ -138,7 +245,7 @@ final class DockerService {
         case .down: command = "docker compose\(fileArg) -p \(ShellQuote.quote(name)) down"
         case .restart: command = "docker compose\(fileArg) -p \(ShellQuote.quote(name)) restart"
         }
-        return await mutate(command, success: "操作已完成")
+        return await mutate(command, success: L10n.t("Done"))
     }
 
     enum ComposeAction {
@@ -151,7 +258,7 @@ final class DockerService {
     func fetchInspect(containerID: String) async -> Result<String, DockerError> {
         let result = await run("docker inspect \(containerID)", timeout: 30)
         if result.exit != 0 {
-            return .failure(.commandFailed(message: firstError(result, "读取容器详情失败")))
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to load container details"))))
         }
         return .success(result.out)
     }
@@ -177,13 +284,24 @@ final class DockerService {
     }
 
     private func parseLogs(_ result: (out: String, err: String, exit: Int)) -> Result<String, DockerError> {
-        // docker logs 把部分信息写到 stderr，stderr 有内容也算有效日志。
+        let err = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
+        let out = result.out.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 关键：命令失败时，docker 把 "Error: No such container" 等错误信息写进 stderr。
+        // 旧逻辑只要 combined 非空就当成功日志返回，UI 又只在 success 时赋值 →
+        // 错误被当日志、或永久沉默（界面空白）。先识别失败特征，再决定是否为日志。
+        if result.exit != 0 {
+            let message = firstError(result, L10n.t("Failed to load logs"))
+            return .failure(.commandFailed(message: message))
+        }
+        // exit=0 但 stderr 以典型错误前缀开头（某些 docker 版本错误仍返回 0）——同样判失败。
+        let lower = err.lowercased()
+        if lower.hasPrefix("error:") || lower.hasPrefix("error response from daemon") {
+            return .failure(.commandFailed(message: err))
+        }
+        // docker logs 把容器 stderr 输出也并进来，正常日志可能落在 err，故两者合并。
         let combined = result.out + (result.out.isEmpty ? "" : "\n") + result.err
         if !combined.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return .success(combined)
-        }
-        if result.exit != 0 {
-            return .failure(.commandFailed(message: firstError(result, "读取日志失败")))
         }
         return .success("")
     }
@@ -194,7 +312,7 @@ final class DockerService {
     func fetchProcesses(containerID: String) async -> Result<[DockerProcess], DockerError> {
         let result = await run("docker top \(containerID) -eo pid,user,args", timeout: 20)
         if result.exit != 0 {
-            return .failure(.commandFailed(message: firstError(result, "读取进程列表失败")))
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to load process list"))))
         }
         return .success(DockerProcess.parse(result.out))
     }
@@ -259,7 +377,9 @@ final class DockerService {
     private func mutate(_ command: String, success: String) async -> Result<Void, DockerError> {
         let result = await run(command, timeout: 30)
         if result.exit == 0 { return .success(()) }
-        return .failure(.commandFailed(message: firstError(result, success)))
+        // 失败路径绝不能用 success 文案兜底：stderr/stdout 皆空时 firstError 会返回 success，
+        // 造成"操作失败却提示已启动/已删除"。改用明确的失败文案。
+        return .failure(.commandFailed(message: firstError(result, L10n.t("Operation failed. Docker returned no error details."))))
     }
 
     /// 取一条可读错误：优先 stderr，其次 stdout，最后兜底文案。

@@ -19,6 +19,12 @@ final class ServerSession: ObservableObject {
     @Published private(set) var defaultServer: ServerConnectionInfo?
     @Published private(set) var currentServer: ServerConnectionInfo?
 
+    /// 连接代次：currentServer 每次发生实质变化（临时切换 / 改默认 / 删除 / 编辑当前服务器）
+    /// 都自增。这是跨模块连接失效的统一地基：任何持有 SSH / 终端 / SFTP 连接的模块，
+    /// 在复用连接前比对自己建连时记下的代次，不一致即判为过期并强制重建。
+    /// 后续网站反代→容器详情等联动，也据此保证"打开的是当前服务器的资源"。
+    @Published private(set) var connectionEpoch: Int = 0
+
     private var provider: ServerSessionProviding?
 
     private init() {}
@@ -34,7 +40,11 @@ final class ServerSession: ObservableObject {
         let newDefault = provider?.defaultConnection
         let newCurrent = provider?.currentConnection ?? newDefault
         if defaultServer != newDefault { defaultServer = newDefault }
-        if currentServer != newCurrent { currentServer = newCurrent }
+        // 只有当前服务器快照真正变化才递增代次——仅改默认但当前是临时切换时不误伤。
+        if currentServer != newCurrent {
+            currentServer = newCurrent
+            connectionEpoch &+= 1
+        }
     }
 
     /// 临时切换到指定服务器（仅当前进程有效）。

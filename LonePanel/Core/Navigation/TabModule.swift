@@ -93,8 +93,25 @@ struct SettingsGearButton: View {
                 Image(systemName: "gearshape")
                     .font(.system(size: 16, weight: .semibold))
             }
-            .help("设置")
-            .accessibilityLabel("设置")
+            .help(L10n.t("Settings"))
+            .accessibilityLabel(L10n.t("Settings"))
         }
+    }
+}
+
+/// 统一的「收起 / 关闭」按钮：右上角向下小箭头（chevron.down）。
+/// 全 App 所有 sheet / 弹出卡片共用，替代过去位置、样式各异的文字 Done 按钮，
+/// 既统一交互又少一项文案翻译。可与其他 trailing 按钮放进同一个 ToolbarItem 的 HStack，
+/// 由系统连成一枚胶囊（与文件页 / 容器页右上角一致）。
+struct DismissChevronButton: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Button { dismiss() } label: {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 16, weight: .semibold))
+        }
+        .help(L10n.t("Close"))
+        .accessibilityLabel(L10n.t("Close"))
     }
 }

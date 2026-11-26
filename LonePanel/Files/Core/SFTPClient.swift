@@ -155,7 +155,7 @@ final class SFTPClient {
                 self.lock.lock()
                 let entry = self.pending.removeValue(forKey: id)
                 self.lock.unlock()
-                entry?.continuation.resume(throwing: SFTPError.malformed("服务器响应超时"))
+                entry?.continuation.resume(throwing: SFTPError.malformed(L10n.t("Server response timed out")))
             }
             lock.lock()
             if closed {
@@ -173,7 +173,7 @@ final class SFTPClient {
     /// 期望一个 STATUS(OK) 响应，否则抛出人话错误。
     private func expectOK(_ packet: SFTPPacket) throws {
         guard packet.type == SFTPMessage.status else {
-            throw SFTPError.malformed("期望状态响应")
+            throw SFTPError.malformed(L10n.t("Expected status response"))
         }
         var reader = PayloadReader(packet.payload)
         _ = try reader.uint32() // request id
@@ -237,7 +237,7 @@ final class SFTPClient {
                 throw SFTPError.status(code: code, message: message)
             }
             guard response.type == SFTPMessage.name else {
-                throw SFTPError.malformed("期望目录列表响应")
+                throw SFTPError.malformed(L10n.t("Expected directory listing response"))
             }
 
             var reader = PayloadReader(response.payload)
@@ -305,7 +305,11 @@ final class SFTPClient {
             try await rename(from: file.path, to: destination)
         } catch {
             // rename 在某些服务端会拒绝跨文件系统或同名覆盖，回退到复制 + 删除。
-            try await copyItem(file, to: destination)
+            // 安全铁律：只有"确实完成了逐字节复制"才允许删除源。对软链/含软链的目录，
+            // copyItem 无法保真复制（返回 false），此时绝不删源——直接抛错让上层
+            // FileBrowserModel.transfer 回退到 shell `mv`（mv 对软链是原子的、无丢失）。
+            let copiedFaithfully = try await copyItem(file, to: destination)
+            guard copiedFaithfully else { throw SFTPError.symlinkCopyUnsupported }
             if file.isDirectory { try await removeDirectory(file.path) }
             else { try await removeFile(file.path) }
         }
@@ -316,7 +320,7 @@ final class SFTPClient {
     func copy(_ file: RemoteFile, toDirectory target: String,
               onProgress: ((Int64) -> Void)? = nil) async throws {
         let counter = ByteCounter()
-        try await copyItem(file, to: joined(target, file.name)) { delta in
+        _ = try await copyItem(file, to: joined(target, file.name)) { delta in
             counter.value += delta
             onProgress?(counter.value)
         }
@@ -336,21 +340,30 @@ final class SFTPClient {
     /// - 目标目录已存在时直接合并，不再 mkdir（MKDIR 对已存在目录会报错）；
     /// - 跳过符号链接（readFile 一个指向目录的软链会失败并中断整个复制）；
     /// - 复制到自身或自身子目录时跳过，避免 read+write 同一文件造成损坏/死循环。
+    /// - Returns: 是否"保真"复制（false = 遇到软链被跳过，内容不完整）。
+    ///   返回 false 时调用方（尤其 move 的回退）绝不能删除源，否则数据不可逆丢失。
     private func copyItem(_ file: RemoteFile, to dest: String,
-                          onBytes: ((Int64) -> Void)? = nil) async throws {
+                          onBytes: ((Int64) -> Void)? = nil) async throws -> Bool {
         let src = (file.path as NSString).standardizingPath
         let dst = (dest as NSString).standardizingPath
-        if dst == src || dst.hasPrefix(src + "/") { return }
-        if file.isSymlink { return }
+        // 复制到自身或自身子目录：视为"无需复制"，对 move 而言等价于已就位。
+        if dst == src || dst.hasPrefix(src + "/") { return true }
+        // 软链无法通过 readFile 保真复制（指向目录会失败，指向文件会变成实体副本）。
+        // 返回 false 通知调用方：复制不完整，禁止删除源。
+        if file.isSymlink { return false }
         if file.isDirectory {
             if !(await pathExists(dst)) { try await makeDirectory(dst) }
             let children = try await listDirectory(file.path)
+            var faithful = true
             for child in children {
-                try await copyItem(child, to: joined(dest, child.name), onBytes: onBytes)
+                let childOK = try await copyItem(child, to: joined(dest, child.name), onBytes: onBytes)
+                faithful = faithful && childOK
             }
+            return faithful
         } else {
             let data = try await readFile(file.path)
             try await writeFile(dest, data: data, onBytes: onBytes)
+            return true
         }
     }
 
@@ -397,7 +410,7 @@ final class SFTPClient {
                 throw SFTPError.status(code: code, message: message)
             }
             guard response.type == SFTPMessage.data else {
-                throw SFTPError.malformed("期望文件数据响应")
+                throw SFTPError.malformed(L10n.t("Expected file data response"))
             }
             var reader = PayloadReader(response.payload)
             _ = try reader.uint32()

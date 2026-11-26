@@ -11,8 +11,8 @@ struct FileNode: Hashable, Identifiable {
 
 /// 视图模式：列表 / 图标网格（对齐系统「文件」App 的视图切换）。
 enum FileViewMode: String, CaseIterable, Identifiable {
-    case list = "列表"
-    case grid = "图标"
+    case list = "List"
+    case grid = "Icons"
     var id: String { rawValue }
     var systemImage: String {
         switch self {
@@ -24,10 +24,10 @@ enum FileViewMode: String, CaseIterable, Identifiable {
 
 /// 排序字段（对齐系统「文件」App 的排序菜单）。
 enum FileSortOrder: String, CaseIterable, Identifiable {
-    case name = "名称"
-    case kind = "种类"
-    case date = "修改日期"
-    case size = "大小"
+    case name = "Name"
+    case kind = "Kind"
+    case date = "Date Modified"
+    case size = "Size"
     var id: String { rawValue }
 }
 
@@ -113,9 +113,15 @@ enum FileKind {
     private static let textExts: Set<String> = [
         "txt", "md", "markdown", "log", "toml", "ini", "conf", "cfg", "csv", "env"
     ]
-    private static let archiveExts: Set<String> = [
-        "zip", "tar", "gz", "bz2", "xz", "7z", "rar", "tgz"
+    static let archiveExts: Set<String> = [
+        "zip", "tar", "gz", "bz2", "xz", "7z", "rar", "tgz", "tbz2", "txz"
     ]
+
+    /// 是否为可解压的归档文件（符号链接、目录不算）。
+    static func isArchive(_ file: RemoteFile) -> Bool {
+        if file.isDirectory || file.isSymlink { return false }
+        return archiveExts.contains((file.name as NSString).pathExtension.lowercased())
+    }
 
     /// 排序用的稳定次序（目录已在排序时单独优先，这里排其余类型）。
     var sortRank: Int {
@@ -132,8 +138,8 @@ enum FileKind {
 
 /// 批量操作类型。
 enum BatchOperation: String {
-    case move = "移动"
-    case copy = "复制"
+    case move = "Move"
+    case copy = "Copy"
 }
 
 /// 批量传输的整体进度快照。

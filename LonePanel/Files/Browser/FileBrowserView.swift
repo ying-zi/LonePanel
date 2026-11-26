@@ -117,8 +117,8 @@ struct FileBrowserView: View {
         }
         .quickLookPreview($previewURL)
         .sheet(item: $shareItem) { ActivityShareSheet(items: $0.urls) }
-        .alert("操作提示", isPresented: errorBinding) {
-            Button("好", role: .cancel) { model.dismissError() }
+        .alert(L10n.t("Action Notice"), isPresented: errorBinding) {
+            Button(L10n.t("OK"), role: .cancel) { model.dismissError() }
         } message: {
             Text(model.errorMessage ?? "")
         }
@@ -139,7 +139,7 @@ struct FileBrowserView: View {
                         .font(.subheadline.weight(.semibold))
                     Spacer(minLength: 0)
                     if progress.total > 0 {
-                        Text("\(progress.completed)/\(progress.total) 项")
+                        Text(L10n.f("%@/%@ items", String(describing: (progress.completed)), String(describing: (progress.total))))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -185,11 +185,11 @@ struct FileBrowserView: View {
     private var disconnectedView: some View {
         NavigationStack {
             ContentUnavailableView {
-                Label("未连接服务器", systemImage: "server.rack")
+                Label(L10n.t("Not Connected"), systemImage: "server.rack")
             } description: {
-                Text("请在「设置 → 我的服务器」中添加并连接一台服务器，然后重试")
+                Text(L10n.t("Add and connect a server in Settings > My Servers, then retry"))
             } actions: {
-                Button("重新连接") { Task { await model.reconnect() } }
+                Button(L10n.t("Reconnect")) { Task { await model.reconnect() } }
                     .buttonStyle(.borderedProminent)
             }
             // 未连接时也要能进设置：否则「只开文件模块 + 无服务器」会把用户锁死。
@@ -248,13 +248,21 @@ private struct DirectoryPage: View {
     @State private var editingFile: RemoteFile?
     @State private var targetOperation: BatchOperation?
     @State private var targetFiles: [RemoteFile] = []
+    /// 压缩：记录待压缩项 + 归档名输入。
+    @State private var compressFiles: [RemoteFile] = []
+    @State private var archiveName = ""
+    @State private var archiveFormat: FileBrowserModel.ArchiveFormat = .tarGz
+    @State private var pendingCompress = false
+    /// 解压：待解压的归档文件（确认后解压到当前目录）。
+    @State private var extractFile: RemoteFile?
+    @State private var pendingExtract = false
 
     var body: some View {
         pageContent
             .navigationBarTitleDisplayMode(.inline)
             // 搜索栏挂在「每一页」上：系统为根页与每个 push 的子页各自注入原生放大镜，
             // 点开即在当前页呈现搜索框。各页状态独立，切层级随页面退出自然收起。
-            .searchable(text: $searchText, isPresented: $isSearching, prompt: "搜索")
+            .searchable(text: $searchText, isPresented: $isSearching, prompt: Text(L10n.t("Search")))
             .searchFocused($searchFocused)
             // iOS 26：未聚焦时收缩，消除列表顶部常驻的灰色搜索条。
             .searchToolbarBehavior(.minimize)
@@ -306,32 +314,55 @@ private struct DirectoryPage: View {
     /// 所有弹窗集中在独立宿主，避免 body 的 modifier 链过长导致 type-check 超时。
     private var dialogHost: some View {
         Color.clear.frame(width: 0, height: 0)
-        .alert("新建文件夹", isPresented: $pendingCreateFolder) {
-            TextField("文件夹名称", text: $newFolderName)
-            Button("取消", role: .cancel) { newFolderName = "" }
-            Button("创建") {
+        .alert(L10n.t("New folder"), isPresented: $pendingCreateFolder) {
+            TextField(L10n.t("Folder Name"), text: $newFolderName)
+            Button(L10n.t("Cancel"), role: .cancel) { newFolderName = "" }
+            Button(L10n.t("Create")) {
                 Task { await model.makeDirectory(at: node.path, named: newFolderName); newFolderName = ""; await load() }
             }
         }
-        .alert("新建文件", isPresented: $pendingCreateFile) {
-            TextField("文件名", text: $newFileName)
-            Button("取消", role: .cancel) { newFileName = "" }
-            Button("创建") {
+        .alert(L10n.t("New file"), isPresented: $pendingCreateFile) {
+            TextField(L10n.t("File Name"), text: $newFileName)
+            Button(L10n.t("Cancel"), role: .cancel) { newFileName = "" }
+            Button(L10n.t("Create")) {
                 Task { await model.makeFile(at: node.path, named: newFileName); newFileName = ""; await load() }
             }
         }
-        .alert("重命名", isPresented: renameBinding) {
-            TextField("名称", text: $renameText)
-            Button("取消", role: .cancel) { renaming = nil }
-            Button("保存") {
+        .alert(L10n.t("Rename"), isPresented: renameBinding) {
+            TextField(L10n.t("Name"), text: $renameText)
+            Button(L10n.t("Cancel"), role: .cancel) { renaming = nil }
+            Button(L10n.t("Save")) {
                 if let file = renaming {
                     let parent = (file.path as NSString).deletingLastPathComponent
                     Task { await model.rename(file, in: parent, to: renameText); renaming = nil; await load() }
                 }
             }
         }
-        .alert("删除所选项目？", isPresented: $showDeleteConfirm) {
-            Button("删除", role: .destructive) {
+        .sheet(isPresented: $pendingCompress) {
+            CompressSheet(name: $archiveName, format: $archiveFormat, itemCount: compressFiles.count) {
+                let files = compressFiles
+                let name = archiveName
+                let fmt = archiveFormat
+                Task {
+                    await model.compress(files, in: node.path, named: name, format: fmt)
+                    compressFiles = []
+                    archiveName = ""
+                    await load()
+                }
+            }
+        }
+        .alert(L10n.t("Extract"), isPresented: $pendingExtract) {
+            Button(L10n.t("Cancel"), role: .cancel) { extractFile = nil }
+            Button(L10n.t("Extract")) {
+                if let file = extractFile {
+                    Task { await model.extract(file, into: node.path); extractFile = nil; await load() }
+                }
+            }
+        } message: {
+            Text(L10n.f("Extract \"%@\" into the current folder?", String(describing: (extractFile?.name ?? ""))))
+        }
+        .alert(L10n.t("Delete Selected Items?"), isPresented: $showDeleteConfirm) {
+            Button(L10n.t("Delete"), role: .destructive) {
                 let filesToDelete = deleting
                 Task {
                     await model.delete(filesToDelete)
@@ -340,22 +371,22 @@ private struct DirectoryPage: View {
                     await load()
                 }
             }
-            Button("取消", role: .cancel) { deleting = [] }
+            Button(L10n.t("Cancel"), role: .cancel) { deleting = [] }
         } message: {
-            Text("删除后无法恢复，请确认已备份重要数据。")
+            Text(L10n.t("This cannot be undone. Make sure you have a backup."))
         }
-        .alert("危险路径", isPresented: $showDangerConfirm) {
-            Button("我确认，继续删除", role: .destructive) {
+        .alert(L10n.t("Danger Path"), isPresented: $showDangerConfirm) {
+            Button(L10n.t("Yes, Continue Deleting"), role: .destructive) {
                 showDangerConfirm = false
                 showDeleteConfirm = true
             }
-            Button("取消", role: .cancel) { deleting = [] }
+            Button(L10n.t("Cancel"), role: .cancel) { deleting = [] }
         } message: {
-            Text("所选内容位于系统关键目录（如 /etc、/usr）。删除可能导致系统异常，请务必确认你清楚后果。")
+            Text(L10n.t("The selection is in a critical system directory (e.g. /etc, /usr). Deleting may break the system. Make sure you understand the consequences."))
         }
-        .alert("无法在线预览", isPresented: noticeBinding) {
-            Button("取消", role: .cancel) { pendingNoticeFile = nil; previewNotice = nil }
-            Button("下载并分享") {
+        .alert(L10n.t("Online preview unavailable"), isPresented: noticeBinding) {
+            Button(L10n.t("Cancel"), role: .cancel) { pendingNoticeFile = nil; previewNotice = nil }
+            Button(L10n.t("Download & Share")) {
                 if let file = pendingNoticeFile {
                     Task { if let url = await model.localURL(for: file, purpose: "share") { shareItem = ShareItem(url: url) } }
                 }
@@ -419,7 +450,7 @@ private struct DirectoryPage: View {
     private var connectionLoadingView: some View {
         VStack(spacing: 12) {
             NativeSpinner()
-            Text("加载中…")
+            Text(L10n.t("Loading…"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -499,12 +530,12 @@ private struct DirectoryPage: View {
                 // 重命名 / 移动收敛到长按菜单，避免左滑三个按钮的拥挤与误触。
                 if FileKind.isEditable(file) {
                     Button { editingFile = file } label: {
-                        Label("编辑", systemImage: "square.and.pencil")
+                        Label(L10n.t("Edit"), systemImage: "square.and.pencil")
                     }
                     .tint(.blue)
                 }
                 Button(role: .destructive) { requestDelete([file]) } label: {
-                    Label("删除", systemImage: "trash")
+                    Label(L10n.t("Delete"), systemImage: "trash")
                 }
             }
         }
@@ -556,10 +587,10 @@ private struct DirectoryPage: View {
 
     private var emptyView: some View {
         ContentUnavailableView {
-            Label(searchText.isEmpty ? "文件夹为空" : "无搜索结果",
+            Label(searchText.isEmpty ? L10n.t("Folder is Empty") : L10n.t("No Results"),
                   systemImage: searchText.isEmpty ? "folder" : "magnifyingglass")
         } description: {
-            Text(searchText.isEmpty ? "此目录中没有内容" : "试试其他关键词")
+            Text(searchText.isEmpty ? L10n.t("This folder is empty") : L10n.t("Try another keyword"))
         }
     }
 
@@ -574,7 +605,7 @@ private struct DirectoryPage: View {
                 ProgressView()
                     .frame(width: 24, height: 24)
             } else if isSelecting {
-                Button(allVisibleSelected ? "取消全选" : "全选") {
+                Button(allVisibleSelected ? L10n.t("Deselect All") : L10n.t("Select All")) {
                     if allVisibleSelected { selectedIDs = [] }
                     else { selectedIDs = Set(visibleEntries.map(\.id)) }
                 }
@@ -590,35 +621,36 @@ private struct DirectoryPage: View {
                     titleMenu
                         .opacity(!isSelecting ? 1 : 0)
                         .allowsHitTesting(!isSelecting)
-                    Text("\(selectedIDs.count) 项").font(.headline)
+                    Text(L10n.f("%@ items", String(describing: (selectedIDs.count)))).font(.headline)
                         .opacity(isSelecting ? 1 : 0)
                         .allowsHitTesting(isSelecting)
                 }
             }
         }
+        // 与 Docker / 数据库 / 终端统一：右上角每个按钮各占一个独立 ToolbarItem，
+        // 由 iOS 26 系统按标准 tap 宽度排成玻璃胶囊，不再用 HStack 手动定间距。
+        // 设置齿轮恒在最右，入口态（单模块全屏）才出现。
         ToolbarItem(placement: .topBarTrailing) {
-            HStack(spacing: 12) {
-                if isSelecting {
-                    // 完成按钮：纯大勾，无自定义背景色，颜色与系统搜索按钮一致（主色）。
-                    // 背景交给 iOS 26 工具栏的玻璃胶囊，避免蓝底方块与胶囊叠在一起显突兀。
-                    Button { resetSelection() } label: {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 17, weight: .bold))
-                            .foregroundStyle(.primary)
-                            .frame(width: 32, height: 32)
-                            .contentShape(Rectangle())
-                    }
-                } else {
-                    // 搜索栏已挂到每一页，系统为根页与每个子页各自提供原生放大镜，
-                    // 不再自定义放大镜按钮 —— 从根上杜绝「双放大镜」与
-                    // 「点了自定义放大镜却不出搜索框、按钮反而消失」的问题。
-                    // 只保留 ⋯，常驻不随搜索态消失。
-                    moreMenu
+            if isSelecting {
+                // 完成按钮：纯大勾，无自定义背景色，颜色与系统搜索按钮一致（主色）。
+                // 背景交给 iOS 26 工具栏的玻璃胶囊，避免蓝底方块与胶囊叠在一起显突兀。
+                Button { resetSelection() } label: {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
-                // 设置入口并入本页导航栏 trailing，由系统与 ⋯/完成统一排布，不再外挂顶栏。
-                // 入口态（单模块全屏）才出现；多模块形态与调用态下自动隐藏。
-                SettingsGearButton()
+            } else {
+                // 搜索栏已挂到每一页，系统为根页与每个子页各自提供原生放大镜，
+                // 不再自定义放大镜按钮 —— 从根上杜绝「双放大镜」与
+                // 「点了自定义放大镜却不出搜索框、按钮反而消失」的问题。
+                // 只保留 ⋯，常驻不随搜索态消失。
+                moreMenu
             }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            SettingsGearButton()
         }
     }
 
@@ -679,19 +711,19 @@ private struct DirectoryPage: View {
                 isSelecting = true
                 selectedIDs = []
             } label: {
-                Label("选择", systemImage: "checkmark.circle")
+                Label(L10n.t("Choose"), systemImage: "checkmark.circle")
             }
             Button {
                 newFileName = ""
                 pendingCreateFile = true
             } label: {
-                Label("新建文件", systemImage: "doc.badge.plus")
+                Label(L10n.t("New file"), systemImage: "doc.badge.plus")
             }
             Button {
                 newFolderName = ""
                 pendingCreateFolder = true
             } label: {
-                Label("新建文件夹", systemImage: "folder.badge.plus")
+                Label(L10n.t("New folder"), systemImage: "folder.badge.plus")
             }
             Button {
                 // 记录目标目录并置位 picker：picker 由导航栈顶层统一承载，
@@ -700,14 +732,14 @@ private struct DirectoryPage: View {
                 model.beginFileOperation()
                 model.isUploadPickerPresented = true
             } label: {
-                Label("上传文件", systemImage: "square.and.arrow.up.on.square")
+                Label(L10n.t("Upload File"), systemImage: "square.and.arrow.up.on.square")
             }
             // 粘贴：剪贴板非空时显示，把已拷贝的项目复制到当前目录。
             if !model.clipboard.isEmpty {
                 Button {
                     Task { await pasteHere() }
                 } label: {
-                    Label("粘贴（\(model.clipboard.count) 项）", systemImage: "doc.on.clipboard")
+                    Label(L10n.f("Paste (%@ items)", String(describing: (model.clipboard.count))), systemImage: "doc.on.clipboard")
                 }
             }
             Divider()
@@ -718,9 +750,9 @@ private struct DirectoryPage: View {
                         Task { await load() }
                     } label: {
                         if model.sortOrder == order {
-                            Label(order.rawValue, systemImage: "checkmark")
+                            Label(L10n.t(order.rawValue), systemImage: "checkmark")
                         } else {
-                            Text(order.rawValue)
+                            Text(L10n.t(order.rawValue))
                         }
                     }
                 }
@@ -729,16 +761,16 @@ private struct DirectoryPage: View {
                     model.sortAscending.toggle()
                     Task { await load() }
                 } label: {
-                    Label(model.sortAscending ? "升序" : "降序",
+                    Label(model.sortAscending ? L10n.t("Ascending") : L10n.t("Descending"),
                           systemImage: model.sortAscending ? "arrow.up" : "arrow.down")
                 }
             } label: {
-                Label("排序方式", systemImage: "arrow.up.arrow.down")
+                Label(L10n.t("Sort By"), systemImage: "arrow.up.arrow.down")
             }
             Button {
                 withAnimation { model.viewMode = model.viewMode == .list ? .grid : .list }
             } label: {
-                Label(model.viewMode == .list ? "图标视图" : "列表视图",
+                Label(model.viewMode == .list ? L10n.t("Icon View") : L10n.t("List View"),
                       systemImage: model.viewMode == .list ? "square.grid.2x2" : "list.bullet")
             }
             Divider()
@@ -746,18 +778,18 @@ private struct DirectoryPage: View {
                 model.showHiddenFiles.toggle()
                 Task { await load() }
             } label: {
-                Label(model.showHiddenFiles ? "隐藏隐藏文件" : "显示隐藏文件",
+                Label(model.showHiddenFiles ? L10n.t("Hide Hidden Files") : L10n.t("Show Hidden Files"),
                       systemImage: model.showHiddenFiles ? "eye.slash" : "eye")
             }
             Button {
                 model.setAsDefaultDirectory(node.path)
             } label: {
-                Label("设为默认访问目录", systemImage: "folder.badge.gearshape")
+                Label(L10n.t("Set as Default Directory"), systemImage: "folder.badge.gearshape")
             }
             Button {
                 Task { await model.reconnect(); await load() }
             } label: {
-                Label("重新连接", systemImage: "arrow.clockwise")
+                Label(L10n.t("Reconnect"), systemImage: "arrow.clockwise")
             }
         } label: {
             // 系统文件 App 的更多按钮是裸三点，不套圆圈。
@@ -772,32 +804,38 @@ private struct DirectoryPage: View {
     private func contextMenuItems(for file: RemoteFile) -> some View {
         ControlGroup {
             Button { model.copyToClipboard([file]) } label: {
-                Label("拷贝", systemImage: "doc.on.doc")
+                Label(L10n.t("Copy"), systemImage: "doc.on.doc")
             }
             Button { beginTransfer(.move, files: [file]) } label: {
-                Label("移动", systemImage: "arrow.right")
+                Label(L10n.t("Move"), systemImage: "arrow.right")
             }
             // 共享需先把文件下载为本地文件；目录无法作为单文件分享，故仅对文件显示。
             if !file.isDirectory {
                 Button { share(file) } label: {
-                    Label("共享", systemImage: "square.and.arrow.up")
+                    Label(L10n.t("Share"), systemImage: "square.and.arrow.up")
                 }
             }
         }
         Divider()
         // 快速查看（QuickLook）仅对文件有效，目录改用进入浏览（整行点击）。
         if !file.isDirectory {
-            Button { quickLook(file) } label: { Label("快速查看", systemImage: "eye") }
+            Button { quickLook(file) } label: { Label(L10n.t("Quick Look"), systemImage: "eye") }
         }
         // 只有纯文本 / 源码且在大小上限内，才提供编辑入口。
         if FileKind.isEditable(file) {
-            Button { editingFile = file } label: { Label("编辑", systemImage: "square.and.pencil") }
+            Button { editingFile = file } label: { Label(L10n.t("Edit"), systemImage: "square.and.pencil") }
         }
-        Button { infoFile = file } label: { Label("获取信息", systemImage: "info.circle") }
-        Button { renameTarget(file) } label: { Label("重命名", systemImage: "pencil") }
+        Button { infoFile = file } label: { Label(L10n.t("Get Info"), systemImage: "info.circle") }
+        Button { renameTarget(file) } label: { Label(L10n.t("Rename"), systemImage: "pencil") }
+        // 归档文件提供解压；其余项提供压缩（单文件也会打成 .tar.gz）。
+        if FileKind.isArchive(file) {
+            Button { extractTarget(file) } label: { Label(L10n.t("Extract"), systemImage: "doc.zipper") }
+        } else {
+            Button { compressTarget([file]) } label: { Label(L10n.t("Compress"), systemImage: "doc.zipper") }
+        }
         Divider()
         Button(role: .destructive) { requestDelete([file]) } label: {
-            Label("删除", systemImage: "trash")
+            Label(L10n.t("Delete"), systemImage: "trash")
         }
     }
 
@@ -809,11 +847,17 @@ private struct DirectoryPage: View {
             // 共享仅对「选中项全部是文件」有效：只要勾选了文件夹就不显示
             // （目录无法作为单文件分享，混选时也不宜把文件夹静默丢掉）。
             if !selectedFiles.isEmpty && selectedFiles.allSatisfy({ !$0.isDirectory }) {
-                batchIcon("square.and.arrow.up", title: "共享") { shareSelected() }
+                batchIcon("square.and.arrow.up", title: L10n.t("Share")) { shareSelected() }
             }
-            batchIcon("arrow.right", title: "移动") { beginTransfer(.move, files: selectedFiles) }
-            batchIcon("doc.on.doc", title: "拷贝") { copySelected() }
-            batchIcon("trash", title: "删除", role: .destructive) { requestDelete(selectedFiles) }
+            batchIcon("arrow.right", title: L10n.t("Move")) { beginTransfer(.move, files: selectedFiles) }
+            batchIcon("doc.on.doc", title: L10n.t("Copy")) { copySelected() }
+            // 归档项提供解压（仅单选归档时），其余提供压缩。
+            if selectedFiles.count == 1, let only = selectedFiles.first, FileKind.isArchive(only) {
+                batchIcon("doc.zipper", title: L10n.t("Extract")) { extractTarget(only) }
+            } else {
+                batchIcon("doc.zipper", title: L10n.t("Compress")) { compressTarget(selectedFiles) }
+            }
+            batchIcon("trash", title: L10n.t("Delete"), role: .destructive) { requestDelete(selectedFiles) }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -848,7 +892,7 @@ private struct DirectoryPage: View {
             // 归档/未知类型系统无法在线预览：记录待分享文件，先弹提示，
             // 用户确认后再下载并打开系统分享面板，避免提示与分享面板同时弹出。
             pendingNoticeFile = file
-            previewNotice = "「\(file.name)」不支持在线预览，确认后将下载并打开系统分享菜单。"
+            previewNotice = "\"\(file.name)\" cannot be previewed online. It will be downloaded and opened in the Share sheet."
             return
         }
         Task { if let url = await model.localURL(for: file, purpose: "preview") { previewURL = url } }
@@ -898,6 +942,24 @@ private struct DirectoryPage: View {
     private func renameTarget(_ file: RemoteFile) {
         renaming = file
         renameText = file.name
+    }
+
+    /// 压缩：默认归档名取当前目录名或首项名，进入输入弹窗确认。
+    private func compressTarget(_ files: [RemoteFile]) {
+        guard !files.isEmpty else { return }
+        compressFiles = files
+        let base = (node.path as NSString).lastPathComponent
+        // 名称框只填主名；后缀由下方格式下拉决定，避免「选了 zip 名字却还是 .tar.gz」的误解。
+        archiveName = base.isEmpty ? "archive" : base
+        // 每次进入按当前格式重置后缀（默认 tar.gz），与名称框主名分离。
+        archiveFormat = .tarGz
+        pendingCompress = true
+    }
+
+    /// 解压：记录目标归档，进入确认弹窗。
+    private func extractTarget(_ file: RemoteFile) {
+        extractFile = file
+        pendingExtract = true
     }
 
     private func requestDelete(_ files: [RemoteFile]) {
@@ -971,10 +1033,11 @@ private struct FileRow: View {
     }
 
     private var meta: String {
-        let date = file.modified?.formatted(date: .abbreviated, time: .omitted) ?? ""
-        if file.isDirectory { return date.isEmpty ? "文件夹" : date }
+        // 跟随 App 内语言（非系统 locale），且带时分秒。
+        let date = file.modified.map { L10n.dateTimeText($0) } ?? ""
+        if file.isDirectory { return date.isEmpty ? L10n.t("Folder") : date }
         let size = FileBrowserModel.sizeText(file.size)
-        return date.isEmpty ? size : "\(date) · \(size)"
+        return date.isEmpty ? size : L10n.f("%@ · %@", String(describing: (date)), String(describing: (size)))
     }
 }
 
@@ -1031,7 +1094,7 @@ private struct TargetDirectorySheet: View {
         NavigationStack {
             Group {
                 if isLoading && dirs.isEmpty {
-                    ProgressView("加载中…")
+                    ProgressView(L10n.t("Loading…"))
                 } else {
                     List {
                         ForEach(dirs) { dir in
@@ -1046,11 +1109,11 @@ private struct TargetDirectorySheet: View {
                     .listStyle(.insetGrouped)
                 }
             }
-            .navigationTitle("选择位置")
+            .navigationTitle(L10n.t("Choose Location"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
+                    Button(L10n.t("Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 12) {
@@ -1063,7 +1126,7 @@ private struct TargetDirectorySheet: View {
                             Image(systemName: "arrow.up.folder")
                         }
                         .disabled(path == "/")
-                        Button(operation.rawValue) {
+                        Button(L10n.t(operation.rawValue)) {
                             onConfirm(path)
                             dismiss()
                         }
@@ -1139,4 +1202,91 @@ private struct NativeSpinner: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UIActivityIndicatorView, context: Context) {}
+}
+
+/// 压缩参数表：输入主名 + 后缀下拉（网页款式），实时预览最终完整文件名。
+/// 用独立 sheet（而非 alert）承载，SwiftUI alert 里放 Picker/Menu 渲染不可靠。
+private struct CompressSheet: View {
+    @Binding var name: String
+    @Binding var format: FileBrowserModel.ArchiveFormat
+    let itemCount: Int
+    let onCompress: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    /// 由 name 去掉用户可能手填的后缀 + 当前格式后缀，拼出最终真实文件名。
+    private var finalName: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        var base = trimmed
+        for suffix in [".tar.gz", ".tgz", ".zip"] {
+            if base.hasSuffix(suffix) { base = String(base.dropLast(suffix.count)); break }
+        }
+        if base.isEmpty { base = "archive" }
+        return base + format.displayName
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(L10n.t("Archive Name")) {
+                    // 名称框 + 后缀下拉拼成一行：网页那种「输入框后面跟后缀选择」的款式，
+                    // Menu 用原生样式弹出，与 iOS 系统风格一致，不会冲突。
+                    HStack(spacing: 8) {
+                        TextField(L10n.t("Archive Name"), text: $name)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                        Menu {
+                            ForEach(FileBrowserModel.ArchiveFormat.allCases) { f in
+                                Button {
+                                    format = f
+                                } label: {
+                                    if f == format {
+                                        Label(f.displayName, systemImage: "checkmark")
+                                    } else {
+                                        Text(f.displayName)
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Text(format.displayName)
+                                    .foregroundStyle(.tint)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tint)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                    }
+                }
+                Section {
+                    // 实时预览：切换后缀或改名时立即更新，彻底消除「选了 zip 却是 .tar.gz」的误解。
+                    LabeledContent(L10n.t("File Name")) {
+                        Text(finalName)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    Text(L10n.f("Compress %@ selected items into this folder.", String(describing: itemCount)))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle(L10n.t("Compress"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L10n.t("Cancel")) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L10n.t("Compress")) {
+                        onCompress()
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
 }

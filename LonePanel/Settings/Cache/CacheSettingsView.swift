@@ -16,7 +16,7 @@ struct CacheSettingsView: View {
                         .font(.system(size: 34))
                         .foregroundStyle(.tint)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("已占用缓存")
+                        Text(L10n.t("Cache Used"))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         Text(formatBytes(total))
@@ -35,16 +35,16 @@ struct CacheSettingsView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .frame(width: 88, height: 48)
-                    .accessibilityLabel("全部清理")
+                    .accessibilityLabel(L10n.t("Clear All"))
                     .disabled(total == 0)
                 }
                 .padding(.vertical, 6)
             } footer: {
-                Text("缓存用于加快文件预览与分享，可随时清理，不影响服务器上的数据。超出 1 GB 时 App 会自动清理最久未使用的部分。")
+                Text(L10n.t("Cache speeds up file preview and sharing and can be cleared anytime without affecting server data. Above 1 GB, the app auto-clears the least recently used parts."))
             }
 
             if !categories.isEmpty {
-                Section("按类别") {
+                Section(L10n.t("By Category")) {
                     ForEach(categories) { item in
                         HStack(spacing: 12) {
                             Image(systemName: categoryIcon(item.category))
@@ -53,7 +53,7 @@ struct CacheSettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(categoryTitle(item.category))
                                     .font(.body)
-                                Text("\(formatBytes(item.size)) · \(item.count) 项 · \(categoryDetail(item.category))")
+                                Text(L10n.f("%@ · %@ items · %@", String(describing: (formatBytes(item.size))), String(describing: (item.count)), String(describing: (categoryDetail(item.category)))))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -68,33 +68,33 @@ struct CacheSettingsView: View {
                             .buttonStyle(.bordered)
                             .tint(.gray)
                             .frame(width: 80, height: 46)
-                            .accessibilityLabel("清理")
+                            .accessibilityLabel(L10n.t("Clear"))
                         }
                     }
                 }
             }
         }
-        .navigationTitle("缓存管理")
+        .navigationTitle(L10n.t("Cache Management"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await reload() }
         .refreshable { await reload() }
-        .alert("清理全部缓存", isPresented: $confirmAll) {
-            Button("取消", role: .cancel) {}
-            Button("清理", role: .destructive) {
+        .alert(L10n.t("Clear All Cache"), isPresented: $confirmAll) {
+            Button(L10n.t("Cancel"), role: .cancel) {}
+            Button(L10n.t("Clear"), role: .destructive) {
                 Task { await FileCache.shared.clearAll(); await reload() }
             }
         } message: {
-            Text("将删除所有已缓存的文件副本，下次预览需重新下载。")
+            Text(L10n.t("All cached file copies will be removed. They will be re-downloaded on next preview."))
         }
         .alert(item: $pendingCategory) { item in
             Alert(
-                title: Text("清理「\(categoryTitle(item.category))」"),
-                message: Text("将删除该类缓存约 \(formatBytes(item.size))，不影响其他类别。"),
-                primaryButton: .destructive(Text("清理")) {
+                title: Text(L10n.f("Clear \"%@\"", String(describing: (categoryTitle(item.category))))),
+                message: Text(L10n.f("This will delete about %@ of this cache category, without affecting others.", String(describing: (formatBytes(item.size))))),
+                primaryButton: .destructive(Text(L10n.t("Clear"))) {
                     Task { await FileCache.shared.clear(category: item.category); await reload() }
                 },
                 // 显式给文案，走本地化；否则 .cancel() 用系统默认英文 "Cancel"。
-                secondaryButton: .cancel(Text("取消"))
+                secondaryButton: .cancel(Text(L10n.t("Cancel")))
             )
         }
     }
@@ -116,7 +116,7 @@ struct CacheSettingsView: View {
     // 类别展示元数据：新增缓存类别时在这里补一行即可。
     private func categoryTitle(_ category: String) -> String {
         switch category {
-        case "files": return "文件预览"
+        case "files": return L10n.t("File Preview")
         default: return category
         }
     }
@@ -130,8 +130,8 @@ struct CacheSettingsView: View {
 
     private func categoryDetail(_ category: String) -> String {
         switch category {
-        case "files": return "预览与分享时下载的文件副本"
-        default: return "本地缓存副本"
+        case "files": return L10n.t("Downloaded copies for preview and sharing")
+        default: return L10n.t("Local cached copy")
         }
     }
 }

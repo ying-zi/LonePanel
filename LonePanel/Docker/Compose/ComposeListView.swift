@@ -9,6 +9,7 @@ struct ComposeListView: View {
     @State private var errorMessage: String?
     @State private var actionTarget: DockerComposeProject?
     @State private var pendingAction: DockerService.ComposeAction?
+    @State private var operationError: String?
 
     var body: some View {
         ZStack {
@@ -39,13 +40,13 @@ struct ComposeListView: View {
                         HStack(spacing: 8) {
                             Button {
                                 confirm(project, .up)
-                            } label: { Label("启动", systemImage: "play.fill") }
+                            } label: { Label(L10n.t("Start"), systemImage: "play.fill") }
                             Button {
                                 confirm(project, .restart)
-                            } label: { Label("重启", systemImage: "arrow.clockwise") }
+                            } label: { Label(L10n.t("Restart"), systemImage: "arrow.clockwise") }
                             Button(role: .destructive) {
                                 confirm(project, .down)
-                            } label: { Label("停止", systemImage: "stop.fill") }
+                            } label: { Label(L10n.t("Stop"), systemImage: "stop.fill") }
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -58,9 +59,9 @@ struct ComposeListView: View {
                         Image(systemName: "square.stack.3d.up")
                             .font(.largeTitle)
                             .foregroundStyle(.tertiary)
-                        Text("没有 Compose 项目")
+                        Text(L10n.t("No Compose projects"))
                             .foregroundStyle(.secondary)
-                        Text("使用 docker compose 启动的项目会显示在这里。旧版 docker-compose 或 Docker 版本过低时可能不显示。")
+                        Text(L10n.t("Projects started with docker compose appear here. Legacy docker-compose or an outdated Docker version may not be detected."))
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                             .multilineTextAlignment(.center)
@@ -73,7 +74,7 @@ struct ComposeListView: View {
             .listStyle(.insetGrouped)
 
             if isLoading && projects.isEmpty {
-                ProgressView("正在读取 Compose 项目…")
+                ProgressView(L10n.t("Loading Compose projects…"))
             }
         }
         .refreshable { await load() }
@@ -82,22 +83,31 @@ struct ComposeListView: View {
             get: { pendingAction != nil },
             set: { if !$0 { pendingAction = nil } }
         )) {
-            Button("取消", role: .cancel) { pendingAction = nil }
-            Button("确定") {
+            Button(L10n.t("Cancel"), role: .cancel) { pendingAction = nil }
+            Button(L10n.t("OK")) {
                 if let project = actionTarget, let action = pendingAction {
                     Task {
-                        _ = await service.composeAction(
+                        let result = await service.composeAction(
                             project.name,
                             configFile: project.configFiles,
                             action: action
                         )
+                        if case .failure(let error) = result { operationError = error.localizedDescription }
                         await load()
                     }
                 }
                 pendingAction = nil
             }
         } message: {
-            Text("确定对「\(actionTarget?.name ?? "")」执行\(actionLabel)吗？Compose 操作会同时影响该项目下的所有容器。")
+            Text(L10n.f("Perform %@ on \"%@\"? Compose actions affect all containers in this project.", String(describing: (actionLabel)), String(describing: (actionTarget?.name ?? ""))))
+        }
+        .alert(L10n.t("Operation failed"), isPresented: Binding(
+            get: { operationError != nil },
+            set: { if !$0 { operationError = nil } }
+        )) {
+            Button(L10n.t("OK"), role: .cancel) { operationError = nil }
+        } message: {
+            Text(operationError ?? "")
         }
     }
 
@@ -107,20 +117,20 @@ struct ComposeListView: View {
     }
 
     private var alertTitle: String {
-        guard let action = pendingAction else { return "操作确认" }
+        guard let action = pendingAction else { return L10n.t("Confirm Action") }
         switch action {
-        case .up: return "启动 Compose 项目"
-        case .down: return "停止 Compose 项目"
-        case .restart: return "重启 Compose 项目"
+        case .up: return L10n.t("Start Compose Project")
+        case .down: return L10n.t("Stop Compose Project")
+        case .restart: return L10n.t("Restart Compose Project")
         }
     }
 
     private var actionLabel: String {
         guard let action = pendingAction else { return "" }
         switch action {
-        case .up: return "启动"
-        case .down: return "停止"
-        case .restart: return "重启"
+        case .up: return L10n.t("Start")
+        case .down: return L10n.t("Stop")
+        case .restart: return L10n.t("Restart")
         }
     }
 

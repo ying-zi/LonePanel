@@ -4,7 +4,7 @@ import SwiftTerm
 
 /// 终端的呈现方式，决定右上角辅助按钮的语义。
 /// 全形态统一：右上角恒定一个「重新连接」圆形箭头；此处只决定附带按钮。
-enum TerminalPresentation {
+enum TerminalPresentation: Equatable {
     case sheet   // 悬浮按钮弹出：附带「收起」
     case pushed  // 推入（仅终端全屏 / 设置页）：入口态附带「设置」，否则无
 }
@@ -47,6 +47,12 @@ private final class EnglishKeyboardTerminalView: SwiftTerm.TerminalView {
         }
         return super.textInputMode
     }
+
+    /// 编辑菜单完全交给 SwiftTerm 系统默认实现，不碰 canPerformAction / editMenu。
+    /// t1.75 用 method swizzling 本地化导致复制粘贴菜单全部消失（致命回归）；
+    /// t1.76 改 override editMenu 又因 SwiftTerm 1.2.1 父类无可 override 的 editMenu
+    /// 属性而编译失败。系统标准编辑菜单标题固定跟随 developmentRegion，App 内切语言
+    /// 改不了——这是系统级限制。功能优先，保持原生菜单（英文但复制粘贴完整可用）。
 }
 
 /// SwiftTerm 官方 TerminalView 的 SwiftUI 包装。
@@ -173,7 +179,7 @@ private struct TerminalHostView: UIViewRepresentable {
 struct TerminalView: View {
     var presentation: TerminalPresentation = .sheet
     /// 导航栏标题：系统终端为「SSH 终端」，容器终端传容器名。
-    var title: String = "SSH 终端"
+    var title: String = L10n.t("SSH Terminal")
 
     @ObservedObject private var session: TerminalSession
     @StateObject private var keyState = TerminalKeyState()
@@ -188,7 +194,7 @@ struct TerminalView: View {
 
     /// 默认仍用系统终端单例——ContentView / SettingsView 的现有调用不受影响。
     /// Docker 容器终端注入独立 exec 会话 + 容器名标题。
-    init(session: TerminalSession = .shared, presentation: TerminalPresentation = .sheet, title: String = "SSH 终端") {
+    init(session: TerminalSession = .shared, presentation: TerminalPresentation = .sheet, title: String = L10n.t("SSH Terminal")) {
         self._session = ObservedObject(wrappedValue: session)
         self.presentation = presentation
         self.title = title
@@ -235,37 +241,39 @@ struct TerminalView: View {
                     .font(.system(size: 16, weight: .semibold, design: .serif))
                     .foregroundStyle(showFontPanel ? TerminalTheme.lockBlue : Color.primary)
             }
-            .help("字号设置")
-            .accessibilityLabel(showFontPanel ? "收起字号设置" : "字号设置")
+            .help(L10n.t("Font Size"))
+            .accessibilityLabel(showFontPanel ? L10n.t("Hide Font Size") : L10n.t("Font Size"))
         }
+        // 右上角按钮拆成独立 ToolbarItem，由 iOS 26 工具栏按标准 tap 宽度排成玻璃胶囊，
+        // 与文件页 / 容器页右上角一致——过去塞进一个 HStack(spacing:14) 里，裸 Image
+        // 没有系统按钮的标准宽度，两个箭头显得挤在一起。
         ToolbarItem(placement: .topBarTrailing) {
-            HStack(spacing: 14) {
-                // 全形态统一：右上角恒定一个「重新连接」圆形箭头。
-                // SSH 是整个 App 的生命线，断开会导致全局失效，故不再把「断开/连接」
-                // 做成终端随手操作；连接状态由设置页统一管理，这里只提供"重连自救"。
-                Button {
-                    Task { await session.reconnect() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
+            // 全形态统一：右上角恒定一个「重新连接」圆形箭头。
+            // SSH 是整个 App 的生命线，断开会导致全局失效，故不再把「断开/连接」
+            // 做成终端随手操作；连接状态由设置页统一管理，这里只提供"重连自救"。
+            Button {
+                Task { await session.reconnect() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .help(L10n.t("Reconnect"))
+            .accessibilityLabel(L10n.t("Reconnect"))
+            .disabled(session.isConnecting)
+        }
+        if presentation == .sheet {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 16, weight: .semibold))
                 }
-                .help("重新连接")
-                .accessibilityLabel("重新连接")
-                .disabled(session.isConnecting)
-
-                switch presentation {
-                case .sheet:
-                    Button { dismiss() } label: {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    .accessibilityLabel("收起终端")
-                case .pushed:
-                    // 全形态唯一的区别：入口态（仅终端模块全屏）才显示设置齿轮——
-                    // 它是用户进设置把其它模块开回来的唯一通道；设置页 push 的终端无注入，自动隐藏。
-                    if openSettings != nil {
-                        SettingsGearButton()
-                    }
-                }
+                .accessibilityLabel(L10n.t("Collapse Terminal"))
+            }
+        }
+        // 全形态唯一的区别：入口态（仅终端模块全屏，pushed）才显示设置齿轮——
+        // 它是用户进设置把其它模块开回来的唯一通道；设置页 push 的终端无注入，自动隐藏。
+        if presentation == .pushed, openSettings != nil {
+            ToolbarItem(placement: .topBarTrailing) {
+                SettingsGearButton()
             }
         }
     }
@@ -285,7 +293,7 @@ struct TerminalView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay {
             if session.isConnecting && !session.isReady {
-                ProgressView("正在连接…")
+                ProgressView(L10n.t("Connecting…"))
                     .padding()
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
             } else if let error = session.errorMessage, !session.isReady {
@@ -297,7 +305,7 @@ struct TerminalView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                    Button("重试") { Task { await session.activateForUser() } }
+                    Button(L10n.t("Retry")) { Task { await session.activateForUser() } }
                         .buttonStyle(.borderedProminent)
                 }
                 .padding()
@@ -335,7 +343,7 @@ struct TerminalView: View {
     /// 内联展开的字号滑块条：一行「字号 [滑块] Npt」，宽 300pt，磨砂背景。
     private var fontPanel: some View {
         HStack(spacing: 10) {
-            Text("字号")
+            Text(L10n.t("Font Size"))
                 .font(.system(size: 14, weight: .medium))
             Slider(value: $fontSize, in: 12...18, step: 1)
                 .tint(TerminalTheme.lockBlue)
@@ -408,7 +416,7 @@ struct TerminalView: View {
                 )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(keyState.ctrlLocked ? "关闭 Ctrl 锁定" : "开启 Ctrl 锁定")
+        .accessibilityLabel(keyState.ctrlLocked ? L10n.t("Turn off Ctrl lock") : L10n.t("Turn on Ctrl lock"))
     }
 
     private func controlKey(_ title: String, bytes: [UInt8]) -> some View {
@@ -469,7 +477,7 @@ struct TerminalView: View {
                 )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(keyboardShown ? "收起键盘" : "展开键盘")
+        .accessibilityLabel(keyboardShown ? L10n.t("Hide Keyboard") : L10n.t("Show Keyboard"))
     }
 
     private func haptic() {

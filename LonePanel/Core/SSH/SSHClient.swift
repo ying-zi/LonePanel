@@ -27,14 +27,14 @@ enum SSHConnectionError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidPort: return "端口必须在 1–65535 之间"
-        case .invalidChannelType: return "服务器拒绝了会话通道"
+        case .invalidPort: return L10n.t("Port must be between 1 and 65535")
+        case .invalidChannelType: return L10n.t("Server rejected the session channel")
         case .invalidPrivateKey(let text): return text
         case .authenticationUnsupported:
-            return "服务器不接受所选认证方式，请检查服务端是否开启私钥/密码认证"
-        case .authenticationFailed: return "认证失败：用户名或凭证不正确"
-        case .timedOut: return "连接超时，请检查地址、端口与网络连通性"
-        case .closedUnexpectedly: return "连接被服务器关闭，通常是认证失败或主机拒绝"
+            return L10n.t("Server does not accept the chosen auth method. Check whether key/password auth is enabled.")
+        case .authenticationFailed: return L10n.t("Authentication failed: incorrect username or credential")
+        case .timedOut: return L10n.t("Connection timed out. Check the address, port and network connectivity.")
+        case .closedUnexpectedly: return L10n.t("Connection closed by the server, usually due to auth failure or host rejection.")
         case .underlying(let text): return text
         }
     }
@@ -49,6 +49,9 @@ final class SSHSession {
     /// 在途命令注册表：父通道错误时广播给所有正在执行的命令。
     /// 支持并发——Docker 等模块进页面会同时拉容器、镜像、系统信息。
     private let gateRegistry: GateRegistry
+    /// 关闭幂等闸门：close() 可能被显式调用后又由 deinit 再调一次，必须只关一次。
+    private let closeLock = NSLock()
+    private var closed = false
 
     init(
         host: String,
@@ -163,9 +166,16 @@ final class SSHSession {
         }
     }
 
+    /// 幂等关闭：先抢锁置位，重复调用直接返回。
+    /// 关键：用异步 shutdownGracefully 替代 syncShutdownGracefully——后者在 event loop
+    /// 线程上同步等待会自锁死（连接对象恰在该线程释放最后引用时触发），是偶发卡死的根因。
     func close() {
+        closeLock.lock()
+        if closed { closeLock.unlock(); return }
+        closed = true
+        closeLock.unlock()
         _ = channel.close(promise: nil)
-        try? group.syncShutdownGracefully()
+        group.shutdownGracefully(queue: DispatchQueue.global()) { _ in }
     }
 
     deinit { close() }
@@ -183,31 +193,31 @@ final class SSHSession {
     private static func mapUnderlying(_ raw: String) -> String {
         let text = raw.lowercased()
         if text.contains("timed out") || text.contains("timeout") {
-            return "连接超时，请检查网络是否通畅、服务器是否在线"
+            return L10n.t("Connection timed out. Check your network and whether the server is online.")
         }
         if text.contains("connection refused") || text.contains("econnrefused") || text.contains("refused") {
-            return "服务器拒绝连接，请确认地址与端口正确、对方 SSH 服务已开启"
+            return L10n.t("Connection refused. Verify the address and port and that SSH is running.")
         }
         if text.contains("nodename nor servname") || text.contains("getaddrinfo") ||
             text.contains("name or service not known") || text.contains("dns") {
-            return "无法解析服务器地址，请检查地址是否填写正确"
+            return L10n.t("Cannot resolve the server address. Check that the address is correct.")
         }
         if text.contains("network is unreachable") || text.contains("no route to host") ||
             text.contains("networkunreachable") {
-            return "网络不可达，请检查本机网络连接"
+            return L10n.t("Network unreachable. Check your network connection.")
         }
         if text.contains("authentication") || text.contains("permission denied") || text.contains("authfail") {
-            return "认证失败，请检查用户名与密码或私钥是否正确"
+            return L10n.t("Authentication failed. Check your username and password or private key.")
         }
         if text.contains("host key") || text.contains("handshake") || text.contains("algorithm") ||
             text.contains("kex") {
-            return "SSH 协商失败，服务器配置可能与本 App 不兼容"
+            return L10n.t("SSH negotiation failed. The server configuration may be incompatible with this app.")
         }
         if text.contains("reset by peer") || text.contains("broken pipe") || text.contains("eof") ||
             text.contains("closed") {
-            return "连接被服务器中断，请稍后重试或检查服务器状态"
+            return L10n.t("Connection interrupted by the server. Retry later or check server status.")
         }
-        return "连接失败，请检查服务器地址、端口和网络后重试"
+        return L10n.t("Connection failed. Check the address, port and network, then retry.")
     }
 }
 
@@ -230,7 +240,7 @@ extension SSHSession {
             timeoutSeconds: timeoutSeconds
         )
         defer { session.close() }
-        return "连接成功：SSH 握手与认证通过，命令通道可用"
+        return L10n.t("Connected: SSH handshake and authentication succeeded; command channel is ready.")
     }
 }
 

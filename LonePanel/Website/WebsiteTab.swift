@@ -4,7 +4,7 @@ import SwiftUI
 enum WebsiteTab {
     static let module = TabModule(
         id: "website",
-        title: "网站",
+        title: "Website",
         symbolName: "globe",
         view: AnyView(WebsiteView()),
         showsFloatingTerminal: true

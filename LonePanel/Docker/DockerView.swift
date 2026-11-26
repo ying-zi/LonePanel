@@ -1,11 +1,12 @@
 import SwiftUI
 
 /// Docker 模块主视图：顶部分段切换 容器 / 镜像 / Compose。
-/// 容器页右上角提供卡片/列表视图切换；详情页走 NavigationStack 推入。
+/// 右上角统一为「搜索 + 更多」，与文件模块一致：搜索由容器列表的 .searchable 提供，
+/// 新建容器 / 视图切换 / 诊断收进「更多」，避免多个按钮挤宽导航栏。详情页走 NavigationStack 推入。
 struct DockerView: View {
     enum Section: String, CaseIterable {
-        case containers = "容器"
-        case images = "镜像"
+        case containers = "Container"
+        case images = "Image"
         case compose = "Compose"
     }
 
@@ -14,6 +15,7 @@ struct DockerView: View {
     @StateObject private var diagnostics = DockerDiagnostics.shared
     @State private var path = NavigationPath()
     @State private var showDiagnostics = false
+    @State private var showCreate = false
     @State private var copied = false
 
     var body: some View {
@@ -33,46 +35,55 @@ struct DockerView: View {
             .navigationDestination(for: DockerContainer.self) { container in
                 ContainerDetailView(container: container, model: containerModel)
             }
-            .navigationTitle("Docker")
+            .navigationTitle(L10n.t("Docker"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // 标题位置的分段控件：容器 / 镜像 / Compose
                 ToolbarItem(placement: .principal) {
-                    Picker("模块", selection: $section) {
+                    Picker(L10n.t("Section"), selection: $section) {
                         ForEach(Section.allCases, id: \.self) { item in
-                            Text(item.rawValue).tag(item)
+                            Text(L10n.t(item.rawValue)).tag(item)
                         }
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 240)
                 }
 
-                // 视图切换按钮：只在容器页显示，图标指向「切换后的视图」。
+                // 更多操作：与文件模块统一，右上角只保留系统搜索放大镜 + 本「更多」菜单。
+                // 视图切换 / 新建容器 / 诊断全部收进这里，避免多个按钮挤宽导航栏。
                 ToolbarItem(placement: .topBarTrailing) {
-                    if section == .containers {
-                        Button {
-                            withAnimation {
-                                containerModel.viewMode = (containerModel.viewMode == .cards) ? .list : .cards
+                    Menu {
+                        if section == .containers {
+                            Button {
+                                showCreate = true
+                            } label: {
+                                Label(L10n.t("New container"), systemImage: "plus")
                             }
-                        } label: {
-                            Image(systemName: containerModel.viewMode == .cards ? "list.bullet" : "square.grid.2x2")
+                            Button {
+                                withAnimation {
+                                    containerModel.viewMode = (containerModel.viewMode == .cards) ? .list : .cards
+                                }
+                            } label: {
+                                Label(containerModel.viewMode == .cards ? L10n.t("List View") : L10n.t("Card view"),
+                                      systemImage: containerModel.viewMode == .cards ? "list.bullet" : "square.grid.2x2")
+                            }
+                            Divider()
                         }
-                        .help(containerModel.viewMode == .cards ? "切换到列表视图" : "切换到卡片视图")
-                    }
-                }
-
-                // 诊断按钮：查看最近 Docker 命令的退出码与原始输出，便于排查连接/权限问题。
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showDiagnostics = true
-                        copied = false
+                        // 诊断：查看最近 Docker 命令的退出码与原始输出，排查连接/权限问题。
+                        Button {
+                            showDiagnostics = true
+                            copied = false
+                        } label: {
+                            Label(L10n.t("Diagnostics"), systemImage: "ladybug")
+                        }
                     } label: {
-                        Image(systemName: "ladybug.fill")
+                        // 与文件模块一致：系统文件 App 的更多按钮是裸三点，不套圆圈。
+                        Image(systemName: "ellipsis")
+                            .font(.title3)
                     }
-                    .help("诊断")
                 }
 
-                // 设置入口：并入本模块导航栏 trailing，与视图切换按钮由系统统一排布。
+                // 设置入口：并入本模块导航栏 trailing，由系统与「更多」统一排布。
                 // 入口态（单模块全屏）才出现；多模块形态与调用态下自动隐藏。
                 ToolbarItem(placement: .topBarTrailing) {
                     SettingsGearButton()
@@ -80,6 +91,15 @@ struct DockerView: View {
             }
             .sheet(isPresented: $showDiagnostics) {
                 diagnosticsSheet
+            }
+            .sheet(isPresented: $showCreate) {
+                ContainerCreateView { newID in
+                    // 创建成功后刷新列表，并尽量定位到新容器（按 ID 前缀匹配）。
+                    await containerModel.refresh()
+                    if let container = containerModel.containers.first(where: { newID.hasPrefix($0.id) }) {
+                        path.append(container)
+                    }
+                }
             }
         }
     }
@@ -93,7 +113,7 @@ struct DockerView: View {
                         Image(systemName: "ladybug")
                             .font(.largeTitle)
                             .foregroundStyle(.tertiary)
-                        Text("尚无命令记录，请先进入容器或镜像页面刷新一次。")
+                        Text(L10n.t("No command records yet. Open the Containers or Images tab to refresh once."))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -137,7 +157,7 @@ struct DockerView: View {
                     }
                 }
             }
-            .navigationTitle("Docker 诊断")
+            .navigationTitle(L10n.t("Docker Diagnostics"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -145,11 +165,15 @@ struct DockerView: View {
                         UIPasteboard.general.string = diagnostics.report
                         copied = true
                     } label: {
-                        Label(copied ? "已复制" : "复制", systemImage: copied ? "checkmark" : "doc.on.doc")
+                        Label(copied ? L10n.t("Copied") : L10n.t("Copy"), systemImage: copied ? "checkmark" : "doc.on.doc")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成") { showDiagnostics = false }
+                    Button { showDiagnostics = false } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .accessibilityLabel(L10n.t("Close"))
                 }
             }
         }

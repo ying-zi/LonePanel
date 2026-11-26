@@ -5,7 +5,7 @@ import SwiftUI
 enum SettingsTab {
     static let module = TabModule(
         id: "settings",
-        title: "设置",
+        title: "Settings",
         symbolName: "gearshape",
         view: AnyView(SettingsView()),
         configure: {

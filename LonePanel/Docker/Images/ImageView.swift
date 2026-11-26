@@ -8,6 +8,7 @@ struct ImageView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var confirmRemove: DockerImage?
+    @State private var operationError: String?
     @State private var searchText = ""
 
     private var filtered: [DockerImage] {
@@ -41,7 +42,7 @@ struct ImageView: View {
                                     Text(image.size)
                                     Text(image.createdSince)
                                     if Int(image.containers) ?? 0 > 0 {
-                                        Text("使用中 \(image.containers)")
+                                        Text(L10n.f("In use by %@", String(describing: (image.containers))))
                                             .foregroundStyle(.orange)
                                     }
                                 }
@@ -67,7 +68,7 @@ struct ImageView: View {
                         Image(systemName: "shippingbox")
                             .font(.largeTitle)
                             .foregroundStyle(.tertiary)
-                        Text(searchText.isEmpty ? "没有镜像" : "没有匹配的镜像")
+                        Text(searchText.isEmpty ? L10n.t("No images") : L10n.t("No matching images"))
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
@@ -77,30 +78,39 @@ struct ImageView: View {
             .listStyle(.insetGrouped)
 
             if isLoading && images.isEmpty {
-                ProgressView("正在读取镜像…")
+                ProgressView(L10n.t("Loading images…"))
             }
         }
-        .searchable(text: $searchText, prompt: "搜索镜像")
+        .searchable(text: $searchText, prompt: Text(L10n.t("Search images")))
         // 与容器页、文件模块统一：未聚焦时收缩为放大镜按钮。
         .searchToolbarBehavior(.minimize)
         .refreshable { await load() }
         .task { await load() }
-        .alert("删除镜像", isPresented: Binding(
+        .alert(L10n.t("Remove Image"), isPresented: Binding(
             get: { confirmRemove != nil },
             set: { if !$0 { confirmRemove = nil } }
         )) {
-            Button("取消", role: .cancel) { confirmRemove = nil }
-            Button("删除", role: .destructive) {
+            Button(L10n.t("Cancel"), role: .cancel) { confirmRemove = nil }
+            Button(L10n.t("Delete"), role: .destructive) {
                 if let image = confirmRemove {
                     Task {
-                        _ = await service.removeImage(image.id)
+                        let result = await service.removeImage(image.id)
+                        if case .failure(let error) = result { operationError = error.localizedDescription }
                         await load()
                     }
                     confirmRemove = nil
                 }
             }
         } message: {
-            Text("确定删除镜像「\(confirmRemove?.fullName ?? "")」吗？若镜像正被容器使用，删除会失败。")
+            Text(L10n.f("Remove image \"%@\"? If it is in use by a container, removal will fail.", String(describing: (confirmRemove?.fullName ?? ""))))
+        }
+        .alert(L10n.t("Operation failed"), isPresented: Binding(
+            get: { operationError != nil },
+            set: { if !$0 { operationError = nil } }
+        )) {
+            Button(L10n.t("OK"), role: .cancel) { operationError = nil }
+        } message: {
+            Text(operationError ?? "")
         }
     }
 

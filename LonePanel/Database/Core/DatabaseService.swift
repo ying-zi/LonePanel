@@ -16,14 +16,17 @@ final class DatabaseSSHConnection: ObservableObject {
     private var privilege: RemotePrivilege = .none
     private var connectTask: Task<Bool, Never>?
     private var connectedServerID: UUID?
+    /// 建连时记下的服务器代次；与 ServerSession.connectionEpoch 不符即判过期，强制重建。
+    private var connectedEpoch: Int = -1
 
     @discardableResult
     func ensureConnected(force: Bool = false) async -> Bool {
         guard let info = ServerSession.shared.currentServer else {
-            lastError = "请先到「设置 → 我的服务器」添加并选择一个服务器"
+            lastError = L10n.t("Please add and select a server in Settings → My Servers first")
             return false
         }
-        if !force, isConnected, connectedServerID == info.id, session != nil { return true }
+        let epoch = ServerSession.shared.connectionEpoch
+        if !force, isConnected, connectedServerID == info.id, connectedEpoch == epoch, session != nil { return true }
         if let connectTask { return await connectTask.value }
 
         let task = Task<Bool, Never> { [weak self] in
@@ -55,11 +58,13 @@ final class DatabaseSSHConnection: ObservableObject {
             session = newSession
             privilege = newPrivilege
             connectedServerID = info.id
+            connectedEpoch = ServerSession.shared.connectionEpoch
             isConnected = true
             return true
         } catch {
             session?.close()
             session = nil
+            connectedEpoch = -1
             isConnected = false
             lastError = SSHSession.describe(error)
             return false
@@ -95,6 +100,7 @@ final class DatabaseSSHConnection: ObservableObject {
         isConnected = false
         privilege = .none
         connectedServerID = nil
+        connectedEpoch = -1
     }
 }
 
@@ -112,11 +118,146 @@ final class DatabaseService {
     private let listTimeout = 30
     private let queryTimeout = 45
 
+    /// docker ps -a --format '{{json .}}' 的轻量行，只取识别与连接所需字段。
+    private struct ContainerRow: Decodable {
+        let ID: String
+        let Names: String
+        let Image: String
+        let Status: String
+    }
+
+    // MARK: - 容器内数据库发现（1Panel 式主管理对象）
+
+    /// 自动发现服务器 Docker 里的数据库容器，构造可直接查询的容器实例连接。
+    /// 凭据从容器环境变量读出（仅内存态），命令统一走 `docker exec`，不依赖端口映射：
+    /// 这正是「数据库管理 = 管理容器里的数据库」的落点，远程连接只是其中一种来源。
+    func discoverContainerDatabases() async -> Result<[DatabaseConnection], DatabaseError> {
+        let listed = await run("docker ps -a --format '{{json .}}'", timeout: listTimeout)
+        guard listed.exit == 0 else {
+            return .failure(.commandFailed(message: readableError(listed)))
+        }
+        let rows = decodeLines(ContainerRow.self, listed.out)
+        var instances: [DatabaseConnection] = []
+        for row in rows {
+            guard let kind = Self.kindFromImage(row.Image) else { continue }
+            let cid = row.ID
+            let envResult = await run(
+                "docker inspect \(ShellQuote.quote(cid)) --format '{{range .Config.Env}}{{println .}}{{end}}'",
+                timeout: 20
+            )
+            let env = Self.parseEnv(envResult.out)
+            let (user, password, database) = Self.credentials(for: kind, env: env)
+            let name = row.Names.split(separator: ",").first.map(String.init) ?? cid
+            // 探测容器内真实可用的客户端命令名：mariadb:11 只有 mariadb、没有 mysql；
+            // mongosh/mongo 也因版本而异。停机的容器无法 exec，探测失败时回退到默认名。
+            let client = await detectClientCommand(for: kind, containerID: cid)
+            let instance = DatabaseConnection(
+                name: name,
+                kind: kind,
+                host: "127.0.0.1",
+                port: kind.defaultPort,
+                username: user,
+                database: database,
+                source: .container,
+                containerID: cid,
+                statusText: Self.containerStatus(row.Status),
+                imageName: row.Image,
+                inlinePassword: password,
+                containerClient: client
+            )
+            instances.append(instance)
+        }
+        return .success(instances.sorted { lhs, rhs in
+            if lhs.isRunning != rhs.isRunning { return lhs.isRunning }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        })
+    }
+
+    /// 依据镜像名识别数据库类型，覆盖官方镜像与常见自定义命名。
+    private static func kindFromImage(_ image: String) -> DatabaseKind? {
+        let s = image.lowercased()
+        if s.contains("mariadb") || s.contains("mysql") { return .mysql }
+        if s.contains("postgres") { return .postgresql }
+        if s.contains("mongo") { return .mongodb }
+        if s.contains("redis") { return .redis }
+        return nil
+    }
+
+    /// 解析 docker inspect 输出的环境变量（KEY=VALUE 逐行）。
+    private static func parseEnv(_ text: String) -> [String: String] {
+        var env: [String: String] = [:]
+        for line in text.split(separator: "\n") {
+            let pair = line.split(separator: "=", maxSplits: 1).map(String.init)
+            guard pair.count == 2 else { continue }
+            env[pair[0]] = pair[1]
+        }
+        return env
+    }
+
+    /// 各官方镜像的用户 / 口令 / 库环境变量名不同，这里统一归一。
+    private static func credentials(for kind: DatabaseKind, env: [String: String]) -> (String, String, String) {
+        switch kind {
+        case .mysql:
+            // 管理容器内数据库必须用 root（1Panel 口径）：只有 root 有列全部库、建库、删库、
+            // 管理用户的权限。应用用户（MYSQL_USER/MARIADB_USER）通常仅被授予单个库的权限，
+            // 用它连接会「看不到已创建的库、也无法建删库」——这正是读不出库的根因。
+            let rootPassword = env["MARIADB_ROOT_PASSWORD"] ?? env["MYSQL_ROOT_PASSWORD"] ?? ""
+            let database = env["MARIADB_DATABASE"] ?? env["MYSQL_DATABASE"] ?? ""
+            return ("root", rootPassword, database)
+        case .postgresql:
+            return (env["POSTGRES_USER"] ?? "postgres",
+                    env["POSTGRES_PASSWORD"] ?? "",
+                    env["POSTGRES_DB"] ?? "postgres")
+        case .mongodb:
+            return (env["MONGO_INITDB_ROOT_USERNAME"] ?? "",
+                    env["MONGO_INITDB_ROOT_PASSWORD"] ?? "",
+                    "admin")
+        case .redis:
+            return ("", env["REDIS_PASSWORD"] ?? "", "0")
+        }
+    }
+
+    /// 按类型探测容器内真实可执行的客户端名。命令名均为硬编码常量，无注入风险。
+    /// 停机容器无法 exec，返回 nil 让调用方回退到类型默认客户端。
+    private func detectClientCommand(for kind: DatabaseKind, containerID: String) async -> String? {
+        let candidates: [String]
+        switch kind {
+        case .mysql: candidates = ["mysql", "mariadb"]
+        case .postgresql: candidates = ["psql"]
+        case .mongodb: candidates = ["mongosh", "mongo"]
+        case .redis: candidates = ["redis-cli"]
+        }
+        let quoted = ShellQuote.quote(containerID)
+        for candidate in candidates {
+            let probe = await run(
+                "docker exec \(quoted) sh -c 'command -v \(candidate) >/dev/null 2>&1'",
+                timeout: 8
+            )
+            if probe.exit == 0 { return candidate }
+        }
+        return nil
+    }
+
+    private static func containerStatus(_ status: String) -> String {
+        let s = status.lowercased()
+        if s.contains("paused") { return L10n.t("Paused") }
+        if s.hasPrefix("up") { return L10n.t("Running") }
+        return L10n.t("Stopped")
+    }
+
+    /// 逐行 JSON 解码，与 Docker 模块同款格式，但不依赖其模型类型。
+    private func decodeLines<T: Decodable>(_ type: T.Type, _ text: String) -> [T] {
+        text.split(separator: "\n").compactMap { line in
+            guard let data = String(line).data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(type, from: data)
+        }
+    }
+
     // MARK: - 可用性探测
 
     func checkAvailability(for kind: DatabaseKind) async -> DatabaseAvailability {
         guard await connection.ensureConnected() else {
-            return .failed(connection.lastError ?? "连接失败")
+            return .failed(connection.lastError ?? L10n.t("Connection Failed"))
         }
         let primary = kind.clientCommand
         let version = await run("\(primary) --version 2>&1 | head -1", timeout: 12)
@@ -157,6 +298,11 @@ final class DatabaseService {
         switch conn.kind {
         case .redis:
             return .success(parseRedisKeyspaces(result.out))
+        case .mysql:
+            // 隐藏 MySQL/MariaDB 系统库，只展示用户可管理的业务库。
+            let system: Set<String> = ["information_schema", "mysql", "performance_schema", "sys"]
+            let items = parseLines(result.out).filter { !system.contains($0.name.lowercased()) }
+            return .success(items)
         default:
             return .success(parseLines(result.out))
         }
@@ -167,8 +313,10 @@ final class DatabaseService {
         let command: String
         switch conn.kind {
         case .mysql:
-            // mysqlBase 已带 -D database，SHOW TABLES 直接列当前库，避免反引号转义。
-            command = "\(mysqlBase(conn)) -N -B -e \"SHOW TABLES\" 2>&1"
+            // 用全限定名指定库，不依赖连接前缀的 -D：既避免初始库被删导致全挂，
+            // 也保证浏览任意库时列的是所选库的表。
+            let sql = "SHOW TABLES FROM `\(escapeSQLIdentifier(database))`"
+            command = "\(mysqlBase(conn)) -N -B -e \(ShellQuote.quote(sql)) 2>&1"
         case .postgresql:
             command = "\(psqlBase(conn, database: database)) -t -A -c \"SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename\" 2>&1"
         case .mongodb:
@@ -226,7 +374,7 @@ final class DatabaseService {
     /// 执行用户输入的 SQL（MySQL/PostgreSQL）或原始命令（MongoDB eval / Redis 命令）。
     func execute(_ conn: DatabaseConnection, database: String, statement: String) async -> Result<QueryResult, DatabaseError> {
         let trimmed = statement.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return .failure(.commandFailed(message: "请输入要执行的语句")) }
+        guard !trimmed.isEmpty else { return .failure(.commandFailed(message: L10n.t("Enter a statement to execute"))) }
 
         let command: String
         switch conn.kind {
@@ -239,10 +387,407 @@ final class DatabaseService {
             command = "\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(trimmed)) 2>&1"
             return await runMongoEval(command)
         case .redis:
-            // 逐行执行多条 redis 命令。
-            command = "\(redisBase(conn)) --no-raw \(trimmed) 2>&1"
+            // Redis 靠"空格=参数分隔"解析命令，不能整段 quote 成一个参数。
+            // 逐 token quote：保留多参数语义，同时杜绝 shell 对 *、>、&、;、$ 的展开/注入。
+            command = "\(redisBase(conn)) --no-raw \(quoteRedisArgs(trimmed)) 2>&1"
         }
         return await runTable(command)
+    }
+
+    /// 把用户输入的 Redis 原始命令按空白切成 token 并逐个 shell-quote。
+    /// 例如 `KEYS *` → `'KEYS' '*'`（* 不再被 shell 当通配符展开）。
+    private func quoteRedisArgs(_ text: String) -> String {
+        text.split(whereSeparator: { $0.isWhitespace })
+            .map { ShellQuote.quote(String($0)) }
+            .joined(separator: " ")
+    }
+
+    // MARK: - 库管理（新增 / 删除 / 重命名）
+
+    /// 校验库名：仅字母、数字、下划线，长度 1…64，防止 SQL / shell 注入。
+    private func validDatabaseName(_ name: String) -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 64 else { return nil }
+        let allowed = trimmed.unicodeScalars.allSatisfy { scalar in
+            (scalar.value >= 48 && scalar.value <= 57) ||   // 0-9
+            (scalar.value >= 65 && scalar.value <= 90) ||   // A-Z
+            (scalar.value >= 97 && scalar.value <= 122) ||  // a-z
+            scalar.value == 95                              // _
+        }
+        return allowed ? trimmed : nil
+    }
+
+    /// 新建数据库。MongoDB 库随首个集合隐式创建；Redis 使用固定 db 索引，不支持新建。
+    func createDatabase(_ conn: DatabaseConnection, name rawName: String) async -> Result<String, DatabaseError> {
+        guard let name = validDatabaseName(rawName) else {
+            return .failure(.commandFailed(message: L10n.t("Database name may contain only letters, digits and underscores, up to 64 characters")))
+        }
+        let command: String
+        switch conn.kind {
+        case .mysql:
+            let sql = "CREATE DATABASE IF NOT EXISTS `\(name)`"
+            command = "\(mysqlBase(conn)) -e \(ShellQuote.quote(sql)) 2>&1"
+        case .postgresql:
+            let sql = "CREATE DATABASE \"\(name)\""
+            command = "\(psqlBase(conn, database: "postgres")) -c \(ShellQuote.quote(sql)) 2>&1"
+        case .mongodb:
+            let uri = mongoURI(conn, database: "admin")
+            let js = "db.getSiblingDB(\(jsString(name))).createCollection('_lonepanel_init'); 'ok'"
+            command = "\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1"
+        case .redis:
+            return .failure(.commandFailed(message: L10n.t("Redis uses fixed DB indexes (0-15); databases cannot be created")))
+        }
+        return await runWrite(command, success: L10n.f("Database %@ created", name))
+    }
+
+    /// 一步到位：建库 + 创建专属用户 + 授权该用户访问该库（对齐 1Panel 的建库体验）。
+    /// 建库成功但建用户失败时，明确告知库已创建、可到「用户管理」补建，避免出现"库建好了却没人能用"的黑洞。
+    /// grantAll=true 时建管理员用户（授权全部库），否则仅授权刚创建的这个库（最小权限）。
+    func createDatabaseWithUser(_ conn: DatabaseConnection,
+                                database rawDatabase: String,
+                                username rawUsername: String,
+                                password rawPassword: String,
+                                grantAll: Bool) async -> Result<String, DatabaseError> {
+        guard let dbName = validDatabaseName(rawDatabase) else {
+            return .failure(.commandFailed(message: L10n.t("Database name may contain only letters, digits and underscores, up to 64 characters")))
+        }
+        guard let user = validUserName(rawUsername) else {
+            return .failure(.commandFailed(message: L10n.t("Username may contain only letters, digits, underscore, dot and hyphen, 1-64 characters")))
+        }
+        let pass = rawPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !pass.isEmpty else {
+            return .failure(.commandFailed(message: L10n.t("Password cannot be empty")))
+        }
+
+        // 1) 建库
+        let dbResult = await createDatabase(conn, name: dbName)
+        guard case .success = dbResult else { return dbResult }
+
+        // 2) 建专属用户并授权。用户绑定在库上：非管理员只授权这一库。
+        let userResult = await createUser(
+            conn, username: user, password: pass,
+            database: grantAll ? "" : dbName, isAdmin: grantAll
+        )
+        switch userResult {
+        case .success:
+            let scope = grantAll ? L10n.t("All databases (admin)") : L10n.f("Only %@", String(describing: (dbName)))
+            return .success("Database \(dbName) created; dedicated user \(user) created and granted (\(scope))")
+        case .failure(let error):
+            return .failure(.commandFailed(
+                message: L10n.f("Database %@ created, but dedicated user %@ creation failed: %@. Go to \"Instance Management > User Management\" to create and grant manually.", String(describing: (dbName)), String(describing: (user)), String(describing: (error.localizedDescription)))
+            ))
+        }
+    }
+
+    /// 删除数据库。Redis 不支持删除 db 索引（可进入该库用 FLUSHDB 清空数据）。
+    func dropDatabase(_ conn: DatabaseConnection, name rawName: String) async -> Result<String, DatabaseError> {
+        guard let name = validDatabaseName(rawName) else {
+            return .failure(.commandFailed(message: L10n.t("Invalid database name")))
+        }
+        let command: String
+        switch conn.kind {
+        case .mysql:
+            let sql = "DROP DATABASE IF EXISTS `\(name)`"
+            command = "\(mysqlBase(conn)) -e \(ShellQuote.quote(sql)) 2>&1"
+        case .postgresql:
+            let sql = "DROP DATABASE IF EXISTS \"\(name)\""
+            command = "\(psqlBase(conn, database: "postgres")) -c \(ShellQuote.quote(sql)) 2>&1"
+        case .mongodb:
+            let uri = mongoURI(conn, database: "admin")
+            let js = "db.getSiblingDB(\(jsString(name))).dropDatabase(); 'ok'"
+            command = "\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1"
+        case .redis:
+            return .failure(.commandFailed(message: L10n.t("Redis does not support deleting a DB index; open it to clear data")))
+        }
+        return await runWrite(command, success: L10n.f("Database %@ deleted", name))
+    }
+
+    /// 重命名数据库。PostgreSQL 用 ALTER；MySQL 建新库+逐表迁移+删旧库；MongoDB 逐集合迁移；Redis 不支持。
+    func renameDatabase(_ conn: DatabaseConnection, from rawOld: String, to rawNew: String) async -> Result<String, DatabaseError> {
+        guard let old = validDatabaseName(rawOld), let new = validDatabaseName(rawNew) else {
+            return .failure(.commandFailed(message: L10n.t("Database name may contain only letters, digits and underscores")))
+        }
+        guard old != new else {
+            return .failure(.commandFailed(message: L10n.t("Old and new names are the same; nothing to change")))
+        }
+        switch conn.kind {
+        case .postgresql:
+            let sql = "ALTER DATABASE \"\(old)\" RENAME TO \"\(new)\""
+            let command = "\(psqlBase(conn, database: "postgres")) -c \(ShellQuote.quote(sql)) 2>&1"
+            return await runWrite(command, success: L10n.f("Renamed to %@", new))
+        case .mysql:
+            return await mysqlRenameDatabase(conn, from: old, to: new)
+        case .mongodb:
+            return await mongoRenameDatabase(conn, from: old, to: new)
+        case .redis:
+            return .failure(.commandFailed(message: L10n.t("Redis does not support renaming databases")))
+        }
+    }
+
+    /// MySQL 无原生 RENAME DATABASE：建目标库 → 逐表 RENAME TABLE → 删源库。
+    private func mysqlRenameDatabase(_ conn: DatabaseConnection, from old: String, to new: String) async -> Result<String, DatabaseError> {
+        let createSQL = "CREATE DATABASE IF NOT EXISTS `\(new)`"
+        let created = await run("\(mysqlBase(conn)) -e \(ShellQuote.quote(createSQL)) 2>&1", timeout: listTimeout)
+        guard created.exit == 0, !looksLikeError(created.out) else {
+            return .failure(.commandFailed(message: readableError(created)))
+        }
+        let showSQL = "SHOW TABLES FROM `\(old)`"
+        let listed = await run("\(mysqlBase(conn)) -N -B -e \(ShellQuote.quote(showSQL)) 2>&1", timeout: listTimeout)
+        guard listed.exit == 0 else {
+            return .failure(.commandFailed(message: readableError(listed)))
+        }
+        let tables = parseLines(listed.out).map(\.name)
+        for table in tables {
+            let sql = "RENAME TABLE `\(old)`.`\(table)` TO `\(new)`.`\(table)`"
+            let moved = await run("\(mysqlBase(conn)) -e \(ShellQuote.quote(sql)) 2>&1", timeout: listTimeout)
+            guard moved.exit == 0, !looksLikeError(moved.out) else {
+                return .failure(.commandFailed(message: L10n.f("Failed to migrate table %@: %@", String(describing: (table)), String(describing: (readableError(moved))))))
+            }
+        }
+        let dropSQL = "DROP DATABASE IF EXISTS `\(old)`"
+        let dropped = await run("\(mysqlBase(conn)) -e \(ShellQuote.quote(dropSQL)) 2>&1", timeout: listTimeout)
+        guard dropped.exit == 0 else {
+            return .failure(.commandFailed(message: readableError(dropped)))
+        }
+        return .success("Renamed \(old) to \(new), migrated \(tables.count) tables")
+    }
+
+    /// MongoDB 无原生 renameDB：用 adminCommand 逐集合 renameCollection 到目标库。
+    private func mongoRenameDatabase(_ conn: DatabaseConnection, from old: String, to new: String) async -> Result<String, DatabaseError> {
+        let uri = mongoURI(conn, database: "admin")
+        // 注意：c 是 JS 回调变量，必须在 JS 侧拼接，不能放进 Swift 的 \(...) 插值。
+        let js = "db.getSiblingDB(\(jsString(old))).getCollectionNames().forEach(function(c){" +
+                 "db.adminCommand({renameCollection: \(jsString(old)) + '.' + c, to: \(jsString(new)) + '.' + c})}); 'ok'"
+        let command = "\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1"
+        return await runWrite(command, success: L10n.f("Renamed %@ to %@", old, new))
+    }
+
+    /// 写类命令的统一执行：exit=0 且输出无错误特征即视为成功。
+    private func runWrite(_ command: String, success: String) async -> Result<String, DatabaseError> {
+        let result = await run(command, timeout: queryTimeout)
+        guard result.exit == 0 else {
+            return .failure(.commandFailed(message: readableError(result)))
+        }
+        let out = result.out.trimmingCharacters(in: .whitespacesAndNewlines)
+        if looksLikeError(out) {
+            return .failure(.commandFailed(message: firstMeaningfulLine(out)))
+        }
+        return .success(success)
+    }
+
+    // MARK: - 实例管理（改密 / 用户管理）
+
+    /// 管理员名：各类型默认管理员账号。
+    private func adminUser(_ conn: DatabaseConnection) -> String {
+        if !conn.username.isEmpty { return conn.username }
+        switch conn.kind {
+        case .mysql, .postgresql: return "root"
+        case .mongodb: return "root"
+        case .redis: return "default"
+        }
+    }
+
+    /// 重置管理员口令。成功后同步写回凭据覆盖层，保证本次会话与下次发现都使用新口令。
+    /// - mysql/mariadb：`ALTER USER` 改 root@localhost 与 root@% 两个常见 host；旧版本回退 SET PASSWORD。
+    /// - postgresql：`ALTER USER ... PASSWORD`。
+    /// - mongodb：admin 库 `changeUserPassword`。
+    /// - redis：`CONFIG SET requirepass`（同时 CONFIG REWRITE 尝试持久化）。
+    func resetAdminPassword(_ conn: DatabaseConnection, newPassword: String) async -> Result<String, DatabaseError> {
+        let trimmed = newPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return .failure(.commandFailed(message: L10n.t("Password cannot be empty")))
+        }
+
+        switch conn.kind {
+        case .mysql:
+            let user = sqlString(adminUser(conn))
+            let pass = sqlString(trimmed)
+            // 逐个 host 尝试，任一成功即可：某个 host 的账号不存在不应拖垮整体。
+            var anySuccess = false
+            var lastError = ""
+            for host in ["localhost", "%"] {
+                let sql = "ALTER USER \(user)@'\(host)' IDENTIFIED BY \(pass); FLUSH PRIVILEGES"
+                let r = await run("\(mysqlBase(conn)) -e \(ShellQuote.quote(sql)) 2>&1", timeout: queryTimeout)
+                if r.exit == 0 && !looksLikeError(r.out) { anySuccess = true; break }
+                lastError = firstMeaningfulLine(r.out)
+            }
+            if anySuccess { return commitPassword(conn, trimmed, message: L10n.t("Admin password updated")) }
+            // 老版本 MySQL/MariaDB 无 ALTER USER 时回退 SET PASSWORD（当前 host）。
+            let fallbackSQL = "SET PASSWORD FOR \(user) = PASSWORD(\(pass)); FLUSH PRIVILEGES"
+            let fallback = await run("\(mysqlBase(conn)) -e \(ShellQuote.quote(fallbackSQL)) 2>&1", timeout: queryTimeout)
+            guard fallback.exit == 0, !looksLikeError(fallback.out) else {
+                return .failure(.commandFailed(message: lastError.isEmpty ? firstMeaningfulLine(fallback.out) : lastError))
+            }
+            return commitPassword(conn, trimmed, message: L10n.t("Admin password updated (compatibility mode)"))
+
+        case .postgresql:
+            let sql = "ALTER USER \(sqlIdentifier(adminUser(conn))) WITH PASSWORD \(sqlString(trimmed))"
+            let cmd = "\(psqlBase(conn, database: "postgres")) -c \(ShellQuote.quote(sql)) 2>&1"
+            let result = await run(cmd, timeout: queryTimeout)
+            guard result.exit == 0, !looksLikeError(result.out) else {
+                return .failure(.commandFailed(message: firstMeaningfulLine(result.out)))
+            }
+            return commitPassword(conn, trimmed, message: L10n.t("Admin password updated"))
+
+        case .mongodb:
+            let uri = mongoURI(conn, database: "admin")
+            let js = "db.changeUserPassword(\(jsString(adminUser(conn))), \(jsString(trimmed))); 'ok'"
+            let cmd = "\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1"
+            let result = await run(cmd, timeout: queryTimeout)
+            guard result.exit == 0, !looksLikeError(result.out) else {
+                return .failure(.commandFailed(message: firstMeaningfulLine(result.out)))
+            }
+            return commitPassword(conn, trimmed, message: L10n.t("Admin password updated"))
+
+        case .redis:
+            let base = redisBase(conn, overridePassword: true)
+            let set = await run("\(base) CONFIG SET requirepass \(ShellQuote.quote(trimmed)) 2>&1", timeout: queryTimeout)
+            guard set.exit == 0, set.out.uppercased().contains(L10n.t("OK")) else {
+                return .failure(.commandFailed(message: firstMeaningfulLine(set.out)))
+            }
+            _ = await run("\(base) CONFIG REWRITE 2>&1", timeout: queryTimeout)
+            return commitPassword(conn, trimmed, message: L10n.t("requirepass updated"))
+        }
+    }
+
+    /// 列出用户。detail 放角色 / host 等附加信息。
+    func listUsers(_ conn: DatabaseConnection) async -> Result<[DatabaseItem], DatabaseError> {
+        let result: (out: String, err: String, exit: Int)
+        switch conn.kind {
+        case .mysql:
+            let sql = "SELECT CONCAT(User,'@',Host), CASE WHEN Super_priv='Y' THEN '管理员' ELSE '普通用户' END FROM mysql.user WHERE User NOT IN ('','mysql.infoschema','mysql.session','mysql.sys') ORDER BY User,Host"
+            result = await run("\(mysqlBase(conn)) -N -B -e \(ShellQuote.quote(sql)) 2>&1", timeout: listTimeout)
+        case .postgresql:
+            let sql = "SELECT rolname, CASE WHEN rolsuper THEN '管理员' ELSE '普通用户' END FROM pg_roles WHERE rolcanlogin ORDER BY rolname"
+            result = await run("\(psqlBase(conn, database: "postgres")) -t -A -F '|' -c \(ShellQuote.quote(sql)) 2>&1", timeout: listTimeout)
+        case .mongodb:
+            let uri = mongoURI(conn, database: "admin")
+            let js = "db.getSiblingDB('admin').getUsers().users.map(function(u){return u.user+'|'+u.roles.map(function(r){return r.role+'@'+r.db}).join(',')}).join('\\n')"
+            result = await run("\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1", timeout: listTimeout)
+        case .redis:
+            // Redis 6+ ACL 用户；用 -F 无关，`ACL LIST` 逐行输出。
+            result = await run("\(redisBase(conn)) ACL LIST 2>&1", timeout: listTimeout)
+        }
+        guard result.exit == 0 else {
+            return .failure(.commandFailed(message: readableError(result)))
+        }
+        return .success(parseUserLines(result.out, kind: conn.kind))
+    }
+
+    /// 新建用户并按需授权。MongoDB / Redis 的权限模型不同，单独处理。
+    func createUser(_ conn: DatabaseConnection, username: String, password: String,
+                    database: String, isAdmin: Bool) async -> Result<String, DatabaseError> {
+        guard let user = validUserName(username) else {
+            return .failure(.commandFailed(message: L10n.t("Username may contain only letters, digits, underscore, dot and hyphen, 1-64 characters")))
+        }
+        let pass = password.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !pass.isEmpty else { return .failure(.commandFailed(message: L10n.t("Password cannot be empty"))) }
+
+        let command: String
+        switch conn.kind {
+        case .mysql:
+            let u = sqlString(user), p = sqlString(pass)
+            var sql = "CREATE USER \(u)@'%' IDENTIFIED BY \(p)"
+            if database.isEmpty || isAdmin {
+                sql += "; GRANT ALL PRIVILEGES ON *.* TO \(u)@'%' WITH GRANT OPTION"
+            } else {
+                sql += "; GRANT ALL PRIVILEGES ON `\(escapeSQLIdentifier(database))`.* TO \(u)@'%'"
+            }
+            sql += "; FLUSH PRIVILEGES"
+            command = "\(mysqlBase(conn)) -e \(ShellQuote.quote(sql)) 2>&1"
+        case .postgresql:
+            let u = sqlIdentifier(user), p = sqlString(pass)
+            var sql = isAdmin
+                ? "CREATE USER \(u) WITH PASSWORD \(p) SUPERUSER"
+                : "CREATE USER \(u) WITH PASSWORD \(p)"
+            if !database.isEmpty && !isAdmin {
+                sql += "; GRANT ALL PRIVILEGES ON DATABASE \(sqlIdentifier(database)) TO \(u)"
+            }
+            command = "\(psqlBase(conn, database: "postgres")) -c \(ShellQuote.quote(sql)) 2>&1"
+        case .mongodb:
+            let uri = mongoURI(conn, database: "admin")
+            let dbName = database.isEmpty ? "admin" : database
+            let role = isAdmin ? "'root', db:'admin'" : "'readWrite', db:\(jsString(dbName))"
+            let js = "db.getSiblingDB('admin').createUser({user:\(jsString(user)),pwd:\(jsString(pass)),roles:[{role:\(role)}]}); 'ok'"
+            command = "\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1"
+        case .redis:
+            // Redis 6 ACL：启用用户、设置密码、授予全部 key 与命令。
+            // 关键：口令前缀 `>`、key 模式 `~*`、channel 模式 `&*`、类别 `+@all`
+            // 必须逐个整体 quote。否则 `>` 被 shell 当输出重定向、`&` 当后台执行符、
+            // `*` 当通配符展开——ACL 会解析出错，口令甚至被写进一个以口令命名的文件。
+            let base = redisBase(conn, overridePassword: true)
+            let passwordToken = ShellQuote.quote(">" + pass)
+            let keyPattern = ShellQuote.quote("~*")
+            let channelPattern = ShellQuote.quote("&*")
+            let category = ShellQuote.quote("+@all")
+            command = "\(base) ACL SETUSER \(ShellQuote.quote(user)) on \(passwordToken) \(keyPattern) \(channelPattern) \(category) 2>&1"
+        }
+        return await runWrite(command, success: L10n.f("User %@ created", user))
+    }
+
+    /// 删除用户。MySQL 需同时删除常见 host。
+    func deleteUser(_ conn: DatabaseConnection, rawName: String) async -> Result<String, DatabaseError> {
+        let user = rawName.split(separator: "@").first.map(String.init) ?? rawName
+        guard let safe = validUserName(user) else {
+            return .failure(.commandFailed(message: L10n.t("Invalid username")))
+        }
+        let command: String
+        switch conn.kind {
+        case .mysql:
+            let u = sqlString(safe)
+            let sql = "DROP USER IF EXISTS \(u)@'localhost'; DROP USER IF EXISTS \(u)@'%'; FLUSH PRIVILEGES"
+            command = "\(mysqlBase(conn)) -e \(ShellQuote.quote(sql)) 2>&1"
+        case .postgresql:
+            command = "\(psqlBase(conn, database: "postgres")) -c \(ShellQuote.quote("DROP USER IF EXISTS \(sqlIdentifier(safe))")) 2>&1"
+        case .mongodb:
+            let uri = mongoURI(conn, database: "admin")
+            let js = "db.getSiblingDB('admin').dropUser(\(jsString(safe))); 'ok'"
+            command = "\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1"
+        case .redis:
+            let base = redisBase(conn, overridePassword: true)
+            command = "\(base) ACL DELUSER \(ShellQuote.quote(safe)) 2>&1"
+        }
+        return await runWrite(command, success: L10n.f("User %@ deleted", safe))
+    }
+
+    /// 修改某个用户的密码。
+    func changeUserPassword(_ conn: DatabaseConnection, rawName: String, newPassword: String) async -> Result<String, DatabaseError> {
+        let user = rawName.split(separator: "@").first.map(String.init) ?? rawName
+        guard let safe = validUserName(user) else {
+            return .failure(.commandFailed(message: L10n.t("Invalid username")))
+        }
+        let pass = newPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !pass.isEmpty else { return .failure(.commandFailed(message: L10n.t("Password cannot be empty"))) }
+        let command: String
+        switch conn.kind {
+        case .mysql:
+            let u = sqlString(safe), p = sqlString(pass)
+            let sql = "ALTER USER \(u)@'localhost' IDENTIFIED BY \(p); ALTER USER \(u)@'%' IDENTIFIED BY \(p); FLUSH PRIVILEGES"
+            command = "\(mysqlBase(conn)) -e \(ShellQuote.quote(sql)) 2>&1"
+        case .postgresql:
+            let sql = "ALTER USER \(sqlIdentifier(safe)) WITH PASSWORD \(sqlString(pass))"
+            command = "\(psqlBase(conn, database: "postgres")) -c \(ShellQuote.quote(sql)) 2>&1"
+        case .mongodb:
+            let uri = mongoURI(conn, database: "admin")
+            let js = "db.getSiblingDB('admin').changeUserPassword(\(jsString(safe)), \(jsString(pass))); 'ok'"
+            command = "\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1"
+        case .redis:
+            let base = redisBase(conn, overridePassword: true)
+            // 口令前缀 `>` 必须和口令一起整体 quote，否则被 shell 当输出重定向。
+            command = "\(base) ACL SETUSER \(ShellQuote.quote(safe)) \(ShellQuote.quote(">" + pass)) 2>&1"
+        }
+        return await runWrite(command, success: L10n.f("User %@ password updated", safe))
+    }
+
+    /// 改密成功后写入凭据覆盖层。远程连接的口令仍存钥匙串（原 credentialKey）。
+    private func commitPassword(_ conn: DatabaseConnection, _ password: String, message: String) -> Result<String, DatabaseError> {
+        if let cid = conn.containerID {
+            ContainerCredentialStore.shared.set(password, for: cid)
+        } else {
+            do { try KeychainStore.save(password, for: conn.credentialKey) }
+            catch { return .failure(.commandFailed(message: L10n.f("Password changed, but failed to save to Keychain: %@", String(describing: (error.localizedDescription))))) }
+        }
+        return .success(message)
     }
 
     // MARK: - Redis 单值读取
@@ -269,7 +814,7 @@ final class DatabaseService {
             return .failure(.commandFailed(message: readableError(result)))
         }
         let lines = result.out.split(separator: "\n").map(String.init)
-        let columns = type == "hash" || type == "zset" ? ["字段", "值"] : ["值"]
+        let columns = type == "hash" || type == "zset" ? ["Field", "Value"] : ["Value"]
         var rows: [[String]] = []
         if columns.count == 2 {
             var i = 0
@@ -281,7 +826,7 @@ final class DatabaseService {
             rows = lines.map { [$0] }
         }
         return .success(QueryResult(columns: columns, rows: rows,
-                                    message: "类型：\(type)", isWriteOperation: false))
+                                    message: L10n.f("Type: %@", String(describing: (type))), isWriteOperation: false))
     }
 
     // MARK: - 连接测试
@@ -298,25 +843,44 @@ final class DatabaseService {
         let result = await run(command, timeout: 15)
         let out = result.out.trimmingCharacters(in: .whitespacesAndNewlines)
         if result.exit == 0 && (out.contains("1") || out.uppercased().contains("PONG")) {
-            return .success("连接成功")
+            return .success(L10n.t("Connected"))
         }
         return .failure(.commandFailed(message: readableError(result)))
     }
 
     // MARK: - 命令构造：各客户端
 
-    private func mysqlBase(_ conn: DatabaseConnection) -> String {
+    /// MySQL 连接前缀。`-D` 只在调用方显式传入库时附加：
+    /// 管理类命令（列库/建库/删库/改密/用户管理）不能绑定某个库，否则该初始库被删后所有命令都报
+    /// `Unknown database` 全挂；需要库上下文时使用全限定名或显式传入 database。
+    private func mysqlBase(_ conn: DatabaseConnection, database: String? = nil) -> String {
         let password = store.password(for: conn)
-        var parts: [String] = []
-        if !password.isEmpty { parts.append("MYSQL_PWD=\(ShellQuote.quote(password))") }
-        var cmd = parts.joined(separator: " ")
-        cmd += (cmd.isEmpty ? "" : " ") + "mysql -h \(ShellQuote.quote(conn.host)) -P \(conn.port) -u \(ShellQuote.quote(conn.username))"
-        if !conn.database.isEmpty { cmd += " -D \(ShellQuote.quote(conn.database))" }
+        var cmd: String
+        // 容器内实例：docker exec 注入口令，容器内部本地连接，无需端口映射。
+        if let cid = conn.containerID {
+            var exec = "docker exec"
+            if !password.isEmpty { exec += " -e MYSQL_PWD=\(ShellQuote.quote(password))" }
+            let client = conn.containerClient ?? "mysql"
+            cmd = "\(exec) \(ShellQuote.quote(cid)) \(client) -u \(ShellQuote.quote(conn.username))"
+        } else {
+            var parts: [String] = []
+            if !password.isEmpty { parts.append("MYSQL_PWD=\(ShellQuote.quote(password))") }
+            let prefix = parts.joined(separator: " ")
+            cmd = (prefix.isEmpty ? "" : prefix + " ")
+                + "mysql -h \(ShellQuote.quote(conn.host)) -P \(conn.port) -u \(ShellQuote.quote(conn.username))"
+        }
+        if let database, !database.isEmpty { cmd += " -D \(ShellQuote.quote(database))" }
         return cmd
     }
 
     private func psqlBase(_ conn: DatabaseConnection, database: String) -> String {
         let password = store.password(for: conn)
+        if let cid = conn.containerID {
+            var exec = "docker exec"
+            if !password.isEmpty { exec += " -e PGPASSWORD=\(ShellQuote.quote(password))" }
+            let client = conn.containerClient ?? "psql"
+            return "\(exec) \(ShellQuote.quote(cid)) \(client) -U \(ShellQuote.quote(conn.username)) -d \(ShellQuote.quote(database))"
+        }
         var parts: [String] = []
         if !password.isEmpty { parts.append("PGPASSWORD=\(ShellQuote.quote(password))") }
         var cmd = parts.joined(separator: " ")
@@ -324,8 +888,21 @@ final class DatabaseService {
         return cmd
     }
 
-    private func redisBase(_ conn: DatabaseConnection) -> String {
-        let password = store.password(for: conn)
+    /// - overridePassword: 改密操作中用刚设置的新密码连接（此时环境变量/钥匙串可能仍是旧值）。
+    private func redisBase(_ conn: DatabaseConnection, overridePassword: Bool = false) -> String {
+        var password = store.password(for: conn)
+        if overridePassword, let cid = conn.containerID {
+            // 容器实例：改密时优先取覆盖层最新值。
+            password = ContainerCredentialStore.shared.password(for: cid, fallback: password)
+        }
+        if let cid = conn.containerID {
+            var exec = "docker exec"
+            if !password.isEmpty { exec += " -e REDISCLI_AUTH=\(ShellQuote.quote(password))" }
+            let client = conn.containerClient ?? "redis-cli"
+            var cmd = "\(exec) \(ShellQuote.quote(cid)) \(client)"
+            if let dbIndex = Int(conn.database) { cmd += " -n \(dbIndex)" }
+            return cmd
+        }
         var cmd = "REDISCLI_AUTH=\(ShellQuote.quote(password)) redis-cli -h \(ShellQuote.quote(conn.host)) -p \(conn.port)"
         if !conn.database.isEmpty, let dbIndex = Int(conn.database) {
             cmd += " -n \(dbIndex)"
@@ -334,6 +911,11 @@ final class DatabaseService {
     }
 
     private func mongoClient(_ conn: DatabaseConnection) -> String {
+        // 容器内实例：在容器里跑探测到的客户端（mongosh/mongo），连接参数由 mongoURI 提供。
+        if let cid = conn.containerID {
+            let client = conn.containerClient ?? "mongosh"
+            return "docker exec \(ShellQuote.quote(cid)) \(client)"
+        }
         // 优先 mongosh，回退 mongo（探测阶段已确认可用者）。
         return DatabaseKind.mongodb.clientCommand
     }
@@ -391,7 +973,7 @@ final class DatabaseService {
             }
         }
         return .success(QueryResult(columns: columns, rows: rows,
-                                    message: "\(array.count) 条文档", isWriteOperation: false))
+                                    message: L10n.f("%@ documents", String(describing: (array.count))), isWriteOperation: false))
     }
 
     /// MongoDB eval 输出：JSON / 简单值 / 文本。
@@ -409,10 +991,10 @@ final class DatabaseService {
             for dict in array { for key in dict.keys where !columns.contains(key) { columns.append(key) } }
             let rows = array.map { dict in columns.map { key in stringifyJSONValue(dict[key] ?? NSNull()) } }
             return .success(QueryResult(columns: columns, rows: rows,
-                                        message: "\(array.count) 条结果", isWriteOperation: false))
+                                        message: L10n.f("%@ results", String(describing: (array.count))), isWriteOperation: false))
         }
-        return .success(QueryResult(columns: ["结果"], rows: [[out]],
-                                    message: "命令已执行", isWriteOperation: false))
+        return .success(QueryResult(columns: ["Result"], rows: [[out]],
+                                    message: L10n.t("Command executed"), isWriteOperation: false))
     }
 
     /// 解析 TSV / psql 表格。
@@ -435,7 +1017,7 @@ final class DatabaseService {
             return true
         }
         if columns.isEmpty {
-            columns = ["结果"]
+            columns = ["Result"]
         }
         let rows = dataLines.map { line in
             line.split(separator: separator, omittingEmptySubsequences: false).map { cleanCell(String($0)) }
@@ -504,7 +1086,7 @@ final class DatabaseService {
     private func readableError(_ result: (out: String, err: String, exit: Int)) -> String {
         let combined = result.err.isEmpty ? result.out : result.err
         let line = firstMeaningfulLine(combined)
-        return line.isEmpty ? "命令执行失败（exit \(result.exit)）" : line
+        return line.isEmpty ? "Command failed (exit \(result.exit))" : line
     }
 
     private func firstMeaningfulLine(_ text: String) -> String {
@@ -531,6 +1113,46 @@ final class DatabaseService {
 
     private func escapeSQLIdentifier(_ name: String) -> String {
         name.replacingOccurrences(of: "`", with: "").replacingOccurrences(of: "\"", with: "")
+    }
+
+    /// 用户名校验：字母、数字、下划线、点、中划线，1–64。防止注入与 shell 特殊字符。
+    private func validUserName(_ raw: String) -> String? {
+        let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name.count <= 64 else { return nil }
+        let allowed = name.unicodeScalars.allSatisfy { scalar in
+            (scalar.value >= 48 && scalar.value <= 57) ||   // 0-9
+            (scalar.value >= 65 && scalar.value <= 90) ||   // A-Z
+            (scalar.value >= 97 && scalar.value <= 122) ||  // a-z
+            scalar.value == 95 || scalar.value == 46 || scalar.value == 45 // _ . -
+        }
+        return allowed ? name : nil
+    }
+
+    /// SQL 字符串字面量：单引号加倍转义（标准 SQL），外层交给 ShellQuote。
+    private func sqlString(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "''") + "'"
+    }
+
+    /// SQL 标识符（PostgreSQL 双引号）：内部双引号加倍。
+    private func sqlIdentifier(_ value: String) -> String {
+        "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    }
+
+    /// 解析用户列表输出：MySQL `name@host|角色`、PostgreSQL `name|角色`、
+    /// MongoDB `name|role@db,...`、Redis `user name on ...`。
+    private func parseUserLines(_ text: String, kind: DatabaseKind) -> [DatabaseItem] {
+        text.split(separator: "\n").compactMap { line in
+            let s = String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !s.isEmpty else { return nil }
+            if kind == .redis {
+                // `user default on ...` → name=default, detail=on ...
+                let parts = s.split(separator: " ", maxSplits: 2).map(String.init)
+                guard parts.count >= 2, parts[0].lowercased() == "user" else { return nil }
+                return DatabaseItem(name: parts[1], detail: parts.count > 2 ? parts[2] : nil)
+            }
+            let parts = s.split(separator: "|", maxSplits: 1).map(String.init)
+            return DatabaseItem(name: parts[0], detail: parts.count > 1 ? parts[1] : nil)
+        }
     }
 
     private func jsString(_ value: String) -> String {
@@ -561,6 +1183,6 @@ final class DatabaseService {
 
 extension QueryResult {
     static var successEmpty: QueryResult {
-        QueryResult(columns: ["结果"], rows: [], message: "查询完成，无数据", isWriteOperation: false)
+        QueryResult(columns: ["Result"], rows: [], message: L10n.t("Query complete, no data"), isWriteOperation: false)
     }
 }

@@ -7,10 +7,10 @@ struct ContainerLogsView: View {
 
     /// 日志时间范围，对应 1Panel 的 10 分钟 / 1 小时 / 1 天 / 全部。
     enum LogRange: String, CaseIterable, Identifiable {
-        case tail300 = "最近 300 行"
-        case minutes10 = "最近 10 分钟"
-        case hour1 = "最近 1 小时"
-        case day1 = "最近 1 天"
+        case tail300 = "Last 300 lines"
+        case minutes10 = "Last 10 minutes"
+        case hour1 = "Last 1 hour"
+        case day1 = "Last 1 day"
 
         var id: String { rawValue }
         var sinceArg: String? {
@@ -24,6 +24,7 @@ struct ContainerLogsView: View {
     }
 
     @State private var logs = ""
+    @State private var errorMessage: String?
     @State private var isLoading = false
     @State private var autoRefresh = true
     @State private var keyword = ""
@@ -49,9 +50,17 @@ struct ContainerLogsView: View {
                                 .font(.largeTitle)
                                 .foregroundStyle(.tertiary)
                             if isLoading {
-                                ProgressView("正在读取日志…")
+                                ProgressView(L10n.t("Loading logs…"))
+                            } else if let error = errorMessage {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .foregroundStyle(.orange)
+                                Text(error)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal)
                             } else {
-                                Text("暂无日志")
+                                Text(L10n.t("No logs yet"))
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -67,7 +76,7 @@ struct ContainerLogsView: View {
                     }
                 }
             }
-            .navigationTitle("日志 · \(containerName)")
+            .navigationTitle(L10n.f("Logs · %@", String(describing: (containerName))))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
             .task {
@@ -88,16 +97,18 @@ struct ContainerLogsView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        // ⋯ 与关闭按钮拆成两个独立 ToolbarItem，交由系统按统一胶囊排布，
+        // 间距与文件页/容器首页/终端页一致；不再手写 HStack(spacing:12)。
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 // 时间范围（1Panel 同款）
-                Section("时间范围") {
+                Section(L10n.t("Time range")) {
                     ForEach(LogRange.allCases) { item in
                         Button {
                             range = item
                             Task { await refresh() }
                         } label: {
-                            Label(item.rawValue, systemImage: range == item ? "checkmark" : "clock")
+                            Label(L10n.t(item.rawValue), systemImage: range == item ? "checkmark" : "clock")
                         }
                     }
                 }
@@ -106,25 +117,25 @@ struct ContainerLogsView: View {
                         autoRefresh.toggle()
                         if autoRefresh { startAutoRefresh() } else { stopAutoRefresh() }
                     } label: {
-                        Label(autoRefresh ? "停止实时跟随" : "开启实时跟随",
+                        Label(autoRefresh ? L10n.t("Stop following") : L10n.t("Start following"),
                               systemImage: autoRefresh ? "pause" : "play")
                     }
                     Button { Task { await refresh() } } label: {
-                        Label("立即刷新", systemImage: "arrow.clockwise")
+                        Label(L10n.t("Refresh Now"), systemImage: "arrow.clockwise")
                     }
                     Button { Task { await downloadLogs() } } label: {
-                        Label("下载日志", systemImage: "square.and.arrow.down")
+                        Label(L10n.t("Download logs"), systemImage: "square.and.arrow.down")
                     }
                     Button { copyLogs() } label: {
-                        Label("复制全部日志", systemImage: "doc.on.doc")
+                        Label(L10n.t("Copy All Logs"), systemImage: "doc.on.doc")
                     }
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
         }
-        ToolbarItem(placement: .topBarLeading) {
-            Button("完成") { dismiss() }
+        ToolbarItem(placement: .topBarTrailing) {
+            DismissChevronButton()
         }
     }
 
@@ -149,8 +160,14 @@ struct ContainerLogsView: View {
         } else {
             result = await service.fetchLogs(containerID: containerID, tail: 300)
         }
-        if case .success(let text) = result {
+        switch result {
+        case .success(let text):
             logs = text
+            errorMessage = nil
+        case .failure(let error):
+            // 失败不再沉默：清掉旧日志，展示错误，避免用户误以为"容器没有日志"。
+            logs = ""
+            errorMessage = error.localizedDescription
         }
     }
 

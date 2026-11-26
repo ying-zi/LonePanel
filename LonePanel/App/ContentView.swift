@@ -6,6 +6,8 @@ import UIKit
 struct ContentView: View {
     @ObservedObject private var visibility = ModuleVisibility.shared
     @ObservedObject private var coordinator = ModuleCoordinator.shared
+    /// 语言切换后重建内容区，让所有 L10n.t() 立即重算；sheet 宿主身份保持不变。
+    @ObservedObject private var localization = LocalizationStore.shared
     @AppStorage("com.lone.lonepanel.terminal.floating") private var floatingEnabled = true
     @State private var selection: String = ""
     @ObservedObject private var terminal = TerminalSession.shared
@@ -15,7 +17,11 @@ struct ContentView: View {
     // 悬浮终端按钮可拖动定位（避开右下角删除/搜索等控件），位置持久化；松手吸附左右边缘。
     @AppStorage("com.lone.lonepanel.terminal.fab.offsetX") private var fabOffsetX: Double = 0
     @AppStorage("com.lone.lonepanel.terminal.fab.offsetY") private var fabOffsetY: Double = 0
+    /// 拖动中的实时位移：纯内存态，绝不写 @AppStorage。
+    /// 之前每帧写 AppStorage（UserDefaults 同步落盘 + 全视图重建）是拖动剧烈闪烁抖动的根因。
+    @State private var fabLiveOffset: CGSize = .zero
     @State private var fabDragStart: CGSize = .zero
+    @State private var isFabDragging = false
 
     /// 当前可见的 Tab 模块（多模块形态下使用）。
     private var visibleTabs: [TabModule] {
@@ -46,6 +52,11 @@ struct ContentView: View {
         return .orange
     }
 
+    /// FAB 实际渲染偏移：拖动中用内存态实时值，松手后用持久化值。
+    private var fabRenderOffset: CGSize {
+        isFabDragging ? fabLiveOffset : CGSize(width: fabOffsetX, height: fabOffsetY)
+    }
+
     /// 悬浮终端底边距：多模块形态要避开底部 Tab 栏，单模块全屏没有 Tab 栏、贴底即可。
     private var fabBottomPadding: CGFloat {
         switch visibility.rootMode {
@@ -54,7 +65,10 @@ struct ContentView: View {
         }
     }
 
-    var body: some View {
+    /// 主内容区。语言切换时仅此子树随 revision 重建，让所有 L10n.t() 立即重算；
+    /// 外层的 ZStack 根容器（承载 sheet）身份保持不变。
+    @ViewBuilder
+    private var contentArea: some View {
         Group {
             switch visibility.rootMode {
             case .tabs:
@@ -66,6 +80,17 @@ struct ContentView: View {
                     TerminalView(presentation: .pushed)
                 }
             }
+        }
+        .id(localization.revision)
+    }
+
+    var body: some View {
+        // 关键结构：稳定的 ZStack 根容器承载全部 sheet / overlay；
+        // 会随语言换身份的 contentArea 作为它的子视图，.id(revision) 只作用于内层子树。
+        // 切换语言时只有内容区重建，根容器（连着它的三个 .sheet）身份不变，
+        // 正在显示的 sheet 不会被重新 present。
+        ZStack {
+            contentArea
         }
         // 悬浮终端入口：开关开启 + 当前形态宿主模块允许时出现。
         // 单模块全屏（moduleFocus）里容器/网站/数据库同样要有悬浮终端——只留一个模块
@@ -81,18 +106,44 @@ struct ContentView: View {
                 .presentationDragIndicator(.hidden)
                 .interactiveDismissDisabled(true)
         }
-        // 跨模块调用态：文件能力由其它模块（如容器卷）经 ModuleCoordinator 唤起。
-        // 呈现独立的调用态浏览器，不注入设置入口、不触碰单例导航栈与用户偏好。
-        .sheet(item: $coordinator.fileOpenTarget) { target in
-            FileCallView(target: target)
+        // 设置卡片：宿主固定为根视图，不随 rootMode 切换而重建。
+        // 关键：终端兜底(0模块)下从设置里开启第一个模块时，rootMode 由 terminalFocus
+        // 变为 moduleFocus，若 sheet 挂在 focusView 内部会随分支重建被重新 present，
+        // 卡片 detents/圆角错乱。挂到根视图后宿主身份稳定，卡片始终是可下拉样式。
+        .sheet(isPresented: $showSettings) {
+            // 设置页自身不需要设置入口；清除注入，避免它 push 的终端也显示齿轮。
+            SettingsView()
+                .environment(\.openSettings, nil)
                 .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        // 跨模块调用态：所有能力互调都经 ModuleCoordinator.activeCall 这个统一通道，
+        // 这里按 case 分派到各模块的调用态视图（只干活、不注入设置入口、不碰单例导航栈）。
+        // 新增能力只需在 ModuleCall 加一个 case + 下面加一个分支，调用方永远只依赖总线类型。
+        .sheet(item: $coordinator.activeCall) { call in
+            Group {
+                switch call {
+                case .files(let target):
+                    FileCallView(target: target)
+                case .containerDetail(let target):
+                    ContainerCallView(target: target)
+                }
+            }
+            .presentationDetents([.large])
         }
         .onAppear { ensureValidSelection() }
-        .onChange(of: visibility.enabled) { _, _ in
+        .onChange(of: visibility.enabled) { oldValue, newValue in
             ensureValidSelection()
-            // 在设置卡片里关掉最后一个模块 → 进入终端兜底。终端全屏视图会自动聚焦输入框，
-            // 若设置 sheet 仍盖在上面，键盘会把卡片顶乱且用户还得手动下拉。这里主动收起。
-            if case .terminalFocus = visibility.rootMode, showSettings {
+            let oldCount = oldValue.subtracting([.settings]).count
+            let newCount = newValue.subtracting([.settings]).count
+            // 从单模块/终端兜底（<2）开启到第二个模块（≥2）：根形态进入多模块 TabView，
+            // 设置此时正是底部 Tab 之一。全屏 .large 卡片会盖住底部栏，让用户误以为
+            // 「Tab 没弹出来」——这里主动收起卡片，立即露出包括设置 Tab 在内的底部栏。
+            if oldCount < 2, newCount >= 2, showSettings {
+                showSettings = false
+            }
+            // 关到 0 模块进终端兜底：终端自动聚焦输入框，卡片盖着会被键盘顶乱，主动收起。
+            if newCount == 0, showSettings {
                 showSettings = false
             }
         }
@@ -105,7 +156,7 @@ struct ContentView: View {
             ForEach(visibleTabs) { module in
                 module.view
                     .tabItem {
-                        Label(module.title, systemImage: module.symbolName)
+                        Label(L10n.t(module.title), systemImage: module.symbolName)
                     }
                     .tag(module.id)
             }
@@ -119,15 +170,9 @@ struct ContentView: View {
         content()
             // 入口态：注入设置动作，模块会把齿轮放进「自己的」导航栏 trailing。
             // 调用态不经过这里，openSettings 为 nil，齿轮自动隐藏——只干活、不暴露入口。
+            // 设置 sheet 不挂在这里：本视图随 rootMode 切换被整体重建，挂这里会让卡片重新 present 而错乱；
+            // sheet 已上移到 body 根视图，宿主身份稳定。
             .environment(\.openSettings, openSettingsAction)
-            .sheet(isPresented: $showSettings) {
-                // 设置页自身不需要设置入口；清除注入，避免它 push 的终端也显示齿轮。
-                // 全高卡片：设置分多段（通用/终端/模块管理），medium 会截断，用 large 完整呈现。
-                SettingsView()
-                    .environment(\.openSettings, nil)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-            }
     }
 
     /// 入口态注入的设置动作：捕获的是 @State 存储，视图重建后仍指向同一状态。
@@ -152,30 +197,50 @@ struct ContentView: View {
                     .offset(x: 18, y: -18)
             }
             .contentShape(Circle())
-            .onTapGesture { showTerminal = true }
             .gesture(
-                DragGesture(minimumDistance: 6)
+                DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        let x = Double(fabDragStart.width) + value.translation.width
-                        let y = Double(fabDragStart.height) + value.translation.height
-                        fabOffsetX = clamp(fabX: x)
-                        fabOffsetY = clamp(fabY: y)
+                        // 位移超过阈值才算拖动；小于阈值交给 onEnded 当点击处理。
+                        let moved = hypot(value.translation.width, value.translation.height)
+                        if !isFabDragging && moved > 6 {
+                            isFabDragging = true
+                            // 以当前持久位置为基准，避免每次手势都从旧值跳变。
+                            fabDragStart = CGSize(width: fabOffsetX, height: fabOffsetY)
+                        }
+                        if isFabDragging {
+                            let x = Double(fabDragStart.width) + value.translation.width
+                            let y = Double(fabDragStart.height) + value.translation.height
+                            // 只更新内存态：不落盘、不触发 AppStorage 写入，跟手零延迟。
+                            fabLiveOffset = CGSize(width: clamp(fabX: x), height: clamp(fabY: y))
+                        }
                     }
                     .onEnded { _ in
-                        // 松手吸附：越过屏幕中线则贴左，否则贴右；纵向钳制在安全区。
-                        withAnimation(.spring(response: 0.3)) {
-                            fabOffsetX = fabOffsetX < fabMidX ? fabMinX : 0
-                            fabOffsetY = clamp(fabY: fabOffsetY)
+                        if !isFabDragging {
+                            // 没有实质位移 → 视为点击，打开终端。
+                            showTerminal = true
+                            return
                         }
-                        fabDragStart = CGSize(width: fabOffsetX, height: fabOffsetY)
+                        let finalX = Double(fabLiveOffset.width)
+                        let finalY = Double(fabLiveOffset.height)
+                        // 松手一次性写入持久化位置：越过屏幕中线贴左，否则贴右。
+                        let snappedX = finalX < fabMidX ? fabMinX : 0
+                        withAnimation(.spring(response: 0.3)) {
+                            fabOffsetX = snappedX
+                            fabOffsetY = clamp(fabY: finalY)
+                            // 结束拖动，渲染源切回持久位置；spring 让吸附平滑，不再逐帧重建。
+                            isFabDragging = false
+                        }
+                        fabLiveOffset = .zero
+                        fabDragStart = CGSize(width: snappedX, height: clamp(fabY: finalY))
                     }
             )
-            .offset(x: fabOffsetX, y: fabOffsetY)
+            .offset(x: fabRenderOffset.width, y: fabRenderOffset.height)
             .padding(.trailing, 20)
             .padding(.bottom, fabBottomPadding)
-            .onAppear { fabDragStart = CGSize(width: fabOffsetX, height: fabOffsetY) }
-            .accessibilityLabel("打开终端，长按可拖动位置")
+            .accessibilityLabel(L10n.t("Open terminal; long press to drag its position"))
             .transition(.scale.combined(with: .opacity))
+            // 注意：这两个 animation 不能挂到 offset 上。拖动中 offset 由 fabRenderOffset 驱动，
+            // 若带动画会逐帧追赶造成抖动；动画只在出现/隐藏与状态色变化时使用。
             .animation(.spring(response: 0.3), value: currentModuleShowsTerminal)
             .animation(.easeInOut, value: terminalStatusColor)
     }

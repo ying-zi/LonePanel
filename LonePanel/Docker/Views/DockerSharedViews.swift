@@ -12,9 +12,9 @@ enum DockerStateStyle {
 
     static func label(_ state: DockerContainerState) -> String {
         switch state {
-        case .running: return "运行中"
-        case .paused: return "暂停中"
-        case .stopped: return "已停止"
+        case .running: return L10n.t("Running")
+        case .paused: return L10n.t("Paused")
+        case .stopped: return L10n.t("Stopped")
         }
     }
 }
@@ -127,7 +127,7 @@ struct ResourceRingsView: View {
     private var ringsRow: some View {
         HStack(spacing: 16) {
             UsageRing(value: container.usage.cpuPercent, label: "CPU")
-            UsageRing(value: container.usage.memPercent, label: "内存", tint: .purple)
+            UsageRing(value: container.usage.memPercent, label: L10n.t("Memory"), tint: .purple)
         }
         .fixedSize(horizontal: true, vertical: false)
     }
@@ -158,18 +158,26 @@ struct ResourceRingsView: View {
         if let paren = text.firstIndex(of: "(") {
             text = String(text[..<paren]).trimmingCharacters(in: .whitespaces)
         }
-        let replacements: [(String, String)] = [
-            ("months", "个月"), ("month", "个月"),
-            ("weeks", "周"), ("week", "周"),
-            ("days", "天"), ("day", "天"),
-            ("hours", "小时"), ("hour", "小时"),
-            ("minutes", "分钟"), ("minute", "分钟"),
-            ("seconds", "秒"), ("second", "秒")
+        // 用正则把「数字 + 单位（含单复数）」整体替换，避免逐个字符串替换时
+        // 先替换单数把它们变成 "秒s" 这类残留（曾导致运行时长后面多一个字母 s）。
+        // 单位从长到短排列，正则一次匹配整个单词边界，单复数都覆盖。
+        let unitMap: [String: String] = [
+            "months": L10n.t("months"), "month": L10n.t("months"),
+            "weeks": L10n.t("weeks"), "week": L10n.t("weeks"),
+            "days": L10n.t("days"), "day": L10n.t("days"),
+            "hours": L10n.t("hours"), "hour": L10n.t("hours"),
+            "minutes": L10n.t("minutes"), "minute": L10n.t("minutes"),
+            "seconds": L10n.t("seconds"), "second": L10n.t("seconds")
         ]
-        for (english, chinese) in replacements {
-            text = text.replacingOccurrences(of: english, with: chinese)
+        // 复数在前的英文单词顺序替换；译文只在 value 里，绝不拿译文当搜索 key
+        // （原代码用 L10n.t("months") 当搜索串，中文模式下变成拿"个月"找"months"，
+        //  单数再替换就把 "months" 拆成 "个月s"，这就是运行时长后多一个 s 的根因）。
+        for unit in ["months", "month", "weeks", "week", "days", "day", "hours", "hour", "minutes", "minute", "seconds", "second"] {
+            if let translated = unitMap[unit], translated != unit {
+                text = text.replacingOccurrences(of: unit, with: translated)
+            }
         }
-        return text.isEmpty ? "运行中" : "运行 \(text)"
+        return text.isEmpty ? L10n.t("Running") : L10n.f("Run %@", String(describing: (text)))
     }
 }
 
@@ -226,7 +234,7 @@ struct ContainerActionsBar: View {
             Button(action: onLogs) {
                 HStack(spacing: 4) {
                     Image(systemName: "doc.text.magnifyingglass")
-                    Text("日志")
+                    Text(L10n.t("Logs"))
                         .minimumScaleFactor(0.7)
                         .lineLimit(1)
                 }

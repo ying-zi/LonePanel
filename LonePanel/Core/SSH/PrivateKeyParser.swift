@@ -14,17 +14,17 @@ enum PrivateKeyError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .empty:
-            return "私钥内容为空，请把完整的密钥文件粘贴进来"
+            return L10n.t("Private key is empty. Paste the complete key file.")
         case .notPEM:
-            return "无法识别私钥格式，请使用 PEM 格式的私钥（以 -----BEGIN 开头）"
+            return L10n.t("Unrecognized private key format. Use a PEM private key (starting with -----BEGIN).")
         case .undecodable:
-            return "私钥的 Base64 内容无效，请检查是否复制完整、有没有多余字符"
+            return L10n.t("Invalid Base64 content in the private key. Check it was copied completely without extra characters.")
         case .encrypted(let kind):
-            return "这把私钥经过加密（\(kind)），SSH 内核无法直接使用。请先解密，例如执行：ssh-keygen -p -f 你的密钥文件"
+            return L10n.f("This private key is encrypted (%@) and cannot be used directly by the SSH core. Please decrypt it first, e.g. run: ssh-keygen -p -f <keyfile>", String(describing: (kind)))
         case .unsupportedAlgorithm(let name):
-            return "暂不支持 \(name) 私钥用于 SSH 登录，请改用 Ed25519 或 ECDSA 密钥（ssh-keygen -t ed25519）"
+            return L10n.f("%@ private keys are not supported for SSH login. Please use an Ed25519 or ECDSA key instead (ssh-keygen -t ed25519)", String(describing: (name)))
         case .malformed(let detail):
-            return "私钥内容不完整或格式有误（\(detail)），请确认复制了整份密钥文件"
+            return L10n.f("Private key is incomplete or malformed (%@). Please make sure you copied the whole key file.", String(describing: (detail)))
         }
     }
 }
@@ -60,7 +60,7 @@ enum PrivateKeyParser {
         case "DSA PRIVATE KEY":
             throw PrivateKeyError.unsupportedAlgorithm("DSA")
         default:
-            throw PrivateKeyError.malformed("未知的 PEM 标签 \(label)")
+            throw PrivateKeyError.malformed("Unknown PEM label \(label)")
         }
     }
 
@@ -86,7 +86,7 @@ enum PrivateKeyParser {
             guard inBlock else { continue }
             if line.localizedCaseInsensitiveContains("Proc-Type: 4,ENCRYPTED") ||
                 line.hasPrefix("DEK-Info:") {
-                throw PrivateKeyError.encrypted("传统 PEM")
+                throw PrivateKeyError.encrypted(L10n.t("Legacy PEM"))
             }
             if !line.isEmpty && !line.contains(":") {
                 bodyLines.append(line)
@@ -103,7 +103,7 @@ enum PrivateKeyParser {
         var reader = SSHReader(bytes)
         let magic = Array("openssh-key-v1\0".utf8)
         guard reader.read(count: magic.count) == magic else {
-            throw PrivateKeyError.malformed("缺少 openssh-key-v1 标识")
+            throw PrivateKeyError.malformed(L10n.t("Missing openssh-key-v1 marker"))
         }
         let cipher = try reader.readUTF8String()
         if cipher != "none" {
@@ -113,7 +113,7 @@ enum PrivateKeyParser {
         _ = try reader.readUTF8String() // kdfoptions
         let keyCount = try reader.readUInt32()
         guard keyCount == 1 else {
-            throw PrivateKeyError.malformed("私钥文件包含 \(keyCount) 个密钥")
+            throw PrivateKeyError.malformed("Private key file contains \(keyCount) keys")
         }
         _ = try reader.readBytes()        // public key blob
         let privateBlob = try reader.readBytes()
@@ -130,7 +130,7 @@ enum PrivateKeyParser {
             // 旧实现误把整个 64 字节当作种子并要求 32 字节，导致必然失败。
             let privateKeyBlob = try payload.readBytes()
             guard privateKeyBlob.count >= 32 else {
-                throw PrivateKeyError.malformed("Ed25519 私钥数据只有 \(privateKeyBlob.count) 字节")
+                throw PrivateKeyError.malformed("Ed25519 private key data is only \(privateKeyBlob.count) bytes")
             }
             return try makeEd25519(Array(privateKeyBlob.prefix(32)))
         case "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521":
@@ -159,17 +159,17 @@ enum PrivateKeyParser {
         var der = DERReader(bytes)
         let seq = try der.expect(0x30, "PrivateKeyInfo")
         var info = DERReader(seq)
-        _ = try info.expect(0x02, "版本号")                 // version
+        _ = try info.expect(0x02, L10n.t("Version"))                 // version
         let algSeq = try info.expect(0x30, "AlgorithmIdentifier")
-        let privateOctet = try info.expect(0x04, "私钥数据")
+        let privateOctet = try info.expect(0x04, L10n.t("Private key data"))
 
         var alg = DERReader(algSeq)
-        let oid = try alg.expect(0x06, "算法 OID")
+        let oid = try alg.expect(0x06, L10n.t("Algorithm OID"))
 
         if oid == CurveOID.ed25519 {
             // RFC 8410：privateKey OCTET STRING 内还是一个包裹种子的 OCTET STRING。
             var pk = DERReader(privateOctet)
-            let seed = try pk.expect(0x04, "Ed25519 种子")
+            let seed = try pk.expect(0x04, L10n.t("Ed25519 seed"))
             return try makeEd25519(seed)
         } else if oid == CurveOID.ecPublicKey {
             var curveOID: [UInt8]?
@@ -180,7 +180,7 @@ enum PrivateKeyParser {
         } else if oid == CurveOID.rsa {
             throw PrivateKeyError.unsupportedAlgorithm("RSA（PKCS#8）")
         } else {
-            throw PrivateKeyError.unsupportedAlgorithm("未知算法")
+            throw PrivateKeyError.unsupportedAlgorithm(L10n.t("Unknown algorithm"))
         }
     }
 
@@ -194,8 +194,8 @@ enum PrivateKeyParser {
         var der = DERReader(bytes)
         let seq = try der.expect(0x30, "ECPrivateKey")
         var inner = DERReader(seq)
-        _ = try inner.expect(0x02, "EC 版本号")
-        let scalar = try inner.expect(0x04, "EC 私钥标量")
+        _ = try inner.expect(0x02, L10n.t("EC version"))
+        let scalar = try inner.expect(0x04, L10n.t("EC private scalar"))
 
         var resolvedOID = curveOID
         // 在可选的 parameters [0] 里找曲线 OID（PKCS#8 通常由 AlgorithmIdentifier 提供）。
@@ -208,7 +208,7 @@ enum PrivateKeyParser {
             }
         }
         guard let oid = resolvedOID else {
-            throw PrivateKeyError.malformed("缺少椭圆曲线标识")
+            throw PrivateKeyError.malformed(L10n.t("Missing elliptic curve identifier"))
         }
         return try makeEC(scalar: scalar, curveOID: oid)
     }
@@ -217,7 +217,7 @@ enum PrivateKeyParser {
 
     private static func makeEd25519(_ seed: [UInt8]) throws -> NIOSSHPrivateKey {
         guard seed.count == 32 else {
-            throw PrivateKeyError.malformed("Ed25519 种子应为 32 字节，实际 \(seed.count) 字节")
+            throw PrivateKeyError.malformed("Ed25519 seed should be 32 bytes, but is \(seed.count) bytes")
         }
         let key = try Curve25519.Signing.PrivateKey(rawRepresentation: Data(seed))
         return NIOSSHPrivateKey(ed25519Key: key)
@@ -235,7 +235,7 @@ enum PrivateKeyParser {
             let raw = try normalizeScalar(scalar, to: 66, name: "P-521")
             return NIOSSHPrivateKey(p521Key: try P521.Signing.PrivateKey(rawRepresentation: Data(raw)))
         default:
-            throw PrivateKeyError.unsupportedAlgorithm("该椭圆曲线")
+            throw PrivateKeyError.unsupportedAlgorithm(L10n.t("This elliptic curve"))
         }
     }
 
@@ -244,7 +244,7 @@ enum PrivateKeyParser {
         var value = Array(raw)
         while value.count > length, value.first == 0 { value.removeFirst() }
         guard value.count <= length else {
-            throw PrivateKeyError.malformed("\(name) 标量长度 \(value.count) 超过 \(length) 字节")
+            throw PrivateKeyError.malformed("\(name) scalar length \(value.count) exceeds \(length) bytes")
         }
         while value.count < length { value.insert(0, at: 0) }
         return value
@@ -273,7 +273,7 @@ private struct DERReader {
 
     mutating func readTLV() throws -> (tag: UInt8, value: [UInt8]) {
         guard offset + 2 <= bytes.count else {
-            throw PrivateKeyError.malformed("DER 数据意外结束")
+            throw PrivateKeyError.malformed(L10n.t("Unexpected end of DER data"))
         }
         let tag = bytes[offset]; offset += 1
         let first = bytes[offset]; offset += 1
@@ -283,14 +283,14 @@ private struct DERReader {
         } else {
             let count = Int(first & 0x7F)
             guard count > 0, count <= 4, offset + count <= bytes.count else {
-                throw PrivateKeyError.malformed("DER 长度字段无效")
+                throw PrivateKeyError.malformed(L10n.t("Invalid DER length field"))
             }
             for _ in 0..<count {
                 length = (length << 8) | Int(bytes[offset]); offset += 1
             }
         }
         guard length <= bytes.count - offset else {
-            throw PrivateKeyError.malformed("DER 内容长度超出范围")
+            throw PrivateKeyError.malformed(L10n.t("DER content length out of range"))
         }
         let value = Array(bytes[offset..<(offset + length)])
         offset += length
@@ -300,7 +300,7 @@ private struct DERReader {
     mutating func expect(_ tag: UInt8, _ name: String) throws -> [UInt8] {
         let tlv = try readTLV()
         guard tlv.tag == tag else {
-            throw PrivateKeyError.malformed("期望 \(name)")
+            throw PrivateKeyError.malformed("Expected \(name)")
         }
         return tlv.value
     }
@@ -322,14 +322,14 @@ private struct SSHReader {
 
     mutating func readUInt32() throws -> UInt32 {
         let raw = read(count: 4)
-        guard raw.count == 4 else { throw PrivateKeyError.malformed("数据意外结束") }
+        guard raw.count == 4 else { throw PrivateKeyError.malformed(L10n.t("Unexpected end of data")) }
         return (UInt32(raw[0]) << 24) | (UInt32(raw[1]) << 16) | (UInt32(raw[2]) << 8) | UInt32(raw[3])
     }
 
     mutating func readBytes() throws -> [UInt8] {
         let length = try readUInt32()
         guard length <= UInt32(bytes.count - offset) else {
-            throw PrivateKeyError.malformed("长度字段超出数据范围")
+            throw PrivateKeyError.malformed(L10n.t("Length field out of data range"))
         }
         return read(count: Int(length))
     }

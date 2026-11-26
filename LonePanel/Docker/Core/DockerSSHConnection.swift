@@ -21,15 +21,18 @@ final class DockerSSHConnection: ObservableObject {
     private var privilege: RemotePrivilege = .none
     private var connectTask: Task<Bool, Never>?
     private var connectedServerID: UUID?
+    /// 建连时记下的服务器代次；与 ServerSession.connectionEpoch 不符即判过期，强制重建。
+    private var connectedEpoch: Int = -1
 
     /// 建立或复用连接。并发调用合并为一个任务；force 时强制重建父连接。
     @discardableResult
     func ensureConnected(force: Bool = false) async -> Bool {
         guard let info = ServerSession.shared.currentServer else {
-            lastError = "请先到「设置 → 我的服务器」添加并选择一个服务器"
+            lastError = L10n.t("Please add and select a server in Settings → My Servers first")
             return false
         }
-        if !force, isConnected, connectedServerID == info.id, session != nil { return true }
+        let epoch = ServerSession.shared.connectionEpoch
+        if !force, isConnected, connectedServerID == info.id, connectedEpoch == epoch, session != nil { return true }
         if let connectTask { return await connectTask.value }
 
         let task = Task<Bool, Never> { [weak self] in
@@ -63,11 +66,13 @@ final class DockerSSHConnection: ObservableObject {
             session = newSession
             privilege = newPrivilege
             connectedServerID = info.id
+            connectedEpoch = ServerSession.shared.connectionEpoch
             isConnected = true
             return true
         } catch {
             session?.close()
             session = nil
+            connectedEpoch = -1
             isConnected = false
             lastError = SSHSession.describe(error)
             return false
@@ -135,5 +140,6 @@ final class DockerSSHConnection: ObservableObject {
         isConnected = false
         privilege = .none
         connectedServerID = nil
+        connectedEpoch = -1
     }
 }

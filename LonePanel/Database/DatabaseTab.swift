@@ -4,7 +4,7 @@ import SwiftUI
 enum DatabaseTab {
     static let module = TabModule(
         id: "database",
-        title: "数据库",
+        title: "Database",
         symbolName: "cylinder.split.1x2",
         view: AnyView(DatabaseView()),
         showsFloatingTerminal: true

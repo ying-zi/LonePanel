@@ -24,18 +24,21 @@ final class SharedSSHConnection: ObservableObject {
     private var session: SSHSession?
     private var shell: SSHShell?
     private var connectTask: Task<Bool, Never>?
+    /// 建连时记下的服务器代次；与 ServerSession.connectionEpoch 不符即判过期，强制重建。
+    private var connectedEpoch: Int = -1
 
-    var serverName: String { ServerSession.shared.currentServer?.name ?? "服务器" }
+    var serverName: String { ServerSession.shared.currentServer?.name ?? L10n.t("Server") }
 
     /// 建立（或复用）到当前服务器的连接。并发调用合并为同一任务，避免重复建连。
     @discardableResult
     func ensureConnected(force: Bool = false) async -> Bool {
         guard let info = ServerSession.shared.currentServer else {
-            lastError = "请先到「设置 → 我的服务器」添加并选择一个服务器"
+            lastError = L10n.t("Please add and select a server in Settings → My Servers first")
             connectionFailed = true
             return false
         }
-        if !force, isConnected, connectedServerID == info.id, session != nil { return true }
+        let epoch = ServerSession.shared.connectionEpoch
+        if !force, isConnected, connectedServerID == info.id, connectedEpoch == epoch, session != nil { return true }
         if let connectTask { return await connectTask.value }
 
         let task = Task<Bool, Never> { [weak self] in
@@ -73,12 +76,14 @@ final class SharedSSHConnection: ObservableObject {
             shell = nil
             privilege = newPrivilege
             connectedServerID = info.id
+            connectedEpoch = ServerSession.shared.connectionEpoch
             isConnected = true
             return true
         } catch {
             session?.close()
             session = nil
             shell = nil
+            connectedEpoch = -1
             isConnected = false
             connectionFailed = true
             lastError = SSHSession.describe(error)
@@ -157,6 +162,7 @@ final class SharedSSHConnection: ObservableObject {
         session = nil
         isConnected = false
         connectedServerID = nil
+        connectedEpoch = -1
         privilege = nil
     }
 }
