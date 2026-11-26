@@ -77,14 +77,26 @@ struct LanguageSettingsView: View {
             }
 
             Section {
-                Label {
-                    Text(store.iCloudAvailable ? L10n.t("iCloud Sync Available") : L10n.t("iCloud Unavailable - Stored Locally"))
-                } icon: {
-                    Image(systemName: store.iCloudAvailable ? "icloud.fill" : "icloud.slash")
-                        .foregroundStyle(store.iCloudAvailable ? .green : .secondary)
+                Toggle(L10n.t("Sync via iCloud"), isOn: Binding(
+                    get: { store.iCloudSyncEnabled },
+                    set: { store.setiCloudSync($0) }
+                ))
+                .disabled(!store.iCloudAvailable)
+                HStack {
+                    Label {
+                        Text(store.iCloudAvailable ? L10n.t("iCloud Sync Available") : L10n.t("iCloud Unavailable - Stored Locally"))
+                    } icon: {
+                        Image(systemName: store.iCloudAvailable ? "icloud.fill" : "icloud.slash")
+                            .foregroundStyle(store.iCloudAvailable ? .green : .secondary)
+                    }
+                    .font(.caption)
+                    Spacer()
+                    if !store.iCloudAvailable {
+                        Text(L10n.t("Local Only")).font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             } footer: {
-                Text(L10n.t("Language preference and custom packs sync via iCloud when the app is signed with a paid developer account and iCloud is enabled. Sideloaded or free-signed builds store everything locally."))
+                Text(L10n.t("Turn on to sync language preference and custom packs via iCloud across your devices. Requires a paid developer account with iCloud enabled; sideloaded or free-signed builds always store everything locally."))
             }
         }
         .navigationTitle(L10n.t("Language"))

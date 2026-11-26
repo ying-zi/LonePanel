@@ -7,11 +7,20 @@ enum L10n {
         LocalizationStore.shared.t(key)
     }
 
-    /// 带参数的本地化：模板用 %@ / %d 等格式占位，参数为 CVarArg。
-    /// 用于含插值的句子，例如 L10n.f("Delete \"%@\"? This cannot be undone.", name)
-    static func f(_ key: String, _ args: CVarArg...) -> String {
-        let template = LocalizationStore.shared.t(key)
-        return String(format: template, arguments: args)
+    /// 带参数的本地化：模板用 %@（顺序）或 %1$@ / %2$@（指定位置）占位。
+    /// 用纯字符串替换实现，避免 String(format:) 把 Swift String 桥接给 %@ 时
+    /// 在部分 iOS 版本上崩溃；参数数量与模板不符时也不会崩，只会留原占位符。
+    static func f(_ key: String, _ args: String...) -> String {
+        var out = LocalizationStore.shared.t(key)
+        for (i, arg) in args.enumerated() {
+            out = out.replacingOccurrences(of: "%\(i + 1)$@", with: arg)
+        }
+        for arg in args {
+            if let range = out.range(of: "%@") {
+                out.replaceSubrange(range, with: arg)
+            }
+        }
+        return out
     }
 }
 

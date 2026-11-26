@@ -2,6 +2,9 @@
 // 用户导入的自定义语言包采用相同结构，便于互换。
 enum BuiltinPacks {
     static let zhHans: [String: String] = [
+        "Sync via iCloud": "通过 iCloud 同步",
+        "Local Only": "仅本机",
+        "Turn on to sync language preference and custom packs via iCloud across your devices. Requires a paid developer account with iCloud enabled; sideloaded or free-signed builds always store everything locally.": "开启后，语言偏好与自定义语言包会通过 iCloud 在你的设备间同步。需使用开启 iCloud 的付费开发者账号签名；侧载或免费签名的版本始终只存本机。",
         "Delete \"%@\"? This cannot be undone.": "确定删除「%@」吗？此操作不可撤销。",
         "Private key is empty. Paste the complete key file.": "私钥为空。请粘贴完整的密钥文件。",
         "Unrecognized private key format. Use a PEM private key (starting with -----BEGIN).": "无法识别私钥格式。请使用 PEM 格式私钥（以 -----BEGIN 开头）。",

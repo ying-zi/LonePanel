@@ -16,6 +16,8 @@ final class LocalizationStore: ObservableObject {
     @Published private(set) var customPacks: [LanguagePack] = []
     /// iCloud 是否真正可用（运行时探测，未声明 entitlement 时为 false）。
     @Published private(set) var iCloudAvailable: Bool = false
+    /// 用户是否开启 iCloud 同步（偏好走 KVS，开关本身也随 iCloud 同步）。
+    @Published private(set) var iCloudSyncEnabled: Bool = true
 
     /// 视图树刷新信号：换语言后 let 常量里的文案也需要重算，靠它驱动 .id()。
     @Published private(set) var revision: Int = 0
@@ -23,6 +25,7 @@ final class LocalizationStore: ObservableObject {
     private let defaults = UserDefaults.standard
     private let kvs = NSUbiquitousKeyValueStore.default
     private let currentIDKey = "com.lone.lonepanel.locale.id"
+    private let cloudSyncKey = "com.lone.lonepanel.locale.icloudsync"
     private let packsDirName = "LanguagePacks"
 
     private var cancellable: AnyCancellable?
@@ -67,8 +70,20 @@ final class LocalizationStore: ObservableObject {
         guard id == "en" || id == "zh-Hans" || customPacks.contains(where: { $0.id == id }) else { return }
         currentID = id
         defaults.set(id, forKey: currentIDKey)
-        kvs.set(id, forKey: currentIDKey)   // 无 entitlement 时自动落本地，安全
+        if iCloudSyncEnabled {
+            kvs.set(id, forKey: currentIDKey)   // 无 entitlement 时自动落本地，安全
+            kvs.synchronize()
+        }
+        bump()
+    }
+
+    /// 开启/关闭 iCloud 同步。关闭后不写 KVS、不镜像语言包；开启时立即镜像一次。
+    func setiCloudSync(_ enabled: Bool) {
+        iCloudSyncEnabled = enabled
+        defaults.set(enabled, forKey: cloudSyncKey)
+        kvs.set(enabled, forKey: cloudSyncKey)
         kvs.synchronize()
+        if enabled { mirrorPacksToICloud() }
         bump()
     }
 
@@ -140,6 +155,12 @@ final class LocalizationStore: ObservableObject {
             currentID = synced
             defaults.set(synced, forKey: currentIDKey)
         }
+        // iCloud 同步开关：KVS 优先（另一台设备的选择），否则本地，默认开。
+        if let synced = kvs.object(forKey: cloudSyncKey) as? Bool {
+            iCloudSyncEnabled = synced
+        } else if let local = defaults.object(forKey: cloudSyncKey) as? Bool {
+            iCloudSyncEnabled = local
+        }
     }
 
     private func persistCustomPacks() {
@@ -183,6 +204,12 @@ final class LocalizationStore: ObservableObject {
         .sink { [weak self] note in
             guard let self else { return }
             self.refreshICloudAvailability()
+            // 同步其他设备改动的开关本身。
+            if let synced = self.kvs.object(forKey: self.cloudSyncKey) as? Bool, synced != self.iCloudSyncEnabled {
+                self.iCloudSyncEnabled = synced
+                self.defaults.set(synced, forKey: self.cloudSyncKey)
+            }
+            guard self.iCloudSyncEnabled else { return }
             // 同步其他设备改动的「当前语言」。
             if let synced = self.kvs.string(forKey: self.currentIDKey),
                synced != self.currentID,
@@ -196,7 +223,7 @@ final class LocalizationStore: ObservableObject {
 
     /// 把自定义包镜像到 iCloud Drive；无 entitlement 时静默跳过。
     private func mirrorPacksToICloud() {
-        guard iCloudAvailable, let container = FileManager.default.url(forUbiquityContainerIdentifier: nil) else { return }
+        guard iCloudSyncEnabled, iCloudAvailable, let container = FileManager.default.url(forUbiquityContainerIdentifier: nil) else { return }
         let remote = container.appendingPathComponent(packsDirName, isDirectory: true)
         try? FileManager.default.createDirectory(at: remote, withIntermediateDirectories: true)
         for pack in customPacks {
