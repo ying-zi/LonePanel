@@ -35,14 +35,14 @@ struct DockerView: View {
             .navigationDestination(for: DockerContainer.self) { container in
                 ContainerDetailView(container: container, model: containerModel)
             }
-            .navigationTitle("Docker")
+            .navigationTitle(L10n.t("Docker"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // 标题位置的分段控件：容器 / 镜像 / Compose
                 ToolbarItem(placement: .principal) {
-                    Picker("Section", selection: $section) {
+                    Picker(L10n.t("Section"), selection: $section) {
                         ForEach(Section.allCases, id: \.self) { item in
-                            Text(item.rawValue).tag(item)
+                            Text(L10n.t(item.rawValue)).tag(item)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -64,7 +64,7 @@ struct DockerView: View {
                                     containerModel.viewMode = (containerModel.viewMode == .cards) ? .list : .cards
                                 }
                             } label: {
-                                Label(containerModel.viewMode == .cards ? "List View" : "Card view",
+                                Label(containerModel.viewMode == .cards ? L10n.t("List View") : L10n.t("Card view"),
                                       systemImage: containerModel.viewMode == .cards ? "list.bullet" : "square.grid.2x2")
                             }
                             Divider()
@@ -165,7 +165,7 @@ struct DockerView: View {
                         UIPasteboard.general.string = diagnostics.report
                         copied = true
                     } label: {
-                        Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                        Label(copied ? L10n.t("Copied") : L10n.t("Copy"), systemImage: copied ? "checkmark" : "doc.on.doc")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {

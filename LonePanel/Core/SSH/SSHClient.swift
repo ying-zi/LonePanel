@@ -183,31 +183,31 @@ final class SSHSession {
     private static func mapUnderlying(_ raw: String) -> String {
         let text = raw.lowercased()
         if text.contains("timed out") || text.contains("timeout") {
-            return "Connection timed out. Check your network and whether the server is online."
+            return L10n.t("Connection timed out. Check your network and whether the server is online.")
         }
         if text.contains("connection refused") || text.contains("econnrefused") || text.contains("refused") {
-            return "Connection refused. Verify the address and port and that SSH is running."
+            return L10n.t("Connection refused. Verify the address and port and that SSH is running.")
         }
         if text.contains("nodename nor servname") || text.contains("getaddrinfo") ||
             text.contains("name or service not known") || text.contains("dns") {
-            return "Cannot resolve the server address. Check that the address is correct."
+            return L10n.t("Cannot resolve the server address. Check that the address is correct.")
         }
         if text.contains("network is unreachable") || text.contains("no route to host") ||
             text.contains("networkunreachable") {
-            return "Network unreachable. Check your network connection."
+            return L10n.t("Network unreachable. Check your network connection.")
         }
         if text.contains("authentication") || text.contains("permission denied") || text.contains("authfail") {
-            return "Authentication failed. Check your username and password or private key."
+            return L10n.t("Authentication failed. Check your username and password or private key.")
         }
         if text.contains("host key") || text.contains("handshake") || text.contains("algorithm") ||
             text.contains("kex") {
-            return "SSH negotiation failed. The server configuration may be incompatible with this app."
+            return L10n.t("SSH negotiation failed. The server configuration may be incompatible with this app.")
         }
         if text.contains("reset by peer") || text.contains("broken pipe") || text.contains("eof") ||
             text.contains("closed") {
-            return "Connection interrupted by the server. Retry later or check server status."
+            return L10n.t("Connection interrupted by the server. Retry later or check server status.")
         }
-        return "Connection failed. Check the address, port and network, then retry."
+        return L10n.t("Connection failed. Check the address, port and network, then retry.")
     }
 }
 
@@ -230,7 +230,7 @@ extension SSHSession {
             timeoutSeconds: timeoutSeconds
         )
         defer { session.close() }
-        return "Connected: SSH handshake and authentication succeeded; command channel is ready."
+        return L10n.t("Connected: SSH handshake and authentication succeeded; command channel is ready.")
     }
 }
 

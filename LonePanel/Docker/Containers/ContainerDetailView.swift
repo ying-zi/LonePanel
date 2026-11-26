@@ -46,7 +46,7 @@ struct ContainerDetailView: View {
                 Section(L10n.t("Resource Usage")) {
                     HStack(spacing: 24) {
                         UsageRing(value: container.usage.cpuPercent, label: "CPU")
-                        UsageRing(value: container.usage.memPercent, label: "Memory", tint: .purple)
+                        UsageRing(value: container.usage.memPercent, label: L10n.t("Memory"), tint: .purple)
                         Spacer()
                     }
                     .padding(.vertical, 8)
@@ -54,13 +54,13 @@ struct ContainerDetailView: View {
                         .font(.subheadline)
                     // 1Panel 统计页核心指标：下行/上行、磁盘读写、进程数。
                     if !container.usage.netIO.isEmpty {
-                        InfoRow(title: "Network (RX/TX)", value: container.usage.netIO)
+                        InfoRow(title: L10n.t("Network (RX/TX)"), value: container.usage.netIO)
                     }
                     if !container.usage.blockIO.isEmpty {
-                        InfoRow(title: "Disk (R/W)", value: container.usage.blockIO)
+                        InfoRow(title: L10n.t("Disk (R/W)"), value: container.usage.blockIO)
                     }
                     if !container.usage.pids.isEmpty {
-                        InfoRow(title: "Process count", value: container.usage.pids)
+                        InfoRow(title: L10n.t("Process count"), value: container.usage.pids)
                     }
                 }
             }
@@ -112,19 +112,19 @@ struct ContainerDetailView: View {
 
             // 基本信息
             Section(L10n.t("Basic Info")) {
-                InfoRow(title: "Status", value: container.statusText)
-                InfoRow(title: "Image", value: container.image)
+                InfoRow(title: L10n.t("Status"), value: container.statusText)
+                InfoRow(title: L10n.t("Image"), value: container.image)
                 if let info = inspectInfo, !info.restartPolicy.isEmpty, info.restartPolicy != "no" {
-                    InfoRow(title: "Restart Policy", value: info.restartPolicy)
+                    InfoRow(title: L10n.t("Restart Policy"), value: info.restartPolicy)
                 }
                 if let info = inspectInfo, !info.created.isEmpty {
-                    InfoRow(title: "Created", value: formatCreated(info.created))
+                    InfoRow(title: L10n.t("Created"), value: formatCreated(info.created))
                 }
                 if let info = inspectInfo, !info.network.isEmpty {
-                    InfoRow(title: "Network", value: info.network)
+                    InfoRow(title: L10n.t("Network"), value: info.network)
                 }
                 if !container.command.isEmpty {
-                    InfoRow(title: "Startup command", value: container.command)
+                    InfoRow(title: L10n.t("Startup command"), value: container.command)
                 }
             }
 
@@ -132,7 +132,7 @@ struct ContainerDetailView: View {
             if let info = inspectInfo, !info.portBindings.isEmpty {
                 Section(L10n.t("Port Bindings")) {
                     ForEach(info.portBindings, id: \.container) { binding in
-                        InfoRow(title: binding.container, value: binding.host.isEmpty ? "Not published" : binding.host)
+                        InfoRow(title: binding.container, value: binding.host.isEmpty ? L10n.t("Not published") : binding.host)
                     }
                 }
             } else if container.state != .stopped && !container.portsText.isEmpty {
@@ -288,28 +288,28 @@ struct ContainerDetailView: View {
         switch container.state {
         case .running:
             return [
-                StatusAction(title: "Stop", systemImage: "stop.fill", color: .orange) {
+                StatusAction(title: L10n.t("Stop"), systemImage: "stop.fill", color: .orange) {
                     await service.stopContainer(id)
                 },
-                StatusAction(title: "Pause", systemImage: "pause.fill", color: .yellow) {
+                StatusAction(title: L10n.t("Pause"), systemImage: "pause.fill", color: .yellow) {
                     await service.pauseContainer(id)
                 },
-                StatusAction(title: "Restart", systemImage: "arrow.clockwise", color: .blue) {
+                StatusAction(title: L10n.t("Restart"), systemImage: "arrow.clockwise", color: .blue) {
                     await service.restartContainer(id)
                 },
             ]
         case .paused:
             return [
-                StatusAction(title: "Resume", systemImage: "play.fill", color: .green) {
+                StatusAction(title: L10n.t("Resume"), systemImage: "play.fill", color: .green) {
                     await service.unpauseContainer(id)
                 },
-                StatusAction(title: "Restart", systemImage: "arrow.clockwise", color: .blue) {
+                StatusAction(title: L10n.t("Restart"), systemImage: "arrow.clockwise", color: .blue) {
                     await service.restartContainer(id)
                 },
             ]
         case .stopped:
             return [
-                StatusAction(title: "Start", systemImage: "play.fill", color: .green) {
+                StatusAction(title: L10n.t("Start"), systemImage: "play.fill", color: .green) {
                     await service.startContainer(id)
                 },
             ]

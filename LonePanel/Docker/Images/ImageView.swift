@@ -67,7 +67,7 @@ struct ImageView: View {
                         Image(systemName: "shippingbox")
                             .font(.largeTitle)
                             .foregroundStyle(.tertiary)
-                        Text(searchText.isEmpty ? "No images" : "No matching images")
+                        Text(searchText.isEmpty ? L10n.t("No images") : L10n.t("No matching images"))
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
@@ -77,10 +77,10 @@ struct ImageView: View {
             .listStyle(.insetGrouped)
 
             if isLoading && images.isEmpty {
-                ProgressView("Loading images…")
+                ProgressView(L10n.t("Loading images…"))
             }
         }
-        .searchable(text: $searchText, prompt: "Search images")
+        .searchable(text: $searchText, prompt: Text(L10n.t("Search images")))
         // 与容器页、文件模块统一：未聚焦时收缩为放大镜按钮。
         .searchToolbarBehavior(.minimize)
         .refreshable { await load() }

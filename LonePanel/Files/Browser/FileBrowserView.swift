@@ -254,7 +254,7 @@ private struct DirectoryPage: View {
             .navigationBarTitleDisplayMode(.inline)
             // 搜索栏挂在「每一页」上：系统为根页与每个 push 的子页各自注入原生放大镜，
             // 点开即在当前页呈现搜索框。各页状态独立，切层级随页面退出自然收起。
-            .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search")
+            .searchable(text: $searchText, isPresented: $isSearching, prompt: Text(L10n.t("Search")))
             .searchFocused($searchFocused)
             // iOS 26：未聚焦时收缩，消除列表顶部常驻的灰色搜索条。
             .searchToolbarBehavior(.minimize)
@@ -307,21 +307,21 @@ private struct DirectoryPage: View {
     private var dialogHost: some View {
         Color.clear.frame(width: 0, height: 0)
         .alert(L10n.t("New folder"), isPresented: $pendingCreateFolder) {
-            TextField("Folder Name", text: $newFolderName)
+            TextField(L10n.t("Folder Name"), text: $newFolderName)
             Button(L10n.t("Cancel"), role: .cancel) { newFolderName = "" }
             Button(L10n.t("Create")) {
                 Task { await model.makeDirectory(at: node.path, named: newFolderName); newFolderName = ""; await load() }
             }
         }
         .alert(L10n.t("New file"), isPresented: $pendingCreateFile) {
-            TextField("File Name", text: $newFileName)
+            TextField(L10n.t("File Name"), text: $newFileName)
             Button(L10n.t("Cancel"), role: .cancel) { newFileName = "" }
             Button(L10n.t("Create")) {
                 Task { await model.makeFile(at: node.path, named: newFileName); newFileName = ""; await load() }
             }
         }
         .alert(L10n.t("Rename"), isPresented: renameBinding) {
-            TextField("Name", text: $renameText)
+            TextField(L10n.t("Name"), text: $renameText)
             Button(L10n.t("Cancel"), role: .cancel) { renaming = nil }
             Button(L10n.t("Save")) {
                 if let file = renaming {
@@ -556,10 +556,10 @@ private struct DirectoryPage: View {
 
     private var emptyView: some View {
         ContentUnavailableView {
-            Label(searchText.isEmpty ? "Folder is Empty" : "No Results",
+            Label(searchText.isEmpty ? L10n.t("Folder is Empty") : L10n.t("No Results"),
                   systemImage: searchText.isEmpty ? "folder" : "magnifyingglass")
         } description: {
-            Text(searchText.isEmpty ? "This folder is empty" : "Try another keyword")
+            Text(searchText.isEmpty ? L10n.t("This folder is empty") : L10n.t("Try another keyword"))
         }
     }
 
@@ -574,7 +574,7 @@ private struct DirectoryPage: View {
                 ProgressView()
                     .frame(width: 24, height: 24)
             } else if isSelecting {
-                Button(allVisibleSelected ? "Deselect All" : "Select All") {
+                Button(allVisibleSelected ? L10n.t("Deselect All") : L10n.t("Select All")) {
                     if allVisibleSelected { selectedIDs = [] }
                     else { selectedIDs = Set(visibleEntries.map(\.id)) }
                 }
@@ -720,7 +720,7 @@ private struct DirectoryPage: View {
                         if model.sortOrder == order {
                             Label(order.rawValue, systemImage: "checkmark")
                         } else {
-                            Text(order.rawValue)
+                            Text(L10n.t(order.rawValue))
                         }
                     }
                 }
@@ -729,7 +729,7 @@ private struct DirectoryPage: View {
                     model.sortAscending.toggle()
                     Task { await load() }
                 } label: {
-                    Label(model.sortAscending ? "Ascending" : "Descending",
+                    Label(model.sortAscending ? L10n.t("Ascending") : L10n.t("Descending"),
                           systemImage: model.sortAscending ? "arrow.up" : "arrow.down")
                 }
             } label: {
@@ -738,7 +738,7 @@ private struct DirectoryPage: View {
             Button {
                 withAnimation { model.viewMode = model.viewMode == .list ? .grid : .list }
             } label: {
-                Label(model.viewMode == .list ? "Icon View" : "List View",
+                Label(model.viewMode == .list ? L10n.t("Icon View") : L10n.t("List View"),
                       systemImage: model.viewMode == .list ? "square.grid.2x2" : "list.bullet")
             }
             Divider()
@@ -746,7 +746,7 @@ private struct DirectoryPage: View {
                 model.showHiddenFiles.toggle()
                 Task { await load() }
             } label: {
-                Label(model.showHiddenFiles ? "Hide Hidden Files" : "Show Hidden Files",
+                Label(model.showHiddenFiles ? L10n.t("Hide Hidden Files") : L10n.t("Show Hidden Files"),
                       systemImage: model.showHiddenFiles ? "eye.slash" : "eye")
             }
             Button {
@@ -809,11 +809,11 @@ private struct DirectoryPage: View {
             // 共享仅对「选中项全部是文件」有效：只要勾选了文件夹就不显示
             // （目录无法作为单文件分享，混选时也不宜把文件夹静默丢掉）。
             if !selectedFiles.isEmpty && selectedFiles.allSatisfy({ !$0.isDirectory }) {
-                batchIcon("square.and.arrow.up", title: "Share") { shareSelected() }
+                batchIcon("square.and.arrow.up", title: L10n.t("Share")) { shareSelected() }
             }
-            batchIcon("arrow.right", title: "Move") { beginTransfer(.move, files: selectedFiles) }
-            batchIcon("doc.on.doc", title: "Copy") { copySelected() }
-            batchIcon("trash", title: "Delete", role: .destructive) { requestDelete(selectedFiles) }
+            batchIcon("arrow.right", title: L10n.t("Move")) { beginTransfer(.move, files: selectedFiles) }
+            batchIcon("doc.on.doc", title: L10n.t("Copy")) { copySelected() }
+            batchIcon("trash", title: L10n.t("Delete"), role: .destructive) { requestDelete(selectedFiles) }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -972,7 +972,7 @@ private struct FileRow: View {
 
     private var meta: String {
         let date = file.modified?.formatted(date: .abbreviated, time: .omitted) ?? ""
-        if file.isDirectory { return date.isEmpty ? "Folder" : date }
+        if file.isDirectory { return date.isEmpty ? L10n.t("Folder") : date }
         let size = FileBrowserModel.sizeText(file.size)
         return date.isEmpty ? size : L10n.f("%@ · %@", String(describing: (date)), String(describing: (size)))
     }
@@ -1031,7 +1031,7 @@ private struct TargetDirectorySheet: View {
         NavigationStack {
             Group {
                 if isLoading && dirs.isEmpty {
-                    ProgressView("Loading…")
+                    ProgressView(L10n.t("Loading…"))
                 } else {
                     List {
                         ForEach(dirs) { dir in
@@ -1063,7 +1063,7 @@ private struct TargetDirectorySheet: View {
                             Image(systemName: "arrow.up.folder")
                         }
                         .disabled(path == "/")
-                        Button(operation.rawValue) {
+                        Button(L10n.t(operation.rawValue)) {
                             onConfirm(path)
                             dismiss()
                         }

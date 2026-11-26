@@ -49,7 +49,7 @@ struct ContainerLogsView: View {
                                 .font(.largeTitle)
                                 .foregroundStyle(.tertiary)
                             if isLoading {
-                                ProgressView("Loading logs…")
+                                ProgressView(L10n.t("Loading logs…"))
                             } else {
                                 Text(L10n.t("No logs yet"))
                                     .foregroundStyle(.secondary)
@@ -106,7 +106,7 @@ struct ContainerLogsView: View {
                         autoRefresh.toggle()
                         if autoRefresh { startAutoRefresh() } else { stopAutoRefresh() }
                     } label: {
-                        Label(autoRefresh ? "Stop following" : "Start following",
+                        Label(autoRefresh ? L10n.t("Stop following") : L10n.t("Start following"),
                               systemImage: autoRefresh ? "pause" : "play")
                     }
                     Button { Task { await refresh() } } label: {

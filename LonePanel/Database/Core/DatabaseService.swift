@@ -20,7 +20,7 @@ final class DatabaseSSHConnection: ObservableObject {
     @discardableResult
     func ensureConnected(force: Bool = false) async -> Bool {
         guard let info = ServerSession.shared.currentServer else {
-            lastError = "Please add and select a server in Settings → My Servers first"
+            lastError = L10n.t("Please add and select a server in Settings → My Servers first")
             return false
         }
         if !force, isConnected, connectedServerID == info.id, session != nil { return true }
@@ -234,9 +234,9 @@ final class DatabaseService {
 
     private static func containerStatus(_ status: String) -> String {
         let s = status.lowercased()
-        if s.contains("paused") { return "Paused" }
-        if s.hasPrefix("up") { return "Running" }
-        return "Stopped"
+        if s.contains("paused") { return L10n.t("Paused") }
+        if s.hasPrefix("up") { return L10n.t("Running") }
+        return L10n.t("Stopped")
     }
 
     /// 逐行 JSON 解码，与 Docker 模块同款格式，但不依赖其模型类型。
@@ -251,7 +251,7 @@ final class DatabaseService {
 
     func checkAvailability(for kind: DatabaseKind) async -> DatabaseAvailability {
         guard await connection.ensureConnected() else {
-            return .failed(connection.lastError ?? "Connection Failed")
+            return .failed(connection.lastError ?? L10n.t("Connection Failed"))
         }
         let primary = kind.clientCommand
         let version = await run("\(primary) --version 2>&1 | head -1", timeout: 12)
@@ -368,7 +368,7 @@ final class DatabaseService {
     /// 执行用户输入的 SQL（MySQL/PostgreSQL）或原始命令（MongoDB eval / Redis 命令）。
     func execute(_ conn: DatabaseConnection, database: String, statement: String) async -> Result<QueryResult, DatabaseError> {
         let trimmed = statement.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return .failure(.commandFailed(message: "Enter a statement to execute")) }
+        guard !trimmed.isEmpty else { return .failure(.commandFailed(message: L10n.t("Enter a statement to execute"))) }
 
         let command: String
         switch conn.kind {
@@ -405,7 +405,7 @@ final class DatabaseService {
     /// 新建数据库。MongoDB 库随首个集合隐式创建；Redis 使用固定 db 索引，不支持新建。
     func createDatabase(_ conn: DatabaseConnection, name rawName: String) async -> Result<String, DatabaseError> {
         guard let name = validDatabaseName(rawName) else {
-            return .failure(.commandFailed(message: "Database name may contain only letters, digits and underscores, up to 64 characters"))
+            return .failure(.commandFailed(message: L10n.t("Database name may contain only letters, digits and underscores, up to 64 characters")))
         }
         let command: String
         switch conn.kind {
@@ -420,7 +420,7 @@ final class DatabaseService {
             let js = "db.getSiblingDB(\(jsString(name))).createCollection('_lonepanel_init'); 'ok'"
             command = "\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1"
         case .redis:
-            return .failure(.commandFailed(message: "Redis uses fixed DB indexes (0-15); databases cannot be created"))
+            return .failure(.commandFailed(message: L10n.t("Redis uses fixed DB indexes (0-15); databases cannot be created")))
         }
         return await runWrite(command, success: "Database \(name) created")
     }
@@ -434,14 +434,14 @@ final class DatabaseService {
                                 password rawPassword: String,
                                 grantAll: Bool) async -> Result<String, DatabaseError> {
         guard let dbName = validDatabaseName(rawDatabase) else {
-            return .failure(.commandFailed(message: "Database name may contain only letters, digits and underscores, up to 64 characters"))
+            return .failure(.commandFailed(message: L10n.t("Database name may contain only letters, digits and underscores, up to 64 characters")))
         }
         guard let user = validUserName(rawUsername) else {
-            return .failure(.commandFailed(message: "Username may contain only letters, digits, underscore, dot and hyphen, 1-64 characters"))
+            return .failure(.commandFailed(message: L10n.t("Username may contain only letters, digits, underscore, dot and hyphen, 1-64 characters")))
         }
         let pass = rawPassword.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !pass.isEmpty else {
-            return .failure(.commandFailed(message: "Password cannot be empty"))
+            return .failure(.commandFailed(message: L10n.t("Password cannot be empty")))
         }
 
         // 1) 建库
@@ -455,7 +455,7 @@ final class DatabaseService {
         )
         switch userResult {
         case .success:
-            let scope = grantAll ? "All databases (admin)" : "Only \(dbName)"
+            let scope = grantAll ? L10n.t("All databases (admin)") : "Only \(dbName)"
             return .success("Database \(dbName) created; dedicated user \(user) created and granted (\(scope))")
         case .failure(let error):
             return .failure(.commandFailed(
@@ -467,7 +467,7 @@ final class DatabaseService {
     /// 删除数据库。Redis 不支持删除 db 索引（可进入该库用 FLUSHDB 清空数据）。
     func dropDatabase(_ conn: DatabaseConnection, name rawName: String) async -> Result<String, DatabaseError> {
         guard let name = validDatabaseName(rawName) else {
-            return .failure(.commandFailed(message: "Invalid database name"))
+            return .failure(.commandFailed(message: L10n.t("Invalid database name")))
         }
         let command: String
         switch conn.kind {
@@ -482,7 +482,7 @@ final class DatabaseService {
             let js = "db.getSiblingDB(\(jsString(name))).dropDatabase(); 'ok'"
             command = "\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1"
         case .redis:
-            return .failure(.commandFailed(message: "Redis does not support deleting a DB index; open it to clear data"))
+            return .failure(.commandFailed(message: L10n.t("Redis does not support deleting a DB index; open it to clear data")))
         }
         return await runWrite(command, success: "Database \(name) deleted")
     }
@@ -490,10 +490,10 @@ final class DatabaseService {
     /// 重命名数据库。PostgreSQL 用 ALTER；MySQL 建新库+逐表迁移+删旧库；MongoDB 逐集合迁移；Redis 不支持。
     func renameDatabase(_ conn: DatabaseConnection, from rawOld: String, to rawNew: String) async -> Result<String, DatabaseError> {
         guard let old = validDatabaseName(rawOld), let new = validDatabaseName(rawNew) else {
-            return .failure(.commandFailed(message: "Database name may contain only letters, digits and underscores"))
+            return .failure(.commandFailed(message: L10n.t("Database name may contain only letters, digits and underscores")))
         }
         guard old != new else {
-            return .failure(.commandFailed(message: "Old and new names are the same; nothing to change"))
+            return .failure(.commandFailed(message: L10n.t("Old and new names are the same; nothing to change")))
         }
         switch conn.kind {
         case .postgresql:
@@ -505,7 +505,7 @@ final class DatabaseService {
         case .mongodb:
             return await mongoRenameDatabase(conn, from: old, to: new)
         case .redis:
-            return .failure(.commandFailed(message: "Redis does not support renaming databases"))
+            return .failure(.commandFailed(message: L10n.t("Redis does not support renaming databases")))
         }
     }
 
@@ -580,7 +580,7 @@ final class DatabaseService {
     func resetAdminPassword(_ conn: DatabaseConnection, newPassword: String) async -> Result<String, DatabaseError> {
         let trimmed = newPassword.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            return .failure(.commandFailed(message: "Password cannot be empty"))
+            return .failure(.commandFailed(message: L10n.t("Password cannot be empty")))
         }
 
         switch conn.kind {
@@ -596,14 +596,14 @@ final class DatabaseService {
                 if r.exit == 0 && !looksLikeError(r.out) { anySuccess = true; break }
                 lastError = firstMeaningfulLine(r.out)
             }
-            if anySuccess { return commitPassword(conn, trimmed, message: "Admin password updated") }
+            if anySuccess { return commitPassword(conn, trimmed, message: L10n.t("Admin password updated")) }
             // 老版本 MySQL/MariaDB 无 ALTER USER 时回退 SET PASSWORD（当前 host）。
             let fallbackSQL = "SET PASSWORD FOR \(user) = PASSWORD(\(pass)); FLUSH PRIVILEGES"
             let fallback = await run("\(mysqlBase(conn)) -e \(ShellQuote.quote(fallbackSQL)) 2>&1", timeout: queryTimeout)
             guard fallback.exit == 0, !looksLikeError(fallback.out) else {
                 return .failure(.commandFailed(message: lastError.isEmpty ? firstMeaningfulLine(fallback.out) : lastError))
             }
-            return commitPassword(conn, trimmed, message: "Admin password updated (compatibility mode)")
+            return commitPassword(conn, trimmed, message: L10n.t("Admin password updated (compatibility mode)"))
 
         case .postgresql:
             let sql = "ALTER USER \(sqlIdentifier(adminUser(conn))) WITH PASSWORD \(sqlString(trimmed))"
@@ -612,7 +612,7 @@ final class DatabaseService {
             guard result.exit == 0, !looksLikeError(result.out) else {
                 return .failure(.commandFailed(message: firstMeaningfulLine(result.out)))
             }
-            return commitPassword(conn, trimmed, message: "Admin password updated")
+            return commitPassword(conn, trimmed, message: L10n.t("Admin password updated"))
 
         case .mongodb:
             let uri = mongoURI(conn, database: "admin")
@@ -622,16 +622,16 @@ final class DatabaseService {
             guard result.exit == 0, !looksLikeError(result.out) else {
                 return .failure(.commandFailed(message: firstMeaningfulLine(result.out)))
             }
-            return commitPassword(conn, trimmed, message: "Admin password updated")
+            return commitPassword(conn, trimmed, message: L10n.t("Admin password updated"))
 
         case .redis:
             let base = redisBase(conn, overridePassword: true)
             let set = await run("\(base) CONFIG SET requirepass \(ShellQuote.quote(trimmed)) 2>&1", timeout: queryTimeout)
-            guard set.exit == 0, set.out.uppercased().contains("OK") else {
+            guard set.exit == 0, set.out.uppercased().contains(L10n.t("OK")) else {
                 return .failure(.commandFailed(message: firstMeaningfulLine(set.out)))
             }
             _ = await run("\(base) CONFIG REWRITE 2>&1", timeout: queryTimeout)
-            return commitPassword(conn, trimmed, message: "requirepass updated")
+            return commitPassword(conn, trimmed, message: L10n.t("requirepass updated"))
         }
     }
 
@@ -663,10 +663,10 @@ final class DatabaseService {
     func createUser(_ conn: DatabaseConnection, username: String, password: String,
                     database: String, isAdmin: Bool) async -> Result<String, DatabaseError> {
         guard let user = validUserName(username) else {
-            return .failure(.commandFailed(message: "Username may contain only letters, digits, underscore, dot and hyphen, 1-64 characters"))
+            return .failure(.commandFailed(message: L10n.t("Username may contain only letters, digits, underscore, dot and hyphen, 1-64 characters")))
         }
         let pass = password.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !pass.isEmpty else { return .failure(.commandFailed(message: "Password cannot be empty")) }
+        guard !pass.isEmpty else { return .failure(.commandFailed(message: L10n.t("Password cannot be empty"))) }
 
         let command: String
         switch conn.kind {
@@ -707,7 +707,7 @@ final class DatabaseService {
     func deleteUser(_ conn: DatabaseConnection, rawName: String) async -> Result<String, DatabaseError> {
         let user = rawName.split(separator: "@").first.map(String.init) ?? rawName
         guard let safe = validUserName(user) else {
-            return .failure(.commandFailed(message: "Invalid username"))
+            return .failure(.commandFailed(message: L10n.t("Invalid username")))
         }
         let command: String
         switch conn.kind {
@@ -732,10 +732,10 @@ final class DatabaseService {
     func changeUserPassword(_ conn: DatabaseConnection, rawName: String, newPassword: String) async -> Result<String, DatabaseError> {
         let user = rawName.split(separator: "@").first.map(String.init) ?? rawName
         guard let safe = validUserName(user) else {
-            return .failure(.commandFailed(message: "Invalid username"))
+            return .failure(.commandFailed(message: L10n.t("Invalid username")))
         }
         let pass = newPassword.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !pass.isEmpty else { return .failure(.commandFailed(message: "Password cannot be empty")) }
+        guard !pass.isEmpty else { return .failure(.commandFailed(message: L10n.t("Password cannot be empty"))) }
         let command: String
         switch conn.kind {
         case .mysql:
@@ -820,7 +820,7 @@ final class DatabaseService {
         let result = await run(command, timeout: 15)
         let out = result.out.trimmingCharacters(in: .whitespacesAndNewlines)
         if result.exit == 0 && (out.contains("1") || out.uppercased().contains("PONG")) {
-            return .success("Connected")
+            return .success(L10n.t("Connected"))
         }
         return .failure(.commandFailed(message: readableError(result)))
     }
@@ -971,7 +971,7 @@ final class DatabaseService {
                                         message: "\(array.count) results", isWriteOperation: false))
         }
         return .success(QueryResult(columns: ["Result"], rows: [[out]],
-                                    message: "Command executed", isWriteOperation: false))
+                                    message: L10n.t("Command executed"), isWriteOperation: false))
     }
 
     /// 解析 TSV / psql 表格。
@@ -1160,6 +1160,6 @@ final class DatabaseService {
 
 extension QueryResult {
     static var successEmpty: QueryResult {
-        QueryResult(columns: ["Result"], rows: [], message: "Query complete, no data", isWriteOperation: false)
+        QueryResult(columns: ["Result"], rows: [], message: L10n.t("Query complete, no data"), isWriteOperation: false)
     }
 }

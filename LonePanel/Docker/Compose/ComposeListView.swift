@@ -73,7 +73,7 @@ struct ComposeListView: View {
             .listStyle(.insetGrouped)
 
             if isLoading && projects.isEmpty {
-                ProgressView("Loading Compose projects…")
+                ProgressView(L10n.t("Loading Compose projects…"))
             }
         }
         .refreshable { await load() }
@@ -107,20 +107,20 @@ struct ComposeListView: View {
     }
 
     private var alertTitle: String {
-        guard let action = pendingAction else { return "Confirm Action" }
+        guard let action = pendingAction else { return L10n.t("Confirm Action") }
         switch action {
-        case .up: return "Start Compose Project"
-        case .down: return "Stop Compose Project"
-        case .restart: return "Restart Compose Project"
+        case .up: return L10n.t("Start Compose Project")
+        case .down: return L10n.t("Stop Compose Project")
+        case .restart: return L10n.t("Restart Compose Project")
         }
     }
 
     private var actionLabel: String {
         guard let action = pendingAction else { return "" }
         switch action {
-        case .up: return "Start"
-        case .down: return "Stop"
-        case .restart: return "Restart"
+        case .up: return L10n.t("Start")
+        case .down: return L10n.t("Stop")
+        case .restart: return L10n.t("Restart")
         }
     }
 

@@ -4,9 +4,9 @@ import SwiftUI
 struct WebsiteView: View {
     var body: some View {
         ModulePlaceholder(
-            title: "Website",
+            title: L10n.t("Website"),
             systemImage: "globe",
-            description: "Websites"
+            description: L10n.t("Websites")
         )
     }
 }

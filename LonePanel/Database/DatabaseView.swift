@@ -27,9 +27,9 @@ struct DatabaseView: View {
             .toolbar {
                 // 与 Docker 首页一致：标题位的分段切换。
                 ToolbarItem(placement: .principal) {
-                    Picker("Database source", selection: $source) {
+                    Picker(L10n.t("Database source"), selection: $source) {
                         ForEach(Source.allCases, id: \.self) { item in
-                            Text(item.rawValue).tag(item)
+                            Text(L10n.t(item.rawValue)).tag(item)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -206,20 +206,20 @@ private struct ContainerDatabaseDetailView: View {
     var body: some View {
         List {
             Section(L10n.t("Container info")) {
-                LabeledContent("Name", value: instance.name)
-                LabeledContent("Type", value: instance.kind.title)
-                LabeledContent("Image", value: instance.imageName ?? "—")
-                LabeledContent("Container ID", value: instance.containerID.map { String($0.prefix(12)) } ?? "—")
-                LabeledContent("Status", value: instance.statusText ?? "—")
+                LabeledContent(L10n.t("Name"), value: instance.name)
+                LabeledContent(L10n.t("Type"), value: instance.kind.title)
+                LabeledContent(L10n.t("Image"), value: instance.imageName ?? "—")
+                LabeledContent(L10n.t("Container ID"), value: instance.containerID.map { String($0.prefix(12)) } ?? "—")
+                LabeledContent(L10n.t("Status"), value: instance.statusText ?? "—")
             }
 
             Section {
-                LabeledContent("Execution mode", value: "Run inside container")
-                LabeledContent("Username", value: instance.username.isEmpty ? "(No authentication)" : instance.username)
+                LabeledContent(L10n.t("Execution mode"), value: L10n.t("Run inside container"))
+                LabeledContent(L10n.t("Username"), value: instance.username.isEmpty ? L10n.t("(No authentication)") : instance.username)
                 LabeledContent {
-                    Text(instance.database.isEmpty ? "(Automatic)" : instance.database)
+                    Text(instance.database.isEmpty ? L10n.t("(Automatic)") : instance.database)
                 } label: {
-                    Text(instance.kind == .redis ? "DB index" : "Default database")
+                    Text(instance.kind == .redis ? L10n.t("DB index") : L10n.t("Default database"))
                 }
             } header: {
                 Text(L10n.t("Connection info"))
@@ -272,7 +272,7 @@ private struct InstanceAdminSection: View {
                 Label(L10n.t("User management"), systemImage: "person.2")
             }
             Button { showPassword = true } label: {
-                Label(conn.kind == .redis ? "Reset requirepass" : "Reset admin password", systemImage: "key")
+                Label(conn.kind == .redis ? L10n.t("Reset requirepass") : L10n.t("Reset admin password"), systemImage: "key")
             }
         } header: {
             Label(L10n.t("Instance management"), systemImage: "wrench.and.screwdriver")
@@ -301,8 +301,8 @@ private struct AdminPasswordView: View {
         NavigationStack {
             Form {
                 Section {
-                    SecureField("New password", text: $password)
-                    SecureField("Confirm new password", text: $confirm)
+                    SecureField(L10n.t("New password"), text: $password)
+                    SecureField(L10n.t("Confirm new password"), text: $confirm)
                     if mismatch {
                         Label(L10n.t("Passwords do not match"), systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange).font(.caption)
@@ -311,7 +311,7 @@ private struct AdminPasswordView: View {
                     Text(L10n.t("Admin password"))
                 } footer: {
                     Text(conn.kind == .redis
-                         ? "Runs CONFIG SET requirepass and attempts CONFIG REWRITE to persist it."
+                         ? L10n.t("Runs CONFIG SET requirepass and attempts CONFIG REWRITE to persist it.")
                          : "This will change the login password for \(adminLabel); the actual scope depends on the instance account.")
                 }
                 if let error {
@@ -348,7 +348,7 @@ private struct AdminPasswordView: View {
 
     private func submit() async {
         guard password == confirm else {
-            error = "Passwords do not match"; return
+            error = L10n.t("Passwords do not match"); return
         }
         isRunning = true; error = nil
         let result = await DatabaseService.shared.resetAdminPassword(conn, newPassword: password)
@@ -416,8 +416,8 @@ private struct UserManagementView: View {
                 }
             } footer: {
                 Text(conn.kind == .redis
-                     ? "Redis 6+ uses ACL users; older versions only support requirepass-change it in Reset Password."
-                     : "Swipe a user to change password or delete. Do not delete admin accounts casually.")
+                     ? L10n.t("Redis 6+ uses ACL users; older versions only support requirepass-change it in Reset Password.")
+                     : L10n.t("Swipe a user to change password or delete. Do not delete admin accounts casually."))
             }
 
             Section {
@@ -493,20 +493,20 @@ private struct UserEditorView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Username", text: $username)
+                    TextField(L10n.t("Username"), text: $username)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    SecureField("Password", text: $password)
+                    SecureField(L10n.t("Password"), text: $password)
                 } header: { Text(L10n.t("Account")) }
                 Section {
-                    Toggle("Admin privileges", isOn: $isAdmin)
+                    Toggle(L10n.t("Admin privileges"), isOn: $isAdmin)
                     if !isAdmin {
-                        TextField("Authorized database (leave empty to create account only)", text: $database)
+                        TextField(L10n.t("Authorized database (leave empty to create account only)"), text: $database)
                             .textInputAutocapitalization(.never).autocorrectionDisabled()
                     }
                 } header: { Text(L10n.t("Permissions")) } footer: {
                     Text(conn.kind == .redis
-                         ? "Create an ACL user with full key and command permissions."
-                         : "Admin has full privileges; regular users can be limited to a database.")
+                         ? L10n.t("Create an ACL user with full key and command permissions.")
+                         : L10n.t("Admin has full privileges; regular users can be limited to a database."))
                 }
                 if let error {
                     Section { Label(error, systemImage: "xmark.circle.fill").foregroundStyle(.red).font(.caption) }
@@ -560,8 +560,8 @@ private struct UserPasswordView: View {
             Form {
                 Section {
                     Text(L10n.f("User: %@", String(describing: (user.name)))).foregroundStyle(.secondary)
-                    SecureField("New password", text: $password)
-                    SecureField("Confirm new password", text: $confirm)
+                    SecureField(L10n.t("New password"), text: $password)
+                    SecureField(L10n.t("Confirm new password"), text: $confirm)
                     if mismatch {
                         Label(L10n.t("Passwords do not match"), systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange).font(.caption)
@@ -586,7 +586,7 @@ private struct UserPasswordView: View {
     }
 
     private func submit() async {
-        guard password == confirm else { error = "Passwords do not match"; return }
+        guard password == confirm else { error = L10n.t("Passwords do not match"); return }
         isRunning = true; error = nil
         let result = await DatabaseService.shared.changeUserPassword(conn, rawName: user.name, newPassword: password)
         isRunning = false
@@ -673,7 +673,7 @@ private struct DatabaseListSection: View {
             }
         } header: {
             HStack {
-                Label(conn.kind == .redis ? "Database index (db)" : "Database", systemImage: "cylinder.split.1x2")
+                Label(conn.kind == .redis ? L10n.t("Database index (db)") : L10n.t("Database"), systemImage: "cylinder.split.1x2")
                 Spacer()
                 if canCreate {
                     Button { Task { await load() } } label: {
@@ -696,9 +696,9 @@ private struct DatabaseListSection: View {
             }
         }
         .sheet(item: $renaming) { db in
-            DatabaseNameEditor(title: "Rename database",
+            DatabaseNameEditor(title: L10n.t("Rename database"),
                                name: $renameText,
-                               confirmTitle: "Save",
+                               confirmTitle: L10n.t("Save"),
                                conn: conn) { name in
                 await DatabaseService.shared.renameDatabase(conn, from: db.name, to: name)
             } onDone: { message in
@@ -772,7 +772,7 @@ private struct DatabaseCreateView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Database name (letters, digits, underscore)", text: $database)
+                    TextField(L10n.t("Database name (letters, digits, underscore)"), text: $database)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                 } header: {
                     Text(L10n.t("Database"))
@@ -780,9 +780,9 @@ private struct DatabaseCreateView: View {
                     Text(L10n.t("Only letters, digits and underscores, up to 64 characters."))
                 }
                 Section {
-                    TextField("Username (leave empty to use the database name)", text: $username)
+                    TextField(L10n.t("Username (leave empty to use the database name)"), text: $username)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    SecureField("Password", text: $password)
+                    SecureField(L10n.t("Password"), text: $password)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                 } header: {
                     Text(L10n.t("Dedicated user"))
@@ -790,7 +790,7 @@ private struct DatabaseCreateView: View {
                     Text(L10n.t("This account is created with the database and granted access only to it. The password is sent to the server only and never stored locally."))
                 }
                 Section {
-                    Picker("Permission scope", selection: $grantAll) {
+                    Picker(L10n.t("Permission scope"), selection: $grantAll) {
                         Text(L10n.t("This database only (recommended)")).tag(false)
                         Text(L10n.t("All databases (admin)")).tag(true)
                     }
@@ -857,7 +857,7 @@ private struct DatabaseNameEditor: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Database name (letters, digits, underscore)", text: $name)
+                    TextField(L10n.t("Database name (letters, digits, underscore)"), text: $name)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                 } header: {
                     Text(L10n.t("Database name"))
@@ -1018,11 +1018,11 @@ struct ConnectionDetailView: View {
     var body: some View {
         List {
             Section(L10n.t("Connection info")) {
-                LabeledContent("Name", value: conn.name)
-                LabeledContent("Type", value: conn.kind.title)
-                LabeledContent("Host", value: conn.endpoint)
-                LabeledContent("Username", value: conn.username.isEmpty ? "(None)" : conn.username)
-                LabeledContent("Default database", value: conn.database.isEmpty ? "(None)" : conn.database)
+                LabeledContent(L10n.t("Name"), value: conn.name)
+                LabeledContent(L10n.t("Type"), value: conn.kind.title)
+                LabeledContent(L10n.t("Host"), value: conn.endpoint)
+                LabeledContent(L10n.t("Username"), value: conn.username.isEmpty ? L10n.t("(None)") : conn.username)
+                LabeledContent(L10n.t("Default database"), value: conn.database.isEmpty ? L10n.t("(None)") : conn.database)
             }
 
             Section(L10n.t("Client")) {
@@ -1140,8 +1140,8 @@ struct ConnectionEditorView: View {
         NavigationStack {
             Form {
                 Section(L10n.t("Basic Info")) {
-                    TextField("Name (e.g. Production MySQL)", text: $name)
-                    Picker("Type", selection: $kind) {
+                    TextField(L10n.t("Name (e.g. Production MySQL)"), text: $name)
+                    Picker(L10n.t("Type"), selection: $kind) {
                         ForEach(DatabaseKind.allCases) { k in
                             Text(k.title).tag(k)
                         }
@@ -1153,20 +1153,20 @@ struct ConnectionEditorView: View {
                 .onAppear { initialize() }
 
                 Section {
-                    TextField("Host", text: $host)
+                    TextField(L10n.t("Host"), text: $host)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    TextField("Port", text: $portText).keyboardType(.numberPad)
-                    TextField("Username", text: $username)
+                    TextField(L10n.t("Port"), text: $portText).keyboardType(.numberPad)
+                    TextField(L10n.t("Username"), text: $username)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    SecureField("Password", text: $password)
-                    TextField(isMongoOrRedis ? "Auth DB / DB index (optional)" : "Default database (optional)", text: $database)
+                    SecureField(L10n.t("Password"), text: $password)
+                    TextField(isMongoOrRedis ? L10n.t("Auth DB / DB index (optional)") : L10n.t("Default database (optional)"), text: $database)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                 } header: {
                     Text(L10n.t("Connection parameters"))
                 } footer: {
                     Text(isMongoOrRedis
-                         ? "For MongoDB enter the auth DB (blank = admin); for Redis enter the DB index (e.g. 0)."
-                         : "Leave empty to select a database manually after connecting.")
+                         ? L10n.t("For MongoDB enter the auth DB (blank = admin); for Redis enter the DB index (e.g. 0).")
+                         : L10n.t("Leave empty to select a database manually after connecting."))
                 }
 
                 if showError {
@@ -1176,7 +1176,7 @@ struct ConnectionEditorView: View {
                     }
                 }
             }
-            .navigationTitle(isEditing ? "Edit connection" : "Add connection")
+            .navigationTitle(isEditing ? L10n.t("Edit connection") : L10n.t("Add connection"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button(L10n.t("Cancel")) { dismiss() } }
@@ -1199,11 +1199,11 @@ struct ConnectionEditorView: View {
 
     private func save() {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            errorMessage = "Enter a name"; showError = true; return
+            errorMessage = L10n.t("Enter a name"); showError = true; return
         }
         let port = Int(portText) ?? kind.defaultPort
         guard port > 0, port <= 65535 else {
-            errorMessage = "Invalid port"; showError = true; return
+            errorMessage = L10n.t("Invalid port"); showError = true; return
         }
         let ok: Bool
         if let conn {
@@ -1221,7 +1221,7 @@ struct ConnectionEditorView: View {
             ok = store.add(new, password: password)
         }
         if ok { dismiss() }
-        else { errorMessage = "Save failed (possibly a Keychain write error)"; showError = true }
+        else { errorMessage = L10n.t("Save failed (possibly a Keychain write error)"); showError = true }
     }
 }
 
@@ -1271,7 +1271,7 @@ struct DatabaseBrowserView: View {
                         Text(L10n.t("Add a remote connection on the Database page first"))
                             .foregroundStyle(.secondary)
                     } else {
-                        Picker("Connect", selection: $selectedConnectionID) {
+                        Picker(L10n.t("Connect"), selection: $selectedConnectionID) {
                             Text(L10n.t("Select a connection...")).tag(nil as UUID?)
                             ForEach(store.connections) { conn in
                                 Text(conn.name).tag(conn.id as UUID?)
@@ -1313,7 +1313,7 @@ struct DatabaseBrowserView: View {
                     }
                 } header: {
                     HStack {
-                        Text(selectedConnection?.kind == .redis ? "Database index (db)" : "Database")
+                        Text(selectedConnection?.kind == .redis ? L10n.t("Database index (db)") : L10n.t("Database"))
                         Spacer()
                         if selectedConnection != nil {
                             Button { Task { await loadDatabases() } } label: {
@@ -1389,9 +1389,9 @@ struct DatabaseBrowserView: View {
     private var listSectionTitle: String {
         guard let kind = selectedConnection?.kind else { return "" }
         switch kind {
-        case .mysql, .postgresql: return "Tables"
-        case .mongodb: return "Collections"
-        case .redis: return "Keys"
+        case .mysql, .postgresql: return L10n.t("Tables")
+        case .mongodb: return L10n.t("Collections")
+        case .redis: return L10n.t("Keys")
         }
     }
 
@@ -1528,7 +1528,7 @@ struct QueryResultView: View {
                     .padding(.horizontal)
             }
             if result.columns.isEmpty && result.rows.isEmpty {
-                ContentUnavailableView("No data", systemImage: "tablecells")
+                ContentUnavailableView(L10n.t("No data"), systemImage: "tablecells")
             } else {
                 ScrollView([.horizontal, .vertical]) {
                     Grid(alignment: .topLeading, horizontalSpacing: 1, verticalSpacing: 1) {
@@ -1602,7 +1602,7 @@ struct QueryView: View {
             VStack(spacing: 0) {
                 // 输入区
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(conn.kind.supportsSQL ? "SQL statement" : "Command")
+                    Text(conn.kind.supportsSQL ? L10n.t("SQL statement") : L10n.t("Command"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     TextEditor(text: $statement)
@@ -1668,7 +1668,7 @@ struct QueryView: View {
                             UIPasteboard.general.string = flatResult(result)
                             copied = true
                         } label: {
-                            Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                            Label(copied ? L10n.t("Copied") : L10n.t("Copy"), systemImage: copied ? "checkmark" : "doc.on.doc")
                         }
                     }
                 }

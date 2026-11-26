@@ -173,7 +173,7 @@ private struct TerminalHostView: UIViewRepresentable {
 struct TerminalView: View {
     var presentation: TerminalPresentation = .sheet
     /// 导航栏标题：系统终端为「SSH 终端」，容器终端传容器名。
-    var title: String = "SSH Terminal"
+    var title: String = L10n.t("SSH Terminal")
 
     @ObservedObject private var session: TerminalSession
     @StateObject private var keyState = TerminalKeyState()
@@ -188,7 +188,7 @@ struct TerminalView: View {
 
     /// 默认仍用系统终端单例——ContentView / SettingsView 的现有调用不受影响。
     /// Docker 容器终端注入独立 exec 会话 + 容器名标题。
-    init(session: TerminalSession = .shared, presentation: TerminalPresentation = .sheet, title: String = "SSH Terminal") {
+    init(session: TerminalSession = .shared, presentation: TerminalPresentation = .sheet, title: String = L10n.t("SSH Terminal")) {
         self._session = ObservedObject(wrappedValue: session)
         self.presentation = presentation
         self.title = title
@@ -236,7 +236,7 @@ struct TerminalView: View {
                     .foregroundStyle(showFontPanel ? TerminalTheme.lockBlue : Color.primary)
             }
             .help(L10n.t("Font Size"))
-            .accessibilityLabel(showFontPanel ? "Hide Font Size" : "Font Size")
+            .accessibilityLabel(showFontPanel ? L10n.t("Hide Font Size") : L10n.t("Font Size"))
         }
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 14) {
@@ -285,7 +285,7 @@ struct TerminalView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay {
             if session.isConnecting && !session.isReady {
-                ProgressView("Connecting…")
+                ProgressView(L10n.t("Connecting…"))
                     .padding()
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
             } else if let error = session.errorMessage, !session.isReady {
@@ -408,7 +408,7 @@ struct TerminalView: View {
                 )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(keyState.ctrlLocked ? "Turn off Ctrl lock" : "Turn on Ctrl lock")
+        .accessibilityLabel(keyState.ctrlLocked ? L10n.t("Turn off Ctrl lock") : L10n.t("Turn on Ctrl lock"))
     }
 
     private func controlKey(_ title: String, bytes: [UInt8]) -> some View {
@@ -469,7 +469,7 @@ struct TerminalView: View {
                 )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(keyboardShown ? "Hide Keyboard" : "Show Keyboard")
+        .accessibilityLabel(keyboardShown ? L10n.t("Hide Keyboard") : L10n.t("Show Keyboard"))
     }
 
     private func haptic() {

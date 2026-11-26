@@ -68,7 +68,7 @@ final class FileBrowserModel: ObservableObject {
     private var client: SFTPClient?
     private var connectedServerID: UUID?
 
-    var serverName: String { ServerSession.shared.currentServer?.name ?? "Server Files" }
+    var serverName: String { ServerSession.shared.currentServer?.name ?? L10n.t("Server Files") }
 
     /// 冷启动/单击 Tab 回根时的入口路径：未设默认目录进 "/"。
     var entryPath: String {
@@ -121,7 +121,7 @@ final class FileBrowserModel: ObservableObject {
     func connectIfNeeded(force: Bool = false) async {
         guard let info = ServerSession.shared.currentServer else {
             clearSession()
-            errorMessage = "Add and connect a server in Settings > My Servers first"
+            errorMessage = L10n.t("Add and connect a server in Settings > My Servers first")
             return
         }
         if !force, connectedServerID == info.id, isConnected { return }
@@ -255,7 +255,7 @@ final class FileBrowserModel: ObservableObject {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         guard !trimmed.contains("/") && !trimmed.contains("\0") else {
-            errorMessage = "Name cannot contain invalid characters like \"/\""
+            errorMessage = L10n.t("Name cannot contain invalid characters like \"/\"")
             return nil
         }
         return trimmed
@@ -292,7 +292,7 @@ final class FileBrowserModel: ObservableObject {
                 return
             }
             let reason = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            errorMessage = reason.isEmpty ? "Delete failed: server refused the operation" : "Delete failed: \(reason)"
+            errorMessage = reason.isEmpty ? L10n.t("Delete failed: server refused the operation") : "Delete failed: \(reason)"
         } catch {
             // exec 通道不可用（服务端禁用命令执行）：回退纯 SFTP 递归删除。
             do {
@@ -325,7 +325,7 @@ final class FileBrowserModel: ObservableObject {
     /// 全程发布整体进度（已完成项/总项数），避免多文件或大文件夹粘贴时界面毫无变化。
     func transfer(_ files: [RemoteFile], operation: BatchOperation, to target: String) async {
         guard let client, !files.isEmpty else { return }
-        let title = operation == .copy ? "Copying" : "Moving"
+        let title = operation == .copy ? L10n.t("Copying") : L10n.t("Moving")
         batchProgress = BatchProgress(title: title, completed: 0, total: files.count,
                                       detail: files.first?.name ?? "", transferredBytes: 0, totalBytes: 0)
         defer { batchProgress = nil }
@@ -353,7 +353,7 @@ final class FileBrowserModel: ObservableObject {
                 }
             }
             batchProgress = BatchProgress(title: title, completed: files.count, total: files.count,
-                                          detail: "Done", transferredBytes: 0, totalBytes: 0)
+                                          detail: L10n.t("Done"), transferredBytes: 0, totalBytes: 0)
             return
         } catch {
             // 纯 SFTP 失败，继续尝试 SSH 命令回退（单条命令无法细分，显示不确定进度）。
@@ -373,8 +373,8 @@ final class FileBrowserModel: ObservableObject {
             if result.exitStatus != 0 {
                 let reason = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
                 errorMessage = reason.isEmpty
-                    ? "\(operation.rawValue) failed: server refused the operation"
-                    : "\(operation.rawValue) failed: \(reason)"
+                    ? L10n.f("%@ failed: server refused the operation", L10n.t(operation.rawValue))
+                    : L10n.f("%@ failed: %@", L10n.t(operation.rawValue), reason)
             }
         } catch {
             errorMessage = describeFileError(error)
@@ -497,8 +497,8 @@ final class FileBrowserModel: ObservableObject {
 
     /// 把 UID/GID 解析成可读的「用户 · 组」；缺映射时回退为数字。
     func ownerDisplay(uid: UInt32?, gid: UInt32?) -> String {
-        let user = uid.flatMap { uidNames[$0] } ?? uid.map { "UID \($0)" } ?? "Unknown User"
-        let group = gid.flatMap { gidNames[$0] } ?? gid.map { "GID \($0)" } ?? "Unknown Group"
+        let user = uid.flatMap { uidNames[$0] } ?? uid.map { "UID \($0)" } ?? L10n.t("Unknown User")
+        let group = gid.flatMap { gidNames[$0] } ?? gid.map { "GID \($0)" } ?? L10n.t("Unknown Group")
         return L10n.f("%@ · %@", String(describing: (user)), String(describing: (group)))
     }
 
@@ -519,11 +519,11 @@ final class FileBrowserModel: ObservableObject {
         isFileOperationActive = true
         defer { isFileOperationActive = false }
         guard let client else {
-            errorMessage = "Upload failed: not connected to server. Reconnect and retry."
+            errorMessage = L10n.t("Upload failed: not connected to server. Reconnect and retry.")
             return
         }
 
-        let title = "Uploading"
+        let title = L10n.t("Uploading")
         var succeeded = 0
         var failures: [String] = []
 
@@ -566,7 +566,7 @@ final class FileBrowserModel: ObservableObject {
 
         // 完成态停留约 0.8 秒让用户看清，再清除 HUD。
         batchProgress = BatchProgress(title: title, completed: urls.count, total: urls.count,
-                                      detail: failures.isEmpty ? "Done" : "Partial Failure",
+                                      detail: failures.isEmpty ? L10n.t("Done") : L10n.t("Partial Failure"),
                                       transferredBytes: 0, totalBytes: 0)
         try? await Task.sleep(nanoseconds: 800_000_000)
         if batchProgress?.title == title { batchProgress = nil }
@@ -574,7 +574,7 @@ final class FileBrowserModel: ObservableObject {
         // 明确的成功/失败反馈——此前成功无任何提示、失败只在逐文件 catch 里，
         // 小文件秒传时进度 HUD 一闪而过，用户感知就是「点了没反应」。
         if failures.isEmpty {
-            errorMessage = succeeded == 1 ? "Uploaded 1 file" : "Uploaded \(succeeded) files"
+            errorMessage = succeeded == 1 ? L10n.t("Uploaded 1 file") : "Uploaded \(succeeded) files"
         } else {
             let ok = succeeded > 0 ? "\(succeeded) succeeded; " : ""
             errorMessage = "Upload finished: \(ok) failed \(failures.count). \(failures.joined(separator: "\n"))"

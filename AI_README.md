@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.72.0`，版本 1.72.0（详见第 9 节） |
+| 当前基线 | tag `t1.73.0`，版本 1.73.0（详见第 9 节） |
 
 ---
 
@@ -237,6 +237,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **t1.70** | **修复切换中文闪退：把 .id(revision) 的内层子树与承载 sheet 的根容器分成两层（稳定 ZStack 根 + contentArea 子视图），换语言只重建内容区、sheet 宿主身份不变；bump dispatch 到下一 runloop，避开视图更新事务内换身份** |
 | **t1.71** | **切换中文闪退根治：改为「重启后生效」——拆分生效语言 currentID（启动锁定、运行期恒定）与待选 selectedID（Picker 绑定、只持久化）；彻底移除 revision / .id 视图重建机制，切换时不重算任何文案、不重建任何视图树** |
 | **t1.72** | **真正根治切中文闪退：崩溃日志定位到 EXC_BREAKPOINT/brk 1 来自 Swift 静态字典 `BuiltinPacks.zhHans` 的懒初始化——Release 下编译器用 `Dictionary(uniqueKeysWithValues:)`，遇 15 个重复 key 触发 preconditionFailure。删除全部重复 key，并把字典改为运行期逐条下标赋值构建，彻底根除 trap** |
+| **t1.73** | **修复中英混合双打：中文包 546 条翻译齐全但 179 处 UI 文案从没接 L10n.t()（TextField/LabeledContent/navigationTitle/Tab标题/enum rawValue/Service层错误信息等）。批量把 342 处展示文案接上 L10n.t()，排除 JSON 字典 key、enum rawValue 定义、SF Symbol、命令串；补 Docker/Compose/CPU 3 条译文** |
 
 ---
 
@@ -271,7 +272,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 2. **新增一个可插拔模块**：建 `<Name>/<Name>Tab.swift`（导出 `TabModule`）+ View；在 `TabRegistry.modules` 加一行；如需开关，`ModuleID` 加 case（`isCore=false`）；如需设置项，填 `settingsSection`。删模块反过来即可。
 3. **加悬浮终端的宿主模块**：在模块 TabModule 里设 `showsFloatingTerminal: true`。
 4. **改终端行为**：动 `TerminalSession` / `TerminalView` 前，先读 6.1 与踩坑表；终端是底座，任何"模块级终端开关"都不能加。
-5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前下一个是 t1.73.0）。
+5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前下一个是 t1.74.0）。
 
 ### 当前待办 / 方向（供参考）
 
@@ -281,4 +282,4 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 
 ---
 
-*最后更新：2026-11-26，基线 t1.72.0。文档随版本演进同步更新。*
+*最后更新：2026-11-26，基线 t1.73.0。文档随版本演进同步更新。*

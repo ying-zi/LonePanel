@@ -22,10 +22,10 @@ struct ContainerListView: View {
             .background(Color(.systemGroupedBackground))
 
             if model.isLoading && model.containers.isEmpty {
-                ProgressView("Loading containers…")
+                ProgressView(L10n.t("Loading containers…"))
             }
         }
-        .searchable(text: $model.searchText, prompt: "Search container name or image")
+        .searchable(text: $model.searchText, prompt: Text(L10n.t("Search container name or image")))
         // 与文件模块统一：未聚焦时收缩为放大镜按钮，点击展开搜索框，工具栏保持干净。
         .searchToolbarBehavior(.minimize)
         .refreshable { await model.refresh() }
@@ -129,9 +129,9 @@ struct ContainerListView: View {
     /// 这是工具类 App「打开即看全貌」的核心——同类监控 App（ServerBox / Beszel）共识。
     private var overviewBar: some View {
         HStack(spacing: 10) {
-            overviewCell(count: model.count(for: .running), title: "Running", color: .green, filter: .running)
-            overviewCell(count: model.count(for: .paused), title: "Paused", color: .orange, filter: .paused)
-            overviewCell(count: model.count(for: .stopped), title: "Stopped", color: .gray, filter: .stopped)
+            overviewCell(count: model.count(for: .running), title: L10n.t("Running"), color: .green, filter: .running)
+            overviewCell(count: model.count(for: .paused), title: L10n.t("Paused"), color: .orange, filter: .paused)
+            overviewCell(count: model.count(for: .stopped), title: L10n.t("Stopped"), color: .gray, filter: .stopped)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -286,9 +286,9 @@ struct ContainerListView: View {
 
     private func availabilityTitle(_ availability: DockerAvailability) -> String {
         switch availability {
-        case .notInstalled: return "Docker Not Found"
-        case .permissionDenied: return "Docker Access Denied"
-        case .failed: return "Detection Failed"
+        case .notInstalled: return L10n.t("Docker Not Found")
+        case .permissionDenied: return L10n.t("Docker Access Denied")
+        case .failed: return L10n.t("Detection Failed")
         case .available: return ""
         }
     }
@@ -296,9 +296,9 @@ struct ContainerListView: View {
     private func availabilityMessage(_ availability: DockerAvailability) -> String {
         switch availability {
         case .notInstalled:
-            return "The docker command was not found on the server. LonePanel calls native docker commands over SSH with no server-side panel required, but Docker itself must be installed."
+            return L10n.t("The docker command was not found on the server. LonePanel calls native docker commands over SSH with no server-side panel required, but Docker itself must be installed.")
         case .permissionDenied:
-            return "The current user cannot access the Docker socket. Add the user to the docker group (sudo usermod -aG docker $USER, then re-login) or check execution permissions in Settings."
+            return L10n.t("The current user cannot access the Docker socket. Add the user to the docker group (sudo usermod -aG docker $USER, then re-login) or check execution permissions in Settings.")
         case .failed(let message):
             return message
         case .available:

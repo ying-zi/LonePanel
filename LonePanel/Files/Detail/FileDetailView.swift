@@ -12,7 +12,7 @@ struct FileInfoSheet: View {
     @State private var folderStats: FolderStats?
     @State private var statsLoading = false
     /// 属主的可读名称（用户 · 组），由 /etc/passwd 映射解析后回填。
-    @State private var ownerName: String = "Unknown User · Unknown Group"
+    @State private var ownerName: String = L10n.t("Unknown User · Unknown Group")
 
     var body: some View {
         NavigationStack {
@@ -57,16 +57,16 @@ struct FileInfoSheet: View {
 
     private var attributesSection: some View {
         Section(L10n.t("Attributes")) {
-            LabeledContent("Kind", value: kindLabel)
+            LabeledContent(L10n.t("Kind"), value: kindLabel)
             // 文件夹的 STAT size 无意义（见 folderStatsSection），只给文件显示大小。
             if !file.isDirectory {
-                LabeledContent("Size", value: byteSize)
+                LabeledContent(L10n.t("Size"), value: byteSize)
             }
             if let date = file.modified {
-                LabeledContent("Date Modified", value: date.formatted(date: .abbreviated, time: .shortened))
+                LabeledContent(L10n.t("Date Modified"), value: date.formatted(date: .abbreviated, time: .shortened))
             }
-            LabeledContent("Permissions", value: file.permissionText)
-            LabeledContent("Owner", value: ownerName)
+            LabeledContent(L10n.t("Permissions"), value: file.permissionText)
+            LabeledContent(L10n.t("Owner"), value: ownerName)
         }
     }
 
@@ -84,9 +84,9 @@ struct FileInfoSheet: View {
                     ProgressView()
                 }
             } else if let stats = folderStats {
-                LabeledContent("Disk Usage", value: FileBrowserModel.sizeText(stats.sizeBytes))
-                LabeledContent("Files", value: L10n.f("%@ items", String(describing: (stats.fileCount))))
-                LabeledContent("Subfolders", value: L10n.f("%@ items", String(describing: (stats.directoryCount))))
+                LabeledContent(L10n.t("Disk Usage"), value: FileBrowserModel.sizeText(stats.sizeBytes))
+                LabeledContent(L10n.t("Files"), value: L10n.f("%@ items", String(describing: (stats.fileCount))))
+                LabeledContent(L10n.t("Subfolders"), value: L10n.f("%@ items", String(describing: (stats.directoryCount))))
             } else {
                 HStack {
                     Text(L10n.t("Scan Failed")).foregroundStyle(.secondary)
@@ -122,12 +122,12 @@ struct FileInfoSheet: View {
 
     private var kindLabel: String {
         switch FileKind(file: file) {
-        case .directory: return "Folder"
-        case .image: return "Image"
-        case .text: return "Plain Text"
-        case .code: return "Source Code"
-        case .archive: return "Archive"
-        case .other: return "Document"
+        case .directory: return L10n.t("Folder")
+        case .image: return L10n.t("Image")
+        case .text: return L10n.t("Plain Text")
+        case .code: return L10n.t("Source Code")
+        case .archive: return L10n.t("Archive")
+        case .other: return L10n.t("Document")
         }
     }
 

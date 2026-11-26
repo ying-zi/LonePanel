@@ -4,7 +4,7 @@ import SwiftUI
 enum FilesTab {
     static let module = TabModule(
         id: "files",
-        title: "Files",
+        title: L10n.t("Files"),
         symbolName: "folder",
         view: AnyView(FilesView())
     )

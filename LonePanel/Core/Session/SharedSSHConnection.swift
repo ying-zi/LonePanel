@@ -25,13 +25,13 @@ final class SharedSSHConnection: ObservableObject {
     private var shell: SSHShell?
     private var connectTask: Task<Bool, Never>?
 
-    var serverName: String { ServerSession.shared.currentServer?.name ?? "Server" }
+    var serverName: String { ServerSession.shared.currentServer?.name ?? L10n.t("Server") }
 
     /// 建立（或复用）到当前服务器的连接。并发调用合并为同一任务，避免重复建连。
     @discardableResult
     func ensureConnected(force: Bool = false) async -> Bool {
         guard let info = ServerSession.shared.currentServer else {
-            lastError = "Please add and select a server in Settings → My Servers first"
+            lastError = L10n.t("Please add and select a server in Settings → My Servers first")
             connectionFailed = true
             return false
         }

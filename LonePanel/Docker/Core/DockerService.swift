@@ -24,7 +24,7 @@ final class DockerService {
     /// 导致容器页被门槛挡住、根本不去拉数据——而镜像页无门槛所以能显示，症状极不一致。
     func checkAvailability() async -> DockerAvailability {
         guard await connection.ensureConnected() else {
-            return .failed(connection.lastError ?? "Connection Failed")
+            return .failed(connection.lastError ?? L10n.t("Connection Failed"))
         }
         // 用「docker version」一条命令同时验证：命令存在 + daemon 可访问 + 权限足够。
         // 注意：必须是 docker 外部命令（可用 sudo 包装），不能用 command -v（shell 内建，加 sudo 会报 command not found）。
@@ -32,7 +32,7 @@ final class DockerService {
         let version = await run("docker version --format '{{.Server.Version}}'", timeout: 15)
         if version.exit == 0 {
             let v = version.out.trimmingCharacters(in: .whitespacesAndNewlines)
-            return .available(version: v.isEmpty ? "Installed" : v)
+            return .available(version: v.isEmpty ? L10n.t("Installed") : v)
         }
         // 失败 → 依据错误文本区分「没装」与「无权访问」
         let combined = (version.out + version.err).lowercased()
@@ -55,7 +55,7 @@ final class DockerService {
         let stats = await statsTask
 
         if ps.exit != 0 {
-            throw DockerError.commandFailed(message: firstError(ps, "Failed to load containers"))
+            throw DockerError.commandFailed(message: firstError(ps, L10n.t("Failed to load containers")))
         }
 
         let rows = decodeLines(DockerPSRow.self, ps.out)
@@ -81,7 +81,7 @@ final class DockerService {
     func fetchImages() async throws -> [DockerImage] {
         let result = await runNonEmpty("docker images --format '{{json .}}'", timeout: listTimeout)
         if result.exit != 0 {
-            throw DockerError.commandFailed(message: firstError(result, "Failed to load images"))
+            throw DockerError.commandFailed(message: firstError(result, L10n.t("Failed to load images")))
         }
         return decodeLines(DockerImageRow.self, result.out).map(DockerImage.init)
     }
@@ -96,32 +96,32 @@ final class DockerService {
     // MARK: - 容器操作
 
     func startContainer(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker start \(id)", success: "Container started")
+        await mutate("docker start \(id)", success: L10n.t("Container started"))
     }
 
     func stopContainer(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker stop \(id)", success: "Container stopped")
+        await mutate("docker stop \(id)", success: L10n.t("Container stopped"))
     }
 
     func restartContainer(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker restart \(id)", success: "Container restarted")
+        await mutate("docker restart \(id)", success: L10n.t("Container restarted"))
     }
 
     func pauseContainer(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker pause \(id)", success: "Container paused")
+        await mutate("docker pause \(id)", success: L10n.t("Container paused"))
     }
 
     func unpauseContainer(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker unpause \(id)", success: "Container resumed")
+        await mutate("docker unpause \(id)", success: L10n.t("Container resumed"))
     }
 
     func removeContainer(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker rm -f \(id)", success: "Container removed")
+        await mutate("docker rm -f \(id)", success: L10n.t("Container removed"))
     }
 
     /// 强制停止容器（docker kill），用于容器无响应、正常 stop 卡住的场景。
     func killContainer(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker kill \(id)", success: "Container force-stopped")
+        await mutate("docker kill \(id)", success: L10n.t("Container force-stopped"))
     }
 
     // MARK: - 创建容器（对标 1Panel）
@@ -129,11 +129,11 @@ final class DockerService {
     /// 拉取镜像。progress 由 docker 自己写到 stderr，这里只判定结果。
     func pullImage(_ reference: String) async -> Result<Void, DockerError> {
         let ref = reference.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !ref.isEmpty else { return .failure(.commandFailed(message: "Image name cannot be empty")) }
+        guard !ref.isEmpty else { return .failure(.commandFailed(message: L10n.t("Image name cannot be empty"))) }
         // pull 可能较慢（大镜像），给 180 秒；超时不用 mutate 的默认 30 秒。
         let result = await run("docker pull \(ShellQuote.quote(ref))", timeout: 180)
         if result.exit == 0 { return .success(()) }
-        return .failure(.commandFailed(message: firstError(result, "Failed to pull image")))
+        return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to pull image"))))
     }
 
     /// 拉取网络列表（名字），供创建表单选择。bridge/host/none 固定项由 UI 补，这里只取自定义网络。
@@ -162,7 +162,7 @@ final class DockerService {
         let command = Self.buildRunCommand(spec)
         let result = await run(command, timeout: 60)
         guard result.exit == 0 else {
-            return .failure(.commandFailed(message: firstError(result, "Failed to create container")))
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to create container"))))
         }
         let id = result.out.trimmingCharacters(in: .whitespacesAndNewlines)
         return .success(id)
@@ -234,7 +234,7 @@ final class DockerService {
     // MARK: - 镜像 / Compose 操作
 
     func removeImage(_ id: String) async -> Result<Void, DockerError> {
-        await mutate("docker rmi \(id)", success: "Image removed")
+        await mutate("docker rmi \(id)", success: L10n.t("Image removed"))
     }
 
     func composeAction(_ name: String, configFile: String, action: ComposeAction) async -> Result<Void, DockerError> {
@@ -245,7 +245,7 @@ final class DockerService {
         case .down: command = "docker compose\(fileArg) -p \(ShellQuote.quote(name)) down"
         case .restart: command = "docker compose\(fileArg) -p \(ShellQuote.quote(name)) restart"
         }
-        return await mutate(command, success: "Done")
+        return await mutate(command, success: L10n.t("Done"))
     }
 
     enum ComposeAction {
@@ -258,7 +258,7 @@ final class DockerService {
     func fetchInspect(containerID: String) async -> Result<String, DockerError> {
         let result = await run("docker inspect \(containerID)", timeout: 30)
         if result.exit != 0 {
-            return .failure(.commandFailed(message: firstError(result, "Failed to load container details")))
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to load container details"))))
         }
         return .success(result.out)
     }
@@ -290,7 +290,7 @@ final class DockerService {
             return .success(combined)
         }
         if result.exit != 0 {
-            return .failure(.commandFailed(message: firstError(result, "Failed to load logs")))
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to load logs"))))
         }
         return .success("")
     }
@@ -301,7 +301,7 @@ final class DockerService {
     func fetchProcesses(containerID: String) async -> Result<[DockerProcess], DockerError> {
         let result = await run("docker top \(containerID) -eo pid,user,args", timeout: 20)
         if result.exit != 0 {
-            return .failure(.commandFailed(message: firstError(result, "Failed to load process list")))
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to load process list"))))
         }
         return .success(DockerProcess.parse(result.out))
     }

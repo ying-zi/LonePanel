@@ -167,13 +167,13 @@ enum SFTPWire {
     }
 
     static func uint32(_ bytes: [UInt8], at offset: Int) throws -> UInt32 {
-        guard offset >= 0, offset + 4 <= bytes.count else { throw SFTPError.malformed("Data too short") }
+        guard offset >= 0, offset + 4 <= bytes.count else { throw SFTPError.malformed(L10n.t("Data too short")) }
         return (UInt32(bytes[offset]) << 24) | (UInt32(bytes[offset + 1]) << 16) |
                (UInt32(bytes[offset + 2]) << 8) | UInt32(bytes[offset + 3])
     }
 
     static func uint64(_ bytes: [UInt8], at offset: Int) throws -> UInt64 {
-        guard offset >= 0, offset + 8 <= bytes.count else { throw SFTPError.malformed("Data too short") }
+        guard offset >= 0, offset + 8 <= bytes.count else { throw SFTPError.malformed(L10n.t("Data too short")) }
         var value: UInt64 = 0
         for index in offset..<(offset + 8) { value = (value << 8) | UInt64(bytes[index]) }
         return value
@@ -226,7 +226,7 @@ struct PayloadReader {
 
     mutating func data() throws -> [UInt8] {
         let length = Int(try uint32())
-        guard length >= 0, offset + length <= bytes.count else { throw SFTPError.malformed("Length out of range") }
+        guard length >= 0, offset + length <= bytes.count else { throw SFTPError.malformed(L10n.t("Length out of range")) }
         let value = Array(bytes[offset..<(offset + length)])
         offset += length
         return value

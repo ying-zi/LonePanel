@@ -86,7 +86,7 @@ enum PrivateKeyParser {
             guard inBlock else { continue }
             if line.localizedCaseInsensitiveContains("Proc-Type: 4,ENCRYPTED") ||
                 line.hasPrefix("DEK-Info:") {
-                throw PrivateKeyError.encrypted("Legacy PEM")
+                throw PrivateKeyError.encrypted(L10n.t("Legacy PEM"))
             }
             if !line.isEmpty && !line.contains(":") {
                 bodyLines.append(line)
@@ -103,7 +103,7 @@ enum PrivateKeyParser {
         var reader = SSHReader(bytes)
         let magic = Array("openssh-key-v1\0".utf8)
         guard reader.read(count: magic.count) == magic else {
-            throw PrivateKeyError.malformed("Missing openssh-key-v1 marker")
+            throw PrivateKeyError.malformed(L10n.t("Missing openssh-key-v1 marker"))
         }
         let cipher = try reader.readUTF8String()
         if cipher != "none" {
@@ -159,17 +159,17 @@ enum PrivateKeyParser {
         var der = DERReader(bytes)
         let seq = try der.expect(0x30, "PrivateKeyInfo")
         var info = DERReader(seq)
-        _ = try info.expect(0x02, "Version")                 // version
+        _ = try info.expect(0x02, L10n.t("Version"))                 // version
         let algSeq = try info.expect(0x30, "AlgorithmIdentifier")
-        let privateOctet = try info.expect(0x04, "Private key data")
+        let privateOctet = try info.expect(0x04, L10n.t("Private key data"))
 
         var alg = DERReader(algSeq)
-        let oid = try alg.expect(0x06, "Algorithm OID")
+        let oid = try alg.expect(0x06, L10n.t("Algorithm OID"))
 
         if oid == CurveOID.ed25519 {
             // RFC 8410：privateKey OCTET STRING 内还是一个包裹种子的 OCTET STRING。
             var pk = DERReader(privateOctet)
-            let seed = try pk.expect(0x04, "Ed25519 seed")
+            let seed = try pk.expect(0x04, L10n.t("Ed25519 seed"))
             return try makeEd25519(seed)
         } else if oid == CurveOID.ecPublicKey {
             var curveOID: [UInt8]?
@@ -180,7 +180,7 @@ enum PrivateKeyParser {
         } else if oid == CurveOID.rsa {
             throw PrivateKeyError.unsupportedAlgorithm("RSA（PKCS#8）")
         } else {
-            throw PrivateKeyError.unsupportedAlgorithm("Unknown algorithm")
+            throw PrivateKeyError.unsupportedAlgorithm(L10n.t("Unknown algorithm"))
         }
     }
 
@@ -194,8 +194,8 @@ enum PrivateKeyParser {
         var der = DERReader(bytes)
         let seq = try der.expect(0x30, "ECPrivateKey")
         var inner = DERReader(seq)
-        _ = try inner.expect(0x02, "EC version")
-        let scalar = try inner.expect(0x04, "EC private scalar")
+        _ = try inner.expect(0x02, L10n.t("EC version"))
+        let scalar = try inner.expect(0x04, L10n.t("EC private scalar"))
 
         var resolvedOID = curveOID
         // 在可选的 parameters [0] 里找曲线 OID（PKCS#8 通常由 AlgorithmIdentifier 提供）。
@@ -208,7 +208,7 @@ enum PrivateKeyParser {
             }
         }
         guard let oid = resolvedOID else {
-            throw PrivateKeyError.malformed("Missing elliptic curve identifier")
+            throw PrivateKeyError.malformed(L10n.t("Missing elliptic curve identifier"))
         }
         return try makeEC(scalar: scalar, curveOID: oid)
     }
@@ -235,7 +235,7 @@ enum PrivateKeyParser {
             let raw = try normalizeScalar(scalar, to: 66, name: "P-521")
             return NIOSSHPrivateKey(p521Key: try P521.Signing.PrivateKey(rawRepresentation: Data(raw)))
         default:
-            throw PrivateKeyError.unsupportedAlgorithm("This elliptic curve")
+            throw PrivateKeyError.unsupportedAlgorithm(L10n.t("This elliptic curve"))
         }
     }
 
@@ -273,7 +273,7 @@ private struct DERReader {
 
     mutating func readTLV() throws -> (tag: UInt8, value: [UInt8]) {
         guard offset + 2 <= bytes.count else {
-            throw PrivateKeyError.malformed("Unexpected end of DER data")
+            throw PrivateKeyError.malformed(L10n.t("Unexpected end of DER data"))
         }
         let tag = bytes[offset]; offset += 1
         let first = bytes[offset]; offset += 1
@@ -283,14 +283,14 @@ private struct DERReader {
         } else {
             let count = Int(first & 0x7F)
             guard count > 0, count <= 4, offset + count <= bytes.count else {
-                throw PrivateKeyError.malformed("Invalid DER length field")
+                throw PrivateKeyError.malformed(L10n.t("Invalid DER length field"))
             }
             for _ in 0..<count {
                 length = (length << 8) | Int(bytes[offset]); offset += 1
             }
         }
         guard length <= bytes.count - offset else {
-            throw PrivateKeyError.malformed("DER content length out of range")
+            throw PrivateKeyError.malformed(L10n.t("DER content length out of range"))
         }
         let value = Array(bytes[offset..<(offset + length)])
         offset += length
@@ -322,14 +322,14 @@ private struct SSHReader {
 
     mutating func readUInt32() throws -> UInt32 {
         let raw = read(count: 4)
-        guard raw.count == 4 else { throw PrivateKeyError.malformed("Unexpected end of data") }
+        guard raw.count == 4 else { throw PrivateKeyError.malformed(L10n.t("Unexpected end of data")) }
         return (UInt32(raw[0]) << 24) | (UInt32(raw[1]) << 16) | (UInt32(raw[2]) << 8) | UInt32(raw[3])
     }
 
     mutating func readBytes() throws -> [UInt8] {
         let length = try readUInt32()
         guard length <= UInt32(bytes.count - offset) else {
-            throw PrivateKeyError.malformed("Length field out of data range")
+            throw PrivateKeyError.malformed(L10n.t("Length field out of data range"))
         }
         return read(count: Int(length))
     }

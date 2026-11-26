@@ -54,7 +54,7 @@ struct SettingsView: View {
                     } label: {
                         Label(L10n.t("SSH Terminal"), systemImage: "terminal")
                     }
-                    Toggle("Show Floating Terminal Button", isOn: $floatingEnabled)
+                    Toggle(L10n.t("Show Floating Terminal Button"), isOn: $floatingEnabled)
                 } header: {
                     Text(L10n.t("Terminal"))
                 } footer: {

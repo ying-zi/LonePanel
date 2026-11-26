@@ -12,9 +12,9 @@ enum DockerStateStyle {
 
     static func label(_ state: DockerContainerState) -> String {
         switch state {
-        case .running: return "Running"
-        case .paused: return "Paused"
-        case .stopped: return "Stopped"
+        case .running: return L10n.t("Running")
+        case .paused: return L10n.t("Paused")
+        case .stopped: return L10n.t("Stopped")
         }
     }
 }
@@ -127,7 +127,7 @@ struct ResourceRingsView: View {
     private var ringsRow: some View {
         HStack(spacing: 16) {
             UsageRing(value: container.usage.cpuPercent, label: "CPU")
-            UsageRing(value: container.usage.memPercent, label: "Memory", tint: .purple)
+            UsageRing(value: container.usage.memPercent, label: L10n.t("Memory"), tint: .purple)
         }
         .fixedSize(horizontal: true, vertical: false)
     }
@@ -159,17 +159,17 @@ struct ResourceRingsView: View {
             text = String(text[..<paren]).trimmingCharacters(in: .whitespaces)
         }
         let replacements: [(String, String)] = [
-            ("months", "months"), ("month", "months"),
-            ("weeks", "weeks"), ("week", "weeks"),
-            ("days", "days"), ("day", "days"),
-            ("hours", "hours"), ("hour", "hours"),
-            ("minutes", "minutes"), ("minute", "minutes"),
-            ("seconds", "seconds"), ("second", "seconds")
+            (L10n.t("months"), L10n.t("months")), ("month", L10n.t("months")),
+            (L10n.t("weeks"), L10n.t("weeks")), ("week", L10n.t("weeks")),
+            (L10n.t("days"), L10n.t("days")), ("day", L10n.t("days")),
+            (L10n.t("hours"), L10n.t("hours")), ("hour", L10n.t("hours")),
+            (L10n.t("minutes"), L10n.t("minutes")), ("minute", L10n.t("minutes")),
+            (L10n.t("seconds"), L10n.t("seconds")), ("second", L10n.t("seconds"))
         ]
         for (english, chinese) in replacements {
             text = text.replacingOccurrences(of: english, with: chinese)
         }
-        return text.isEmpty ? "Running" : L10n.f("Run %@", String(describing: (text)))
+        return text.isEmpty ? L10n.t("Running") : L10n.f("Run %@", String(describing: (text)))
     }
 }
 

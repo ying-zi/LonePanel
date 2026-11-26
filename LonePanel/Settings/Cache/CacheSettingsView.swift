@@ -116,7 +116,7 @@ struct CacheSettingsView: View {
     // 类别展示元数据：新增缓存类别时在这里补一行即可。
     private func categoryTitle(_ category: String) -> String {
         switch category {
-        case "files": return "File Preview"
+        case "files": return L10n.t("File Preview")
         default: return category
         }
     }
@@ -130,8 +130,8 @@ struct CacheSettingsView: View {
 
     private func categoryDetail(_ category: String) -> String {
         switch category {
-        case "files": return "Downloaded copies for preview and sharing"
-        default: return "Local cached copy"
+        case "files": return L10n.t("Downloaded copies for preview and sharing")
+        default: return L10n.t("Local cached copy")
         }
     }
 }

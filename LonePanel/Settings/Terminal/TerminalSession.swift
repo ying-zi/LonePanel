@@ -261,13 +261,13 @@ final class TerminalSession: ObservableObject, Identifiable {
                 self.connection.closeShell()
                 if self.autoReconnect {
                     // 系统终端：断线自动重连。
-                    self.showNotice("[Connection lost, reconnecting...]")
+                    self.showNotice(L10n.t("[Connection lost, reconnecting...]"))
                     if !self.userDisconnected {
                         Task { await self.ensureAlive(forceReconnect: true) }
                     }
                 } else {
                     // 容器终端：会话结束即停（用户 exit 或容器退出），不重连、只提示。
-                    self.showNotice("[Session ended]")
+                    self.showNotice(L10n.t("[Session ended]"))
                 }
             }
         }
@@ -309,7 +309,7 @@ final class TerminalSession: ObservableObject, Identifiable {
         if execCommand == nil {
             connection.disconnect()
         }
-        showNotice("[Disconnected]")
+        showNotice(L10n.t("[Disconnected]"))
     }
 
     /// 容器终端视图退出：仅关闭本会话的 exec 通道，不触碰共享 SSH 连接。

@@ -42,9 +42,9 @@ struct FileCallView: View {
                         Text(L10n.t("Add and connect a server in Settings > My Servers first"))
                     }
                 } else if !model.isConnected {
-                    ProgressView("Connecting to server...")
+                    ProgressView(L10n.t("Connecting to server..."))
                 } else if !loaded {
-                    ProgressView("Loading directory...")
+                    ProgressView(L10n.t("Loading directory..."))
                 } else if entries.isEmpty {
                     ContentUnavailableView {
                         Label(L10n.t("Empty directory"), systemImage: "folder")

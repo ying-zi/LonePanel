@@ -57,12 +57,12 @@ struct ContainerCreateSpec {
     /// 校验所有字段，返回第一处错误文案；nil 表示合法。
     func validate() -> String? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return "Enter a container name" }
+        guard !trimmedName.isEmpty else { return L10n.t("Enter a container name") }
         guard Self.validContainerName(trimmedName) else {
-            return "Container name may contain only letters, digits, underscore, dot and hyphen, and cannot start with a special character"
+            return L10n.t("Container name may contain only letters, digits, underscore, dot and hyphen, and cannot start with a special character")
         }
         guard !image.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return "Enter an image name"
+            return L10n.t("Enter an image name")
         }
         for p in ports where !p.hostPort.isEmpty || !p.containerPort.isEmpty {
             guard Self.validPort(p.hostPort), Self.validPort(p.containerPort) else {
@@ -77,10 +77,10 @@ struct ContainerCreateSpec {
             guard Self.validEnvKey(e.key) else { return "Environment variable name may contain only letters, digits and underscore: \(e.key)" }
         }
         if !memory.isEmpty, Self.validMemory(memory) == false {
-            return "Memory must be a number plus unit (e.g. 512m / 1g)"
+            return L10n.t("Memory must be a number plus unit (e.g. 512m / 1g)")
         }
         if !cpus.isEmpty, Double(cpus) == nil {
-            return "CPU must be a number (e.g. 0.5 / 2)"
+            return L10n.t("CPU must be a number (e.g. 0.5 / 2)")
         }
         return nil
     }

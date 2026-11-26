@@ -33,25 +33,25 @@ struct ServerFormView: View {
         NavigationStack {
             Form {
                 Section(L10n.t("Server")) {
-                    TextField("Name (Note)", text: $name)
-                    TextField("Address", text: $host)
+                    TextField(L10n.t("Name (Note)"), text: $name)
+                    TextField(L10n.t("Address"), text: $host)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    TextField("Port", text: $portText)
+                    TextField(L10n.t("Port"), text: $portText)
                     TextField("root", text: $username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
 
                 Section(L10n.t("Authentication")) {
-                    Picker("Authentication", selection: $authKind) {
+                    Picker(L10n.t("Authentication"), selection: $authKind) {
                         Text(L10n.t("Password")).tag(ServerAuthKind.password)
                         Text(L10n.t("Private Key")).tag(ServerAuthKind.privateKey)
                     }
                     .pickerStyle(.segmented)
 
                     if authKind == .password {
-                        SecureField("Password", text: $password)
+                        SecureField(L10n.t("Password"), text: $password)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     } else {
@@ -70,7 +70,7 @@ struct ServerFormView: View {
                     Section(L10n.t("Test Result")) {
                         Text(result)
                             .font(.subheadline)
-                            .foregroundStyle(result.hasPrefix("Connected") ? Color.green : Color.red)
+                            .foregroundStyle(result.hasPrefix(L10n.t("Connected")) ? Color.green : Color.red)
                             .textSelection(.enabled)
                     }
                 }
@@ -87,7 +87,7 @@ struct ServerFormView: View {
                     .disabled(testing)
                 }
             }
-            .navigationTitle(server == nil ? "Add Server" : "Edit Server")
+            .navigationTitle(server == nil ? L10n.t("Add Server") : L10n.t("Edit Server"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -125,7 +125,7 @@ struct ServerFormView: View {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               port != nil else {
-            errorMessage = "Enter name, address and port"
+            errorMessage = L10n.t("Enter name, address and port")
             return false
         }
         return true
@@ -139,13 +139,13 @@ struct ServerFormView: View {
             if let server, let stored = try? KeychainStore.load(server.credentialKey) {
                 return .password(stored)
             }
-            throw FormError.missingCredential("Enter password")
+            throw FormError.missingCredential(L10n.t("Enter password"))
         case .privateKey:
             if !privateKeyPEM.isEmpty { return .privateKey(privateKeyPEM) }
             if let server, let stored = try? KeychainStore.load(server.credentialKey) {
                 return .privateKey(stored)
             }
-            throw FormError.missingCredential("Enter private key")
+            throw FormError.missingCredential(L10n.t("Enter private key"))
         }
     }
 

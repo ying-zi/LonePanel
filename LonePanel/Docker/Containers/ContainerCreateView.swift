@@ -73,10 +73,10 @@ struct ContainerCreateView: View {
 
     private var basicSection: some View {
         Section {
-            TextField("Container name", text: $spec.name)
+            TextField(L10n.t("Container name"), text: $spec.name)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
             HStack {
-                TextField("Image (e.g. nginx:latest)", text: $spec.image)
+                TextField(L10n.t("Image (e.g. nginx:latest)"), text: $spec.image)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                 Button {
                     showImagePicker = true
@@ -86,11 +86,11 @@ struct ContainerCreateView: View {
                 .buttonStyle(.borderless)
                 .help(L10n.t("Choose from existing images"))
             }
-            Toggle("Pull latest image before creating", isOn: $spec.pullImage)
-            Picker("Network", selection: $spec.network) {
+            Toggle(L10n.t("Pull latest image before creating"), isOn: $spec.pullImage)
+            Picker(L10n.t("Network"), selection: $spec.network) {
                 ForEach(networks, id: \.self) { Text($0).tag($0) }
             }
-            Picker("Restart Policy", selection: $spec.restartPolicy) {
+            Picker(L10n.t("Restart Policy"), selection: $spec.restartPolicy) {
                 Text(L10n.t("Never restart")).tag("no")
                 Text(L10n.t("Always")).tag("always")
                 Text(L10n.t("Unless stopped manually")).tag("unless-stopped")
@@ -109,13 +109,13 @@ struct ContainerCreateView: View {
         Section {
             ForEach($spec.ports) { $port in
                 HStack(spacing: 6) {
-                    TextField("Host", text: $port.hostPort)
+                    TextField(L10n.t("Host"), text: $port.hostPort)
                         .keyboardType(.numberPad)
                         .textFieldStyle(.roundedBorder)
                         .frame(minWidth: 60)
                     Text(":")
                         .foregroundStyle(.secondary)
-                    TextField("Container", text: $port.containerPort)
+                    TextField(L10n.t("Container"), text: $port.containerPort)
                         .keyboardType(.numberPad)
                         .textFieldStyle(.roundedBorder)
                         .frame(minWidth: 60)
@@ -152,7 +152,7 @@ struct ContainerCreateView: View {
                         let current = mount.hostPath.isEmpty ? "/" : mount.hostPath
                         mountPickTarget = ModuleCoordinator.shared.directoryPickTarget(
                             at: current,
-                            title: "Choose host directory"
+                            title: L10n.t("Choose host directory")
                         ) { picked in
                             mount.hostPath = picked
                         }
@@ -160,7 +160,7 @@ struct ContainerCreateView: View {
                         HStack {
                             Image(systemName: "folder")
                                 .foregroundStyle(.tint)
-                            Text(mount.hostPath.isEmpty ? "Tap to choose host directory" : mount.hostPath)
+                            Text(mount.hostPath.isEmpty ? L10n.t("Tap to choose host directory") : mount.hostPath)
                                 .foregroundStyle(mount.hostPath.isEmpty ? .secondary : .primary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
@@ -173,10 +173,10 @@ struct ContainerCreateView: View {
                     }
                     .buttonStyle(.plain)
                     HStack(spacing: 6) {
-                        TextField("Container path (e.g. /data)", text: $mount.containerPath)
+                        TextField(L10n.t("Container path (e.g. /data)"), text: $mount.containerPath)
                             .textInputAutocapitalization(.never).autocorrectionDisabled()
                             .textFieldStyle(.roundedBorder)
-                        Toggle("Read only", isOn: $mount.readOnly)
+                        Toggle(L10n.t("Read only"), isOn: $mount.readOnly)
                             .labelsHidden()
                         Text(L10n.t("Read only")).font(.caption).foregroundStyle(.secondary)
                     }
@@ -228,19 +228,19 @@ struct ContainerCreateView: View {
 
     private var advancedSection: some View {
         Section {
-            TextField("Memory limit (e.g. 512m / 1g)", text: $spec.memory)
+            TextField(L10n.t("Memory limit (e.g. 512m / 1g)"), text: $spec.memory)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
-            TextField("CPU limit (e.g. 0.5 / 2)", text: $spec.cpus)
+            TextField(L10n.t("CPU limit (e.g. 0.5 / 2)"), text: $spec.cpus)
                 .keyboardType(.decimalPad)
-            TextField("Hostname", text: $spec.hostname)
+            TextField(L10n.t("Hostname"), text: $spec.hostname)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
-            TextField("Working directory", text: $spec.workdir)
+            TextField(L10n.t("Working directory"), text: $spec.workdir)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
-            TextField("ENTRYPOINT (optional, overrides image)", text: $spec.entrypoint)
+            TextField(L10n.t("ENTRYPOINT (optional, overrides image)"), text: $spec.entrypoint)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
-            TextField("Startup command and arguments (optional)", text: $spec.command)
+            TextField(L10n.t("Startup command and arguments (optional)"), text: $spec.command)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
-            Toggle("Privileged mode", isOn: $spec.privileged)
+            Toggle(L10n.t("Privileged mode"), isOn: $spec.privileged)
         } header: {
             Text(L10n.t("Advanced options"))
         } footer: {
