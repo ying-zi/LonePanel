@@ -74,7 +74,10 @@ final class LocalizationStore: ObservableObject {
             kvs.set(id, forKey: currentIDKey)   // 无 entitlement 时自动落本地，安全
             kvs.synchronize()
         }
-        bump()
+        // Picker/Toggle 的 set 回调处于 SwiftUI 视图更新事务中，此时同步改 revision
+        // 会让依赖 revision 的视图树在同一事务内换身份，正在显示的 sheet 被重建而崩溃。
+        // 推迟到下一个 runloop，等回调结束再刷新，彻底避开事务内重建。
+        scheduleBump()
     }
 
     /// 开启/关闭 iCloud 同步。关闭后不写 KVS、不镜像语言包；开启时立即镜像一次。
@@ -84,7 +87,14 @@ final class LocalizationStore: ObservableObject {
         kvs.set(enabled, forKey: cloudSyncKey)
         kvs.synchronize()
         if enabled { mirrorPacksToICloud() }
-        bump()
+        scheduleBump()
+    }
+
+    /// 把 revision 自增推到下一个主线程 runloop，避免在视图更新事务中途换身份。
+    private func scheduleBump() {
+        DispatchQueue.main.async { [weak self] in
+            self?.revision &+= 1
+        }
     }
 
     private func bump() { revision &+= 1 }
@@ -216,7 +226,7 @@ final class LocalizationStore: ObservableObject {
                synced == "en" || synced == "zh-Hans" || self.customPacks.contains(where: { $0.id == synced }) {
                 self.currentID = synced
                 self.defaults.set(synced, forKey: self.currentIDKey)
-                self.bump()
+                self.scheduleBump()
             }
         }
     }
