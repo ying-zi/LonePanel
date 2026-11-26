@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.76.0`，版本 1.76.0（详见第 9 节） |
+| 当前基线 | tag `t1.76.1`，版本 1.76.1（详见第 9 节） |
 
 ---
 
@@ -240,7 +240,8 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **t1.73** | **修复中英混合双打：中文包 546 条翻译齐全但 179 处 UI 文案从没接 L10n.t()（TextField/LabeledContent/navigationTitle/Tab标题/enum rawValue/Service层错误信息等）。批量把 342 处展示文案接上 L10n.t()，排除 JSON 字典 key、enum rawValue 定义、SF Symbol、命令串；补 Docker/Compose/CPU 3 条译文** |
 | **t1.74** | **①统一关闭按钮：全 App sheet/popover 的 Done 按钮改为右上角 chevron.down 图形按钮（新 DismissChevronButton），与复制/更多按钮连成胶囊，少一项翻译；②补插值/LogRange/重置密码等剩余未翻译文案；③修复翻译模板导出（UIActivityViewController 直接作 sheet root，旧「空VC+present」静默失败）；④恢复即时切换语言（崩根字典已除，重启提示机制整套移除）；⑤修终端键盘菜单中文：developmentRegion 改回 en** |
 | **t1.75** | **①翻译模板导出彻底修复：不再把 UIActivityViewController 当 SwiftUI sheet root，改为 SharePresenter 找 keyWindow 顶层 VC 直接 present；②底部 Tab 标题切语言即时生效：TabModule.title 改存英文 key，展示点统一 L10n.t（static let 首次求值固化的坑）；③终端编辑菜单本地化：method swizzling 替换 SwiftTerm 1.2.1 的 canPerformAction（public 非 open 无法 override），屏蔽系统英文标准项，willShowMenu 塞入走 L10n 的中文 UIMenuItem；④容器运行时长「多一个 s」修复：单位替换不再拿译文当搜索 key，复数优先；⑤补排序菜单选中项 Name 走 L10n、中文包补 Paste=粘贴；⑥单模块右上角 UI 统一：文件页把 ⋯+齿轮从手写 HStack 拆成独立 ToolbarItem，与 Docker/数据库/终端一致由系统排胶囊** |
-| **t1.76** | **①终端复制粘贴菜单「全没了」致命回归修复：t1.75 的 method swizzling 全局替换 canPerformAction 把系统标准项全屏蔽、自定义项又没挂上导致菜单空白；先尝试 override editMenu 但 SwiftTerm 1.2.1 父类无可 override 的 editMenu 属性（编译失败 error: property does not override），最终彻底回退——完全不碰菜单，用 SwiftTerm 原生系统菜单（英文但复制粘贴功能 100% 恢复）。系统编辑菜单标题跟随 developmentRegion 是系统级限制，App 内切语言改不了；②删除自定义语言包确认弹窗 confirmationDialog（iPad 带错位箭头的 popover）改普通居中 alert；③容器日志页右上角 ⋯+关闭从手写 HStack 拆成独立 ToolbarItem，间距与其他页统一；④文件模块日期显示跟随 App 内语言（新增 L10n.currentLocale/dateTimeText，DateFormatter medium 含时分秒）而非系统 locale，列表与详情统一；⑤新增文件压缩/解压：model 走远端 tar/unzip/7z/rar 命令，contextMenu 与多选工具条加入口，压缩包名输入 + 解压确认弹窗，含中文翻译** |
+| **t1.76** | **①终端复制粘贴菜单「全没了」致命回归修复：t1.75 的 method swizzling 全局替换 canPerformAction 把系统标准项全屏蔽、自定义项又没挂上导致菜单空白；先尝试 override editMenu 但 SwiftTerm 1.2.1 父类无可 override 的 editMenu 属性（编译失败 error: property does not override），最终彻底回退——完全不碰菜单，用 SwiftTerm 原生系统菜单（英文但复制粘贴功能 100% 恢复）。系统编辑菜单标题跟随 developmentRegion 是系统级限制，App 内切语言改不了，本地化菜单留到项目收尾再评估；②删除自定义语言包确认弹窗 confirmationDialog（iPad 带错位箭头的 popover）改普通居中 alert；③容器日志页右上角 ⋯+关闭从手写 HStack 拆成独立 ToolbarItem，间距与其他页统一；④文件模块日期显示跟随 App 内语言（新增 L10n.currentLocale/dateTimeText，DateFormatter medium 含时分秒）而非系统 locale，列表与详情统一；⑤新增文件压缩/解压：model 走远端 tar/unzip/7z/rar 命令，contextMenu 与多选工具条加入口，压缩包名输入 + 解压确认弹窗，含中文翻译** |
+| **t1.76.1** | **修复压缩失败（tar: xxx: Cannot stat: No such file or directory）：compress 里 -C 误切到父目录，但源项是相对当前目录的 basename，导致 tar 在父目录找不到文件。改为 -C 当前目录；产物用绝对路径写到当前目录，因明确列出 basename（非 "."）不会把归档自身打进去** |
 
 ---
 
@@ -271,6 +272,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **翻译模板导出点了没反应** | `UIActivityViewController` 当 SwiftUI `.sheet` 的 root 呈现，分享面板本身是 modal，套一层 sheet 时机不可靠。**正解：不用 sheet，找 keyWindow 顶层 VC（`presentedViewController` 链走到顶）直接 `present(activity:)`。** |
 | **终端编辑菜单（复制/粘贴）不随 App 语言切换** | SwiftTerm 1.2.1 用 `UIMenuController`，标准项标题由系统按 `developmentRegion`(=en) 本地化，运行期改 L10n 表不影响。**⚠️ 错误方案（t1.75，导致 t1.76 致命回归）：method swizzling 全局替换 SwiftTerm 的 `canPerformAction`（public 非 open，子类不能 override）屏蔽标准 selector + willShowMenu 塞自定义 UIMenuItem——结果 copy/paste/selectAll 返回 false 被屏蔽、自定义项又没挂上，菜单全空，复制粘贴彻底没了。⚠️ 另一个坑：查 main 分支源码会误判——1.2.1 没有 `hasActiveSelection`、init 签名不同，照 main 写必编译失败。** ⚠️ 第二个坑（t1.76）：改 override `editMenu` 属性，编译报 `property does not override any property from its superclass`——SwiftTerm 1.2.1 的 TerminalView 继承链里没有可 override 的 editMenu。**最终结论（t1.76）：这条路在 SwiftTerm 上走不通。系统标准编辑菜单标题跟随 developmentRegion 是 iOS 系统级限制，App 内运行期切 L10n 表改不了，且 swift 层无法可靠覆盖（canPerformAction 非 open 不能 override、swizzle 会破坏功能、editMenu 父类不存在）。功能优先——保持 SwiftTerm 原生菜单（英文但复制粘贴完整），不要为菜单本地化冒险。** |
 | **容器运行时长后面多一个 s** | 单位替换把译文当搜索 key：中文模式下 `L10n.t("months")`="个月"，拿"个月"找"months"找不到，再用单数 "month"→"个月" 把 "months" 拆成"个月s"。**正解：搜索 key 用硬编码英文单词、复数在前，译文只放 value。** |
+| **压缩失败 tar: xxx: Cannot stat** | `tar -czf <产物> -C <父目录> <源项basename...>`：源项 basename 是相对「当前目录」的，却 `-C` 到父目录，tar 在父目录找不到源项。**正解：`-C` 必须切到当前目录（源项所在目录），产物用绝对路径；明确列 basename 而非 "."，避免把生成中的归档自身打进去。** |
 ---
 
 ## 10. 接手指南：常见任务怎么干

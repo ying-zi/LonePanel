@@ -312,9 +312,11 @@ final class FileBrowserModel: ObservableObject {
         guard let client, !files.isEmpty, let trimmed = validName(name) else { return }
         // 统一补 .tar.gz 后缀，避免用户漏写导致产物无扩展名、后续无法识别。
         let archiveName = trimmed.hasSuffix(".tar.gz") ? trimmed : trimmed + ".tar.gz"
-        let parent = (directory as NSString).deletingLastPathComponent
+        // basename 是相对「当前目录」的，tar 必须 -C 到当前目录再按 basename 取源，
+        // 不能切到父目录（否则 Cannot stat）。产物用绝对路径写到当前目录，
+        // 因明确列出 basename（非 "."），不会把正在生成的归档自身打进去。
         let basenames = files.map { shellQuote(($0.path as NSString).lastPathComponent) }.joined(separator: " ")
-        let script = "tar -czf \(shellQuote(client.joined(directory, archiveName))) -C \(shellQuote(parent)) \(basenames)"
+        let script = "tar -czf \(shellQuote(client.joined(directory, archiveName))) -C \(shellQuote(directory)) \(basenames)"
         do {
             let result = try await client.execute(script, timeoutSeconds: 120)
             if result.exitStatus == 0 {
