@@ -555,7 +555,7 @@ enum BuiltinPacks {
         d["seconds"] = "秒"
         d["weeks"] = "周"
         d["This will change the login password for %@; the actual scope depends on the instance account."] = "这将修改 %@ 的登录口令；实际作用范围取决于实例账号。"
-        d["Database %@ created, but dedicated user %@ creation failed: %@. Go to "Instance Management > User Management" to create and grant manually."] = "数据库 %@ 已创建，但专用用户 %@ 创建失败：%@。请前往「实例管理 > 用户管理」手动创建并授权。"
+        d["Database %@ created, but dedicated user %@ creation failed: %@. Go to \"Instance Management > User Management\" to create and grant manually."] = "数据库 %@ 已创建，但专用用户 %@ 创建失败：%@。请前往「实例管理 > 用户管理」手动创建并授权。"
         d["Delete failed: %@"] = "删除失败：%@"
         d["Failed to migrate table %@: %@"] = "迁移表 %@ 失败：%@"
         d["Host path must be absolute (start with /): %@"] = "宿主机路径必须为绝对路径（以 / 开头）：%@"
