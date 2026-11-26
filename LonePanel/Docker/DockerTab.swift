@@ -4,7 +4,7 @@ import SwiftUI
 enum DockerTab {
     static let module = TabModule(
         id: "docker",
-        title: L10n.t("Docker"),
+        title: "Docker",
         symbolName: "shippingbox",
         view: AnyView(DockerView()),
         showsFloatingTerminal: true

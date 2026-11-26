@@ -570,6 +570,7 @@ enum BuiltinPacks {
         d["%@ (current)"] = "%@（当前）"
         d["%@ (default)"] = "%@（默认）"
         d["Close"] = "关闭"
+        d["Paste"] = "粘贴"
         d["Built-in packs: English and Simplified Chinese; you can also import a custom language pack."] = "内置英文与简体中文；也可导入自定义语言包。"
         return d
     }()

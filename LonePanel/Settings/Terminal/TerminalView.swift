@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import SwiftTerm
+import ObjectiveC
 
 /// 终端的呈现方式，决定右上角辅助按钮的语义。
 /// 全形态统一：右上角恒定一个「重新连接」圆形箭头；此处只决定附带按钮。
@@ -47,6 +48,58 @@ private final class EnglishKeyboardTerminalView: SwiftTerm.TerminalView {
         }
         return super.textInputMode
     }
+
+    /// 长按选择弹出的编辑菜单（Copy/Paste/Select All）标题由系统按 developmentRegion(=en)
+    /// 生成，App 内切语言不会变。SwiftTerm 1.2.1 的 canPerformAction 是 public（非 open），
+    /// 子类不能 override，故用 method swizzling（见文件底部 TerminalMenuSwizzle）
+    /// 屏蔽系统标准项，改显示走 L10n 的自定义项。
+    /// observer 由宿主从外部挂载（不 override init，避免 SwiftTerm 初始化器签名不确定）。
+    @objc func installLocalizedMenuItems() {
+        guard isFirstResponder else { return }
+        // SwiftTerm 的 showContextMenu 会设置 menuItems（含 Reset）再 showMenu；
+        // willShowMenu 此刻整体替换为我们自己的本地化项。
+        UIMenuController.shared.menuItems = [
+            UIMenuItem(title: L10n.t("Copy"), action: #selector(lpCopy(_:))),
+            UIMenuItem(title: L10n.t("Paste"), action: #selector(lpPaste(_:))),
+            UIMenuItem(title: L10n.t("Select All"), action: #selector(lpSelectAll(_:)))
+        ]
+    }
+
+    @objc func lpCopy(_ sender: Any?) { super.copy(sender) }
+    @objc func lpPaste(_ sender: Any?) { super.paste(sender) }
+    @objc func lpSelectAll(_ sender: Any?) { super.selectAll(sender) }
+}
+
+// MARK: - 终端编辑菜单本地化（method swizzling）
+
+/// SwiftTerm 1.2.1 的 `canPerformAction(_:withSender:)` 是 `public override`（非 open），
+/// App 模块的子类无法直接 override；系统标准编辑项标题又固定跟随 developmentRegion(=en)。
+/// 这里在首次使用时做一次 method swizzle：屏蔽系统英文标准 selector，
+/// 放行我们走 L10n 的自定义项（Copy/Paste/Select All）。
+private enum TerminalMenuSwizzle {
+    static let once: Void = {
+        let cls = SwiftTerm.TerminalView.self
+        let origSel = NSSelectorFromString("canPerformAction:withSender:")
+        let replSel = NSSelectorFromString("lp_canPerformAction:withSender:")
+        guard let orig = class_getInstanceMethod(cls, origSel),
+              let repl = class_getInstanceMethod(cls, replSel) else { return }
+        method_exchangeImplementations(orig, repl)
+    }()
+}
+
+extension SwiftTerm.TerminalView {
+    /// 交换后系统对 canPerformAction 的调用进入这里。
+    /// 调用 `lp_canPerformAction` 会落到 SwiftTerm 原实现（已交换），形成委托链。
+    @objc func lp_canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        switch action.description {
+        case "copy:", "paste:", "selectAll:":
+            return false
+        case "lpCopy:", "lpPaste:", "lpSelectAll:":
+            return true
+        default:
+            return lp_canPerformAction(action, withSender: sender)
+        }
+    }
 }
 
 /// SwiftTerm 官方 TerminalView 的 SwiftUI 包装。
@@ -57,6 +110,8 @@ private struct TerminalHostView: UIViewRepresentable {
     let fontSize: Double
 
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
+        // 首次创建终端时完成编辑菜单 selector 的 swizzle（幂等）。
+        _ = TerminalMenuSwizzle.once
         let view = EnglishKeyboardTerminalView(frame: .zero)
         view.terminalDelegate = context.coordinator
         // 禁用 SwiftTerm 自带键盘工具条，改用我们自己的快捷键栏。
@@ -71,6 +126,14 @@ private struct TerminalHostView: UIViewRepresentable {
         view.spellCheckingType = .no
         view.smartQuotesType = .no
         view.smartDashesType = .no
+        // 编辑菜单本地化：SwiftTerm 内部 showContextMenu 会把 menuItems 置空，
+        // 故监听 willShowMenu 在其后塞入走 L10n 的自定义菜单项（见子类实现）。
+        NotificationCenter.default.addObserver(
+            view,
+            selector: #selector(EnglishKeyboardTerminalView.installLocalizedMenuItems),
+            name: UIMenuController.willShowMenuNotification,
+            object: nil
+        )
         keyState.terminalView = view
 
         // 服务器字节 → SwiftTerm 仿真器。注册一次：只登记 handler，等布局完成后 markReady 回放。
@@ -110,6 +173,11 @@ private struct TerminalHostView: UIViewRepresentable {
 
     static func dismantleUIView(_ uiView: SwiftTerm.TerminalView, coordinator: Coordinator) {
         uiView.terminalDelegate = nil
+        NotificationCenter.default.removeObserver(
+            uiView,
+            name: UIMenuController.willShowMenuNotification,
+            object: nil
+        )
     }
 
     func makeCoordinator() -> Coordinator {

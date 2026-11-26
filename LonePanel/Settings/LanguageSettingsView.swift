@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 /// 语言管理：选择内置/自定义语言包、导入 JSON 语言包、导出翻译模板。
 /// 支持 Telegram 式外部语言包：用户拿导出的英文模板翻译成任意语言再导入。
@@ -7,9 +8,6 @@ struct LanguageSettingsView: View {
     @ObservedObject private var store = LocalizationStore.shared
     @State private var showImporter = false
     @State private var importError: String?
-    @State private var exportID: String?
-    @State private var showExporter = false
-    @State private var exportData: Data?
     @State private var confirmRemoveID: String?
 
     var body: some View {
@@ -42,9 +40,9 @@ struct LanguageSettingsView: View {
                             }
                             Spacer()
                             Button {
-                                exportID = pack.id
-                                exportData = store.exportData(for: pack.id)
-                                showExporter = true
+                                if let data = store.exportData(for: pack.id) {
+                                    SharePresenter.present(data: data, filename: "\(pack.id).json")
+                                }
                             } label: {
                                 Image(systemName: "square.and.arrow.up")
                             }
@@ -68,9 +66,12 @@ struct LanguageSettingsView: View {
                     Label(L10n.t("Import Language Pack"), systemImage: "square.and.arrow.down")
                 }
                 Button {
-                    exportID = "en"
-                    exportData = store.exportData(for: "en")
-                    showExporter = true
+                    // 直接由 UIKit 顶层 VC present 系统分享面板。
+                    // 旧实现把 UIActivityViewController 当作 SwiftUI .sheet 的 root：
+                    // 分享面板自己也是 modal，套在 sheet 里呈现时机不可靠，用户点了没反应。
+                    if let data = store.exportData(for: "en") {
+                        SharePresenter.present(data: data, filename: "translation-template-en.json")
+                    }
                 } label: {
                     Label(L10n.t("Export Translation Template"), systemImage: "doc.text")
                 }
@@ -110,11 +111,6 @@ struct LanguageSettingsView: View {
                 } catch {
                     importError = error.localizedDescription
                 }
-            }
-        }
-        .sheet(isPresented: $showExporter) {
-            if let data = exportData {
-                DocumentExporter(data: data, filename: "\(exportID ?? "language").json", isPresented: $showExporter)
             }
         }
         .alert(L10n.t("Import Failed"), isPresented: Binding(
@@ -157,32 +153,32 @@ private struct DocumentPicker: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - 文件导出
+// MARK: - 系统分享面板（导出）
 
-/// 系统分享面板。直接让 UIActivityViewController 作为 sheet 的 root 呈现——
-/// 过去「空 VC + updateUIViewController 里 present」的写法在 VC 尚未进入 window 层级时
-/// present 会静默失败，正是「导出无反应」的根因。
-private struct DocumentExporter: UIViewControllerRepresentable {
-    let data: Data
-    let filename: String
-    @Binding var isPresented: Bool
-
-    func makeCoordinator() -> Coordinator { Coordinator(isPresented: $isPresented) }
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
+/// 由 UIKit 最顶层的 ViewController 直接 present UIActivityViewController。
+/// 这是系统分享面板最可靠的呈现方式：
+/// - 不用 SwiftUI .sheet 包裹——分享面板本身是 modal，套一层 sheet 会出现「点了没反应」；
+/// - 不用「空 VC + present」——空 VC 尚未进入 window 层级时 present 会静默失败；
+/// - 写到临时目录再分享，文件名明确，用户可「存储到文件」或直接转发。
+private enum SharePresenter {
+    static func present(data: Data, filename: String) {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         try? data.write(to: tmp, options: .atomic)
         let activity = UIActivityViewController(activityItems: [tmp], applicationActivities: nil)
-        activity.completionWithItemsHandler = { _, _, _, _ in
-            isPresented = false
+        // iOS 26 多场景：取前台激活场景的 keyWindow，再沿 presented 链找到最顶层 VC。
+        guard let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive }),
+              let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController
+        else { return }
+        var top = root
+        while let presented = top.presentedViewController { top = presented }
+        // iPad / 大屏：分享面板需要锚点，否则 popover 崩溃或无处呈现。
+        if let pop = activity.popoverPresentationController {
+            pop.sourceView = top.view
+            pop.sourceRect = CGRect(x: top.view.bounds.midX, y: top.view.bounds.midY, width: 1, height: 1)
+            pop.permittedArrowDirections = []
         }
-        return activity
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-
-    final class Coordinator {
-        @Binding var isPresented: Bool
-        init(isPresented: Binding<Bool>) { _isPresented = isPresented }
+        top.present(activity, animated: true)
     }
 }

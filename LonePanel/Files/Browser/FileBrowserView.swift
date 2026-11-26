@@ -596,29 +596,30 @@ private struct DirectoryPage: View {
                 }
             }
         }
+        // 与 Docker / 数据库 / 终端统一：右上角每个按钮各占一个独立 ToolbarItem，
+        // 由 iOS 26 系统按标准 tap 宽度排成玻璃胶囊，不再用 HStack 手动定间距。
+        // 设置齿轮恒在最右，入口态（单模块全屏）才出现。
         ToolbarItem(placement: .topBarTrailing) {
-            HStack(spacing: 12) {
-                if isSelecting {
-                    // 完成按钮：纯大勾，无自定义背景色，颜色与系统搜索按钮一致（主色）。
-                    // 背景交给 iOS 26 工具栏的玻璃胶囊，避免蓝底方块与胶囊叠在一起显突兀。
-                    Button { resetSelection() } label: {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 17, weight: .bold))
-                            .foregroundStyle(.primary)
-                            .frame(width: 32, height: 32)
-                            .contentShape(Rectangle())
-                    }
-                } else {
-                    // 搜索栏已挂到每一页，系统为根页与每个子页各自提供原生放大镜，
-                    // 不再自定义放大镜按钮 —— 从根上杜绝「双放大镜」与
-                    // 「点了自定义放大镜却不出搜索框、按钮反而消失」的问题。
-                    // 只保留 ⋯，常驻不随搜索态消失。
-                    moreMenu
+            if isSelecting {
+                // 完成按钮：纯大勾，无自定义背景色，颜色与系统搜索按钮一致（主色）。
+                // 背景交给 iOS 26 工具栏的玻璃胶囊，避免蓝底方块与胶囊叠在一起显突兀。
+                Button { resetSelection() } label: {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
-                // 设置入口并入本页导航栏 trailing，由系统与 ⋯/完成统一排布，不再外挂顶栏。
-                // 入口态（单模块全屏）才出现；多模块形态与调用态下自动隐藏。
-                SettingsGearButton()
+            } else {
+                // 搜索栏已挂到每一页，系统为根页与每个子页各自提供原生放大镜，
+                // 不再自定义放大镜按钮 —— 从根上杜绝「双放大镜」与
+                // 「点了自定义放大镜却不出搜索框、按钮反而消失」的问题。
+                // 只保留 ⋯，常驻不随搜索态消失。
+                moreMenu
             }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            SettingsGearButton()
         }
     }
 
@@ -718,7 +719,7 @@ private struct DirectoryPage: View {
                         Task { await load() }
                     } label: {
                         if model.sortOrder == order {
-                            Label(order.rawValue, systemImage: "checkmark")
+                            Label(L10n.t(order.rawValue), systemImage: "checkmark")
                         } else {
                             Text(L10n.t(order.rawValue))
                         }

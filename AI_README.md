@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.74.0`，版本 1.74.0（详见第 9 节） |
+| 当前基线 | tag `t1.75.0`，版本 1.75.0（详见第 9 节） |
 
 ---
 
@@ -239,6 +239,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **t1.72** | **真正根治切中文闪退：崩溃日志定位到 EXC_BREAKPOINT/brk 1 来自 Swift 静态字典 `BuiltinPacks.zhHans` 的懒初始化——Release 下编译器用 `Dictionary(uniqueKeysWithValues:)`，遇 15 个重复 key 触发 preconditionFailure。删除全部重复 key，并把字典改为运行期逐条下标赋值构建，彻底根除 trap** |
 | **t1.73** | **修复中英混合双打：中文包 546 条翻译齐全但 179 处 UI 文案从没接 L10n.t()（TextField/LabeledContent/navigationTitle/Tab标题/enum rawValue/Service层错误信息等）。批量把 342 处展示文案接上 L10n.t()，排除 JSON 字典 key、enum rawValue 定义、SF Symbol、命令串；补 Docker/Compose/CPU 3 条译文** |
 | **t1.74** | **①统一关闭按钮：全 App sheet/popover 的 Done 按钮改为右上角 chevron.down 图形按钮（新 DismissChevronButton），与复制/更多按钮连成胶囊，少一项翻译；②补插值/LogRange/重置密码等剩余未翻译文案；③修复翻译模板导出（UIActivityViewController 直接作 sheet root，旧「空VC+present」静默失败）；④恢复即时切换语言（崩根字典已除，重启提示机制整套移除）；⑤修终端键盘菜单中文：developmentRegion 改回 en** |
+| **t1.75** | **①翻译模板导出彻底修复：不再把 UIActivityViewController 当 SwiftUI sheet root，改为 SharePresenter 找 keyWindow 顶层 VC 直接 present；②底部 Tab 标题切语言即时生效：TabModule.title 改存英文 key，展示点统一 L10n.t（static let 首次求值固化的坑）；③终端编辑菜单本地化：method swizzling 替换 SwiftTerm 1.2.1 的 canPerformAction（public 非 open 无法 override），屏蔽系统英文标准项，willShowMenu 塞入走 L10n 的中文 UIMenuItem；④容器运行时长「多一个 s」修复：单位替换不再拿译文当搜索 key，复数优先；⑤补排序菜单选中项 Name 走 L10n、中文包补 Paste=粘贴；⑥单模块右上角 UI 统一：文件页把 ⋯+齿轮从手写 HStack 拆成独立 ToolbarItem，与 Docker/数据库/终端一致由系统排胶囊** |
 
 ---
 
@@ -265,6 +266,10 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **切换中文闪退（t1.70 的 ZStack 方案仍没解决）** | 任何「运行期改生效语言 + 重建视图树」的方案都可能因 sheet 重新 present 崩溃。**最终正解：语言切换改为「重启后生效」**——`currentID`（生效）仅启动时从持久化读入、运行期恒定；Picker 绑定 `selectedID`（待选），`select()` 只改 selectedID + 持久化、绝不碰 currentID；彻底删除 `revision` 与 `.id(localization.revision)`。切换时不重算任何 L10n.t()、不重建任何视图，崩溃从根上消失。 |
 
 | **切中文必崩（t1.71「重启生效」仍没解决，真正根因）** | 崩溃日志 `EXC_BREAKPOINT`/`SIGTRAP`/`brk 1` + 堆栈 `dispatch_once_callout` 表明是 Swift `static let` 懒初始化时 `preconditionFailure`，不是视图重建/野指针。`BuiltinPacks.zhHans` 是 561 条字典字面量且含 15 个重复 key；Swift 在 Release(-O) 下把字典字面量编译为 `Dictionary(uniqueKeysWithValues:)`，遇重复 key 直接 trap（Debug 逐条覆盖不崩，故本地复现不了、英文永不碰该字典故不崩）。**正解：①删除全部重复 key；②把字典字面量改成运行期 `var d=[:]; d[k]=v; return d` 闭包构建，编译器无法再用 uniqueKeysWithValues，重复也只覆盖不崩。** |
+| **底部 Tab 标题切语言不生效** | 各 `*Tab.module` 是 `static let`，`title: L10n.t("X")` 在首次访问时求值即固化，视图重建也不重算。**正解：title 存英文 key（`title: "X"`），所有展示点（`ContentView.tabView` / `SettingsView.toggleableModules`）用 `L10n.t(module.title)`。** |
+| **翻译模板导出点了没反应** | `UIActivityViewController` 当 SwiftUI `.sheet` 的 root 呈现，分享面板本身是 modal，套一层 sheet 时机不可靠。**正解：不用 sheet，找 keyWindow 顶层 VC（`presentedViewController` 链走到顶）直接 `present(activity:)`。** |
+| **终端编辑菜单（复制/粘贴）不随 App 语言切换** | SwiftTerm 用 `UIMenuController`，标准项标题由系统按 `developmentRegion`(=en) 本地化，运行期改 L10n 表不影响。**正解：子类 override `canPerformAction` 对系统 selector 返回 false，监听 `UIMenuController.willShowMenuNotification` 塞入走 L10n 的自定义 `UIMenuItem`（其 action 调 `super.copy/paste/selectAll`）。** |
+| **容器运行时长后面多一个 s** | 单位替换把译文当搜索 key：中文模式下 `L10n.t("months")`="个月"，拿"个月"找"months"找不到，再用单数 "month"→"个月" 把 "months" 拆成"个月s"。**正解：搜索 key 用硬编码英文单词、复数在前，译文只放 value。** |
 ---
 
 ## 10. 接手指南：常见任务怎么干

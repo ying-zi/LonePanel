@@ -148,7 +148,7 @@ struct ContentView: View {
             ForEach(visibleTabs) { module in
                 module.view
                     .tabItem {
-                        Label(module.title, systemImage: module.symbolName)
+                        Label(L10n.t(module.title), systemImage: module.symbolName)
                     }
                     .tag(module.id)
             }
