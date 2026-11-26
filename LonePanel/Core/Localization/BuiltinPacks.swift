@@ -1,567 +1,556 @@
 // 自动生成：内置简体中文包（英文原文 -> 中文译文）。
 // 用户导入的自定义语言包采用相同结构，便于互换。
 enum BuiltinPacks {
-    static let zhHans: [String: String] = [
-        "Sync via iCloud": "通过 iCloud 同步",
-        "Local Only": "仅本机",
-        "Turn on to sync language preference and custom packs via iCloud across your devices. Requires a paid developer account with iCloud enabled; sideloaded or free-signed builds always store everything locally.": "开启后，语言偏好与自定义语言包会通过 iCloud 在你的设备间同步。需使用开启 iCloud 的付费开发者账号签名；侧载或免费签名的版本始终只存本机。",
-        "Delete \"%@\"? This cannot be undone.": "确定删除「%@」吗？此操作不可撤销。",
-        "Private key is empty. Paste the complete key file.": "私钥为空。请粘贴完整的密钥文件。",
-        "Unrecognized private key format. Use a PEM private key (starting with -----BEGIN).": "无法识别私钥格式。请使用 PEM 格式私钥（以 -----BEGIN 开头）。",
-        "Invalid Base64 content in the private key. Check it was copied completely without extra characters.": "私钥中的 Base64 内容无效。请确认已完整复制且没有多余字符。",
-        "This private key is encrypted (%@) and cannot be used directly by the SSH core. Please decrypt it first, e.g. run: ssh-keygen -p -f <keyfile>": "此私钥已加密（%@），SSH 内核无法直接使用。请先解密，例如执行：ssh-keygen -p -f <keyfile>",
-        "%@ private keys are not supported for SSH login. Please use an Ed25519 or ECDSA key instead (ssh-keygen -t ed25519)": "%@ 私钥不支持 SSH 登录。请改用 Ed25519 或 ECDSA 密钥（ssh-keygen -t ed25519）",
-        "Private key is incomplete or malformed (%@). Please make sure you copied the whole key file.": "私钥不完整或格式错误（%@）。请确认已复制完整的密钥文件。",
-        "Port must be between 1 and 65535": "端口必须在 1 到 65535 之间",
-        "Server rejected the session channel": "服务器拒绝了会话通道",
-        "Server does not accept the chosen auth method. Check whether key/password auth is enabled.": "服务器不接受所选的认证方式。请检查是否启用了密钥/密码认证。",
-        "Authentication failed: incorrect username or credential": "认证失败：用户名或凭据不正确",
-        "Connection timed out. Check the address, port and network connectivity.": "连接超时。请检查地址、端口和网络连接。",
-        "Connection closed by the server, usually due to auth failure or host rejection.": "连接被服务器关闭，通常是认证失败或主机拒绝导致。",
-        "Failed to save credential (system error %@)": "保存凭据失败（系统错误 %@）",
-        "Failed to load credential (system error %@)": "加载凭据失败（系统错误 %@）",
-        "Credential not found in Keychain": "钥匙串中未找到凭据",
-        "Not connected to server yet. Retry shortly.": "尚未连接到服务器，请稍后重试。",
-        "Server returned unparseable data (%@)": "服务器返回了无法解析的数据（%@）",
-        "No more content": "没有更多内容",
-        "File or directory does not exist": "文件或目录不存在",
-        "No permission to access this location": "无权访问此位置",
-        "Server refused this operation": "服务器拒绝了该操作",
-        "SFTP operation failed (code %@)": "SFTP 操作失败（代码 %@）",
-        "SFTP operation failed: %@": "SFTP 操作失败：%@",
-        "Invalid language pack: %@": "语言包无效：%@",
-        "Run %@": "运行 %@",
-        "Enter %@ then tap Run": "输入 %@ 后点击运行",
-        "%@ is not installed on the server. Please install the client first.": "服务器上未安装 %@，请先安装客户端。",
-        "Detecting %@ ...": "正在检测 %@ ...",
-        "%@ · %@": "%1$@ · %2$@",
-        "Only letters, digits and underscores, up to 64 characters. %@ will run the corresponding command on the server.": "仅支持字母、数字和下划线，最多 64 个字符。%@ 将在服务器上执行相应命令。",
-        "Delete database \"%@\"? Its tables and data will be deleted. This cannot be undone.": "确定删除数据库「%@」吗？其中的表和数据都会被删除，此操作不可撤销。",
-        "User: %@": "用户：%@",
-        "Delete user \"%@\"? This cannot be undone.": "确定删除用户「%@」吗？此操作不可撤销。",
-        "Perform %@ on \"%@\"? Compose actions affect all containers in this project.": "确定对「%2$@」执行 %1$@ 吗？Compose 操作会影响本项目中的所有容器。",
-        "Remove container \"%@\"? This cannot be undone.": "确定删除容器「%@」吗？此操作不可撤销。",
-        "Environment Variables (%@)": "环境变量（%@）",
-        "Processes (%@)": "进程（%@）",
-        "Force stopping \"%@\" equals docker kill. Processes are terminated immediately and unsaved data may be lost. Use only if the container is unresponsive.": "强制停止「%@」等同于 docker kill。进程会被立即终止，未保存的数据可能丢失。仅在容器无响应时使用。",
-        "Logs · %@": "日志 · %@",
-        "Remove image \"%@\"? If it is in use by a container, removal will fail.": "确定删除镜像「%@」吗？如果被容器占用，删除会失败。",
-        "In use by %@": "被 %@ 占用",
-        "Paste (%@ items)": "粘贴（%@ 项）",
-        "%@ items": "%@ 项",
-        "%@/%@ items": "%1$@/%2$@ 项",
-        "This will delete about %@ of this cache category, without affecting others.": "这将删除该缓存类别约 %@ 的空间，不影响其他类别。",
-        "Clear \"%@\"": "清理「%@」",
-        "%@ · %@ items · %@": "%1$@ · %2$@ 项 · %3$@",
-        "Delete \"%@\"? Its credential will also be removed from Keychain. This cannot be undone.": "确定删除「%@」吗？其凭据也会从钥匙串中移除，此操作不可撤销。",
-        "Language": "语言",
-        "Switching language takes effect immediately. Built-in packs: English and Simplified Chinese; you can import a custom language pack.": "切换语言立即生效。内置英文与简体中文；也可导入自定义语言包。",
-        "Language takes effect after restarting the app. Built-in packs: English and Simplified Chinese; you can import a custom language pack.": "语言将在重启 App 后生效。内置英文与简体中文；也可导入自定义语言包。",
-        "Restart the app to apply the selected language.": "已选择新语言，重启 App 后生效。",
-        "entries": "条",
-        "Custom Language Packs": "自定义语言包",
-        "Import Language Pack": "导入语言包",
-        "Export Translation Template": "导出翻译模板",
-        "Export the English template, translate the values into your language, then import the JSON back. Keys must stay in English.": "导出英文模板，把值翻译成你的语言后再导入 JSON。key 必须保持英文。",
-        "iCloud Sync Available": "iCloud 同步可用",
-        "iCloud Unavailable - Stored Locally": "iCloud 不可用 - 存于本机",
-        "Language preference and custom packs sync via iCloud when the app is signed with a paid developer account and iCloud is enabled. Sideloaded or free-signed builds store everything locally.": "当 App 使用付费开发者账号签名且开启 iCloud 时，语言偏好与自定义包会通过 iCloud 同步。侧载或免费签名的版本全部存于本机。",
-        "Import Failed": "导入失败",
-        "Delete Language Pack": "删除语言包",
-        "Connected to": "已连接到",
-        "\") equals docker kill. Processes are terminated immediately and unsaved data may be lost. Use only when the container is unresponsive.": ")」相当于 docker kill，容器内进程会立即被终止，未保存的数据可能丢失。仅在容器无响应时使用。",
-        "\") then tap Run": ")后点击执行",
-        "\")? If the image is in use by a container, removal will fail.": ")」吗？若镜像正被容器使用，删除会失败。",
-        "\")? Its tables and data will be deleted. This cannot be undone.": ")」？其中的表和数据会一并删除，此操作不可撤销。",
-        "\")? The credential will also be removed from Keychain. This cannot be undone.": ")」吗？凭证也会一并从钥匙串移除，此操作不可撤销。",
-        "\")? This cannot be undone.": ")」吗？此操作不可撤销。",
-        "(Automatic)": "（自动）",
-        "(Empty)": "（空）",
-        "(No authentication)": "（无认证）",
-        "(None)": "（无）",
-        "Account": "账号",
-        "Action Notice": "操作提示",
-        "Action only": "只干活",
-        "Add Server": "添加服务器",
-        "Add a connection to browse tables, query data and run SQL in the app.\nThe database client must be installed on the server.": "添加一条连接，即可在 App 里浏览库表、查询数据、执行 SQL。\\n数据库客户端需已安装在服务器上。",
-        "Add a remote connection on the Database page first": "请先在「数据库」页添加一条远程连接",
-        "Add and connect a server in Settings > My Servers first": "请先在「设置 → 我的服务器」添加并连接一台服务器",
-        "Add and connect a server in Settings > My Servers, then retry": "请在「设置 → 我的服务器」中添加并连接一台服务器，然后重试",
-        "Add connection": "添加连接",
-        "Add database": "添加数据库",
-        "Add environment variable": "添加环境变量",
-        "Add mount": "添加挂载",
-        "Add port": "添加端口",
-        "Add remote database": "添加远程数据库",
-        "Adding a database also creates a dedicated user granted access to it. Swipe to rename or delete; tap to browse tables and data.": "添加数据库时会一并创建专属用户并授权该库；左滑可重命名或删除；点进可浏览表与数据。",
-        "Address": "地址",
-        "Admin has full privileges; regular users can be limited to a database.": "管理员拥有全部权限；普通用户可限定到某个库。",
-        "Admin password": "管理员口令",
-        "Admin password updated": "管理员密码已更新",
-        "Admin password updated (compatibility mode)": "管理员密码已更新（兼容模式）",
-        "Admin privileges": "管理员权限",
-        "Advanced options": "高级选项",
-        "After changing the password, local credentials are updated; rediscovery and future connections use the new password. User management supports viewing, creating, changing passwords and deleting.": "改密后会同步更新本地凭据，重新发现容器 / 下次连接仍使用新密码。用户管理支持查看、新建、改密与删除。",
-        "After running MySQL / MariaDB / PostgreSQL / MongoDB / Redis in Docker on the server, they are listed here for direct management.": "在服务器上用 Docker 运行 MySQL / MariaDB / PostgreSQL / MongoDB / Redis 后，这里会自动列出并直接管理容器内的数据库。",
-        "Algorithm OID": "算法 OID",
-        "Alive": "活着",
-        "All cached file copies will be removed. They will be re-downloaded on next preview.": "将删除所有已缓存的文件副本，下次预览需重新下载。",
-        "All databases (admin)": "全部库（管理员）",
-        "Always": "总是",
-        "Archive": "归档文件",
-        "Ascending": "升序",
-        "Attributes": "属性",
-        "Auth DB / DB index (optional)": "认证库 / db 索引（可选）",
-        "Authentication": "认证方式",
-        "Authentication failed. Check your username and password or private key.": "认证失败，请检查用户名与密码或私钥是否正确",
-        "Authentication failed: incorrect username or credential": "认证失败：用户名或凭证不正确",
-        "Authorized database (leave empty to create account only)": "授权数据库（留空为仅建账号）",
-        "Basic Info": "基本信息",
-        "Browse data": "数据浏览",
-        "Browse data and run SQL": "数据浏览与执行 SQL",
-        "By Category": "按类别",
-        "By default only the current database is granted, following least privilege. Choose admin for cross-database management.": "默认只授权当前库，符合最小权限原则；需要跨库管理时再选管理员。",
-        "CPU limit (e.g. 0.5 / 2)": "CPU 限制（如 0.5 / 2）",
-        "CPU must be a number (e.g. 0.5 / 2)": "CPU 应为数字（如 0.5 / 2）",
-        "Cache Management": "缓存管理",
-        "Cache Used": "已占用缓存",
-        "Cache speeds up file preview and sharing and can be cleared anytime without affecting server data. Above 1 GB, the app auto-clears the least recently used parts.": "缓存用于加快文件预览与分享，可随时清理，不影响服务器上的数据。超出 1 GB 时 App 会自动清理最久未使用的部分。",
-        "Cancel": "取消",
-        "Cannot resolve the server address. Check that the address is correct.": "无法解析服务器地址，请检查地址是否填写正确",
-        "Card view": "卡片视图",
-        "Change password": "修改密码",
-        "Check Again": "重新检测",
-        "Choose": "选择",
-        "Choose Location": "选择位置",
-        "Choose from existing images": "从现有镜像选择",
-        "Choose host directory": "选择宿主目录",
-        "Choose this directory": "选择此目录",
-        "Clear": "清空",
-        "Clear All": "全部清理",
-        "Clear All Cache": "清理全部缓存",
-        "Client": "客户端",
-        "Client available": "客户端可用",
-        "Client not found": "未找到客户端",
-        "Collapse Terminal": "收起终端",
-        "Collections": "集合",
-        "Coming Soon": "即将推出",
-        "Command": "命令",
-        "Command executed": "命令已执行",
-        "Command preview": "命令预览",
-        "Commands run directly inside the container with no port mapping; credentials are read from container environment variables.": "命令直接在容器内执行，无需端口映射；凭据从容器环境变量读取。",
-        "Commands run inside the container; credentials are read from environment variables and never written to local config.": "命令直接在容器内运行，凭据从容器环境变量读取，不写入本机配置。",
-        "Configuration is stored locally and passwords in Keychain; all commands still run through the current SSH server.": "配置存在本机、口令存钥匙串；所有命令仍通过当前 SSH 服务器执行。",
-        "Confirm Action": "操作确认",
-        "Confirm new password": "确认新密码",
-        "Connect": "连接",
-        "Connect Terminal": "连接终端",
-        "Connected": "连接成功",
-        "Connected, but no execution identity is available": "连上了但不知道用什么身份执行",
-        "Connected: SSH handshake and authentication succeeded; command channel is ready.": "连接成功：SSH 握手与认证通过，命令通道可用",
-        "Connecting to server...": "正在连接服务器…",
-        "Connecting…": "正在连接…",
-        "Connection Failed": "连接失败",
-        "Connection closed by the server, usually due to auth failure or host rejection.": "连接被服务器关闭，通常是认证失败或主机拒绝",
-        "Connection config is stored locally and passwords in Keychain. All commands run through the current SSH server.": "连接配置保存在本机，密码存系统钥匙串。所有命令通过当前 SSH 服务器执行。",
-        "Connection failed. Check the address, port and network, then retry.": "连接失败，请检查服务器地址、端口和网络后重试",
-        "Connection info": "连接信息",
-        "Connection interrupted by the server. Retry later or check server status.": "连接被服务器中断，请稍后重试或检查服务器状态",
-        "Connection parameters": "连接参数",
-        "Connection refused. Verify the address and port and that SSH is running.": "服务器拒绝连接，请确认地址与端口正确、对方 SSH 服务已开启",
-        "Connection timed out. Check the address, port and network connectivity.": "连接超时，请检查地址、端口与网络连通性",
-        "Connection timed out. Check your network and whether the server is online.": "连接超时，请检查网络是否通畅、服务器是否在线",
-        "Container": "容器",
-        "Container ID": "容器 ID",
-        "Container Logs": "容器日志",
-        "Container databases": "容器数据库",
-        "Container force-stopped": "容器已强制停止",
-        "Container info": "容器信息",
-        "Container is not running; cannot read databases": "容器未运行，无法读取数据库",
-        "Container is paused; docker exec is unavailable. Resume it to connect a terminal. Logs still show past output.": "容器已暂停，docker exec 无法进入；恢复运行后可连接终端。日志仍可查看历史输出。",
-        "Container is stopped; start it to connect a terminal. Logs still show past output.": "容器已停止，启动后可连接终端；日志仍可查看历史输出。",
-        "Container name": "容器名称",
-        "Container name may contain only letters, digits, underscore, dot and hyphen, and cannot start with a special character": "容器名称只能包含字母、数字、下划线、点、中划线，且不能以特殊字符开头",
-        "Container path (e.g. /data)": "容器内路径（如 /data）",
-        "Container paused": "容器已暂停",
-        "Container removed": "容器已删除",
-        "Container restarted": "容器已重启",
-        "Container resumed": "容器已恢复",
-        "Container started": "容器已启动",
-        "Container stopped": "容器已停止",
-        "Contents": "内容",
-        "Copied": "已复制",
-        "Copy": "拷贝",
-        "Copy All Logs": "复制全部日志",
-        "Copy config from existing container": "从已有容器复制配置",
-        "Copying": "正在复制",
-        "Create": "创建",
-        "Create an ACL user with full key and command permissions.": "新建 ACL 用户并授予全部 key 与命令权限。",
-        "Created": "创建时间",
-        "Credential not found in Keychain": "钥匙串中没有找到该凭证",
-        "Current Connection": "当前连接",
-        "Cursor blink": "白块跳动",
-        "Custom query": "自定义查询",
-        "DB index": "db 索引",
-        "DER content length out of range": "DER 内容长度超出范围",
-        "Danger Path": "危险路径",
-        "Dangerous action": "危险操作",
-        "Data too short": "数据过短",
-        "Database": "数据库",
-        "Database connection": "数据库连接",
-        "Database created but no user can access it": "库建好了却没人能用",
-        "Database index (db)": "数据库索引 (db)",
-        "Database name": "库名",
-        "Database name (letters, digits, underscore)": "数据库名（字母、数字、下划线）",
-        "Database name may contain only letters, digits and underscores": "库名只能包含字母、数字、下划线",
-        "Database name may contain only letters, digits and underscores, up to 64 characters": "库名只能包含字母、数字、下划线，且不超过 64 字符",
-        "Database source": "数据库来源",
-        "Date Modified": "修改日期",
-        "Dedicated user": "专属用户",
-        "Default database": "默认库",
-        "Default database (optional)": "默认数据库（可选）",
-        "Delete": "删除",
-        "Delete Selected Items?": "删除所选项目？",
-        "Delete Server": "删除服务器",
-        "Delete database": "删除数据库",
-        "Delete failed: server refused the operation": "删除失败：服务器拒绝了操作",
-        "Delete user": "删除用户",
-        "Descending": "降序",
-        "Deselect All": "取消全选",
-        "Detect again": "重新探测",
-        "Detection Failed": "检测失败",
-        "Detection failed": "探测失败",
-        "Diagnostics": "诊断",
-        "Disabled modules disappear from the bottom bar. Settings and base capabilities (SSH, notifications, logs, terminal) stay available; with all off, the app opens in the SSH terminal.": "关闭的模块将不再显示在底部栏。设置与底座能力（SSH 连接、通知、日志、终端）始终可用；全部关闭后，App 将直接进入 SSH 终端。",
-        "Discovering container databases...": "正在发现容器数据库...",
-        "Disk (R/W)": "磁盘 (读/写)",
-        "Disk Usage": "磁盘占用",
-        "Docker Access Denied": "无权访问 Docker",
-        "Docker Diagnostics": "Docker 诊断",
-        "Docker Not Found": "未检测到 Docker",
-        "Document": "文稿",
-        "Done": "操作已完成",
-        "Download & Share": "下载并分享",
-        "Download logs": "下载日志",
-        "Downloaded copies for preview and sharing": "预览与分享时下载的文件副本",
-        "EC private scalar": "EC 私钥标量",
-        "EC version": "EC 版本号",
-        "ENTRYPOINT (optional, overrides image)": "ENTRYPOINT（可选，覆盖镜像）",
-        "Ed25519 seed": "Ed25519 种子",
-        "Edit": "编辑",
-        "Edit Server": "编辑服务器",
-        "Edit connection": "编辑连接",
-        "Empty directory": "空目录",
-        "Enter a container name": "请填写容器名称",
-        "Enter a name": "请填写名称",
-        "Enter a statement to execute": "请输入要执行的语句",
-        "Enter an image name": "请填写镜像名称",
-        "Enter name, address and port": "请填写名称、地址和端口",
-        "Enter password": "请输入密码",
-        "Enter private key": "请输入私钥",
-        "Enter the image manually or tap the icon to pick from images on the server. Checking Pull runs docker pull first.": "镜像可手动填写，也可点图标从服务器上已有的镜像里选。勾选拉取会先执行 docker pull。",
-        "Entry mode / Call mode": "入口态 / 调用态",
-        "Environment variables": "环境变量",
-        "Execution failed": "执行失败",
-        "Execution mode": "执行方式",
-        "Expected directory listing response": "期望目录列表响应",
-        "Expected file data response": "期望文件数据响应",
-        "Expected status response": "期望状态响应",
-        "Failed to create container": "创建容器失败",
-        "Failed to load container details": "读取容器详情失败",
-        "Failed to load containers": "读取容器列表失败",
-        "Failed to load images": "读取镜像列表失败",
-        "Failed to load logs": "读取日志失败",
-        "Failed to load process list": "读取进程列表失败",
-        "Failed to pull image": "拉取镜像失败",
-        "Field": "字段",
-        "File Name": "文件名",
-        "File Preview": "文件预览",
-        "File or directory does not exist": "文件或目录不存在",
-        "Files": "文件",
-        "Files module": "文件模块",
-        "Folder": "文件夹",
-        "Folder Name": "文件夹名称",
-        "Folder is Empty": "文件夹为空",
-        "Font Size": "字号",
-        "For MongoDB enter the auth DB (blank = admin); for Redis enter the DB index (e.g. 0).": "MongoDB 填认证库（留空为 admin）；Redis 填 db 索引（如 0）。",
-        "Force stop": "强制停止",
-        "Force stop container": "强制停止容器",
-        "Force stop equals docker kill; remove deletes the container and its writable layer. Neither can be undone.": "强制停止相当于 docker kill，删除会移除容器及其可写层，均不可撤销。",
-        "General": "通用",
-        "Get Info": "获取信息",
-        "Grant": "授权",
-        "Hide Font Size": "收起字号设置",
-        "Hide Hidden Files": "隐藏隐藏文件",
-        "Hide Keyboard": "收起键盘",
-        "Host": "宿主",
-        "Host port : container port. Add multiple. Empty entries are ignored.": "宿主端口 : 容器端口，可加多条。留空的条目不会被写入命令。",
-        "Hostname": "主机名",
-        "Icon View": "图标视图",
-        "Icons": "图标",
-        "Image": "图像",
-        "Image (e.g. nginx:latest)": "镜像（如 nginx:latest）",
-        "Image name cannot be empty": "镜像名不能为空",
-        "Image removed": "镜像已删除",
-        "Immediately terminates all processes in the container (docker kill); unsaved data may be lost.": "将立即终止容器内所有进程（docker kill），未保存的数据可能丢失。",
-        "Info": "信息",
-        "Installed": "已安装",
-        "Instance management": "实例管理",
-        "Invalid Base64 content in the private key. Check it was copied completely without extra characters.": "私钥的 Base64 内容无效，请检查是否复制完整、有没有多余字符",
-        "Invalid DER length field": "DER 长度字段无效",
-        "Invalid database name": "库名不合法",
-        "Invalid port": "端口无效",
-        "Invalid username": "用户名不合法",
-        "Keys": "键 (Keys)",
-        "Kind": "种类",
-        "Last 1 day": "最近 1 天",
-        "Last 1 hour": "最近 1 小时",
-        "Last 10 minutes": "最近 10 分钟",
-        "Last 300 lines": "最近 300 行",
-        "Leave empty to select a database manually after connecting.": "留空则连接后手动选择数据库。",
-        "Leave limits and command empty to use defaults. Privileged mode is powerful-enable only when necessary.": "限制与命令留空即使用默认值。特权模式权限很高，仅在必要时开启。",
-        "Legacy PEM": "传统 PEM",
-        "Length field out of data range": "长度字段超出数据范围",
-        "Length out of range": "长度越界",
-        "List": "列表",
-        "List View": "列表视图",
-        "Load failed": "读取失败",
-        "Loading Compose projects…": "正在读取 Compose 项目…",
-        "Loading containers…": "正在读取容器…",
-        "Loading data...": "正在读取数据...",
-        "Loading database list...": "正在读取数据库列表...",
-        "Loading databases...": "正在读取数据库...",
-        "Loading directory...": "正在读取目录…",
-        "Loading images…": "正在读取镜像…",
-        "Loading list...": "正在读取列表...",
-        "Loading logs…": "正在读取日志…",
-        "Loading users...": "正在读取用户...",
-        "Loading…": "加载中…",
-        "Local cached copy": "本地缓存副本",
-        "Local credentials synced; future connections will use the new password.": "本地凭据已同步，后续连接将使用新密码。",
-        "Local databases": "本地数据库",
-        "Location": "位置",
-        "Logs": "日志",
-        "Memory": "内存",
-        "Memory limit (e.g. 512m / 1g)": "内存限制（如 512m / 1g）",
-        "Memory must be a number plus unit (e.g. 512m / 1g)": "内存格式应为数字+单位（如 512m / 1g）",
-        "Missing elliptic curve identifier": "缺少椭圆曲线标识",
-        "Missing openssh-key-v1 marker": "缺少 openssh-key-v1 标识",
-        "Module management": "模块管理",
-        "Move": "移动",
-        "Move / Copy": "移动/复制",
-        "Moving": "正在移动",
-        "My Servers": "我的服务器",
-        "Name": "名称",
-        "Name (Note)": "名称（备注）",
-        "Name (e.g. Production MySQL)": "名称（如：生产 MySQL）",
-        "Name cannot contain invalid characters like \"/\"": "名称不能包含「/」等非法字符",
-        "Network": "网络",
-        "Network (RX/TX)": "网络 (收/发)",
-        "Network unreachable. Check your network connection.": "网络不可达，请检查本机网络连接",
-        "Never restart": "不重启",
-        "New container": "新建容器",
-        "New database": "新建数据库",
-        "New file": "新建文件",
-        "New folder": "新建文件夹",
-        "New password": "新密码",
-        "New user": "新建用户",
-        "No Compose projects": "没有 Compose 项目",
-        "No Results": "无搜索结果",
-        "No command records yet. Open the Containers or Images tab to refresh once.": "尚无命令记录，请先进入容器或镜像页面刷新一次。",
-        "No containers": "没有容器",
-        "No data": "无数据",
-        "No database connection yet": "还没有数据库连接",
-        "No database containers found": "未发现数据库容器",
-        "No databases found": "未读取到数据库",
-        "No databases to display for this instance": "该实例下暂无可显示的数据库",
-        "No images": "没有镜像",
-        "No logs yet": "暂无日志",
-        "No matching containers": "没有匹配的容器",
-        "No matching images": "没有匹配的镜像",
-        "No more content": "没有更多内容了",
-        "No permission to access this location": "没有权限访问该位置",
-        "No permission to view this file": "无权查看该文件",
-        "No remote database added yet": "尚未添加远程数据库",
-        "No servers yet. Tap + to add one.": "暂无服务器，点击右上角添加",
-        "No users found (this instance may not use user authentication)": "未读取到用户（该实例可能未启用用户认证）",
-        "Not Connected": "未连接服务器",
-        "Not connected to server yet. Retry shortly.": "尚未连接到服务器，请稍候重试",
-        "Not detected yet": "尚未探测",
-        "Not published": "未发布",
-        "Notice": "提示",
-        "OK": "确定",
-        "Old and new names are the same; nothing to change": "新旧库名相同，无需修改",
-        "On failure": "失败时",
-        "One small card per row": "每行一张小卡",
-        "Online preview unavailable": "无法在线预览",
-        "Only letters, digits and underscores, up to 64 characters.": "仅支持字母、数字、下划线，长度不超过 64 字符。",
-        "Open terminal; long press to drag its position": "打开终端，长按可拖动位置",
-        "OpenSSH Private Key (PEM, unencrypted)": "OpenSSH 私钥（PEM，未加密）",
-        "Operation result": "操作结果",
-        "Owner": "属主",
-        "Partial Failure": "部分失败",
-        "Password": "密码 / 口令",
-        "Password cannot be empty": "密码不能为空",
-        "Password updated": "密码已更新",
-        "Passwords do not match": "两次输入不一致",
-        "Pause": "暂停",
-        "Paused": "已暂停",
-        "Permission scope": "权限范围",
-        "Permissions": "权限",
-        "Pick a directory from the server": "从服务器挑一个目录",
-        "Plain Text": "纯文本文稿",
-        "Please add and select a server in Settings → My Servers first": "请先到「设置 → 我的服务器」添加并选择一个服务器",
-        "Port": "端口",
-        "Port Bindings": "端口映射",
-        "Port must be between 1 and 65535": "端口必须在 1–65535 之间",
-        "Private Key": "私钥",
-        "Private key data": "私钥数据",
-        "Private key is empty. Paste the complete key file.": "私钥内容为空，请把完整的密钥文件粘贴进来",
-        "Privileged mode": "特权模式",
-        "Process count": "进程数",
-        "Projects started with docker compose appear here. Legacy docker-compose or an outdated Docker version may not be detected.": "使用 docker compose 启动的项目会显示在这里。旧版 docker-compose 或 Docker 版本过低时可能不显示。",
-        "Pull latest image before creating": "创建前拉取最新镜像",
-        "Query complete, no data": "查询完成，无数据",
-        "Quick Look": "快速查看",
-        "Read only": "只读",
-        "Reading file…": "正在读取文件…",
-        "Ready": "准备就绪",
-        "Reconnect": "重连自救",
-        "Redis 6+ uses ACL users; older versions only support requirepass-change it in Reset Password.": "Redis 6+ 使用 ACL 用户；老版本仅支持 requirepass，请在重置密码中修改。",
-        "Redis does not support deleting a DB index; open it to clear data": "Redis 不支持删除 db 索引，可进入该库清空数据",
-        "Redis does not support renaming databases": "Redis 不支持重命名数据库",
-        "Redis uses fixed DB indexes (0-15); databases cannot be created": "Redis 使用固定 db 索引（0–15），无需也不能新建数据库",
-        "Redis uses fixed DB indexes; tap an index to browse / clear keys.": "Redis 使用固定 db 索引，可点进索引浏览 / 清空 Key。",
-        "Rediscover container databases": "重新发现容器数据库",
-        "Refresh Now": "立即刷新",
-        "Remote database connection": "远程数据库连接",
-        "Remote databases": "远程数据库",
-        "Remote databases connect to instances outside the server, complementing local container databases.": "远程数据库用于连接服务器之外的实例，作为本地容器数据库的补充能力。",
-        "Remove Container": "删除容器",
-        "Remove Image": "删除镜像",
-        "Rename": "重命名",
-        "Rename database": "重命名数据库",
-        "Repository:Tag": "仓库:标签",
-        "Rescan": "重新扫描",
-        "Reset admin password": "重置管理员密码",
-        "Reset password": "重置密码",
-        "Reset requirepass": "重置 requirepass",
-        "Resource Usage": "资源占用",
-        "Restart": "重启",
-        "Restart Compose Project": "重启 Compose 项目",
-        "Restart Policy": "重启策略",
-        "Result": "结果",
-        "Resume": "恢复",
-        "Retry": "重试",
-        "Run": "执行",
-        "Run SQL / command": "执行 SQL / 命令",
-        "Run inside container": "容器内执行",
-        "Running": "运行中",
-        "Running...": "正在执行...",
-        "Runs CONFIG SET requirepass and attempts CONFIG REWRITE to persist it.": "将执行 CONFIG SET requirepass，并尝试 CONFIG REWRITE 持久化。",
-        "SQL statement": "SQL 语句",
-        "SSH Terminal": "SSH 终端",
-        "SSH negotiation failed. The server configuration may be incompatible with this app.": "SSH 协商失败，服务器配置可能与本 App 不兼容",
-        "Save": "存储",
-        "Save failed (possibly a Keychain write error)": "保存失败（可能是钥匙串写入错误）",
-        "Scan Failed": "扫描失败",
-        "Scanning folder…": "正在扫描文件夹…",
-        "Search": "搜索",
-        "Search container name or image": "搜索容器名或镜像",
-        "Search images": "搜索镜像",
-        "Section": "模块",
-        "Select All": "全选",
-        "Select a connection...": "选择连接...",
-        "Select image": "选择镜像",
-        "Server": "服务器",
-        "Server Files": "服务器文件",
-        "Server does not accept the chosen auth method. Check whether key/password auth is enabled.": "服务器不接受所选认证方式，请检查服务端是否开启私钥/密码认证",
-        "Server refused this operation": "服务器拒绝了这次操作",
-        "Server rejected the session channel": "服务器拒绝了会话通道",
-        "Server response timed out": "服务器响应超时",
-        "Set as Default": "设为默认",
-        "Set as Default Directory": "设为默认访问目录",
-        "Settings": "设置",
-        "Share": "共享",
-        "Show Floating Terminal Button": "显示悬浮终端按钮",
-        "Show Hidden Files": "显示隐藏文件",
-        "Show Keyboard": "展开键盘",
-        "Size": "大小",
-        "Sort By": "排序方式",
-        "Source Code": "源代码",
-        "Start": "启动",
-        "Start Compose Project": "启动 Compose 项目",
-        "Start following": "开启实时跟随",
-        "Start this container in the Docker module first, then manage its databases.": "请先在 Docker 模块启动该容器，再回来管理数据库。",
-        "Startup command": "启动命令",
-        "Startup command and arguments (optional)": "启动命令及参数（可选）",
-        "Status": "状态",
-        "Stop": "停止",
-        "Stop Compose Project": "停止 Compose 项目",
-        "Stop following": "停止实时跟随",
-        "Stopped": "已停止",
-        "Subfolders": "子目录",
-        "Swipe a user to change password or delete. Do not delete admin accounts casually.": "左滑用户可修改密码或删除；管理员账号请勿随意删除。",
-        "Table schema": "表结构",
-        "Tables": "数据表",
-        "Tap any mount to open that directory in the Files module (read-only).": "点按任意挂载点，调用文件模块打开该目录（只读浏览）。",
-        "Tap the host path row to pick a directory from server files. Both paths must be absolute to be written to the command.": "点宿主目录行会从服务器文件里挑一个目录；两边都填绝对路径才会写入命令。",
-        "Tap to choose host directory": "点此选择宿主目录",
-        "Terminal": "终端",
-        "Terminal interface": "终端界面",
-        "Terminal is a global base capability and is always available. With all content modules off, the app opens directly in the SSH terminal; the floating button offers quick access on multi-module pages.": "终端是全局底座能力，始终可用。关闭所有内容模块后，App 将直接进入 SSH 终端；悬浮按钮在多模块页面右下角提供快捷入口。",
-        "Test Connection": "测试连接",
-        "Test Result": "测试结果",
-        "Test runs a lightweight query over SSH to verify the client and database are available.": "测试会通过 SSH 在服务器上执行一条轻量查询，验证客户端与数据库均可用。",
-        "The current user cannot access the Docker socket. Add the user to the docker group (sudo usermod -aG docker $USER, then re-login) or check execution permissions in Settings.": "当前用户无权访问 Docker socket。请把用户加入 docker 组（sudo usermod -aG docker $USER 后重新登录），或在设置中检查执行权限。",
-        "The docker command was not found on the server. LonePanel calls native docker commands over SSH with no server-side panel required, but Docker itself must be installed.": "服务器上未找到 docker 命令。LonePanel 通过 SSH 调用原生 docker 命令，无需在服务端安装任何面板，但服务器本身需要安装 Docker。",
-        "The selection is in a critical system directory (e.g. /etc, /usr). Deleting may break the system. Make sure you understand the consequences.": "所选内容位于系统关键目录（如 /etc、/usr）。删除可能导致系统异常，请务必确认你清楚后果。",
-        "This account is created with the database and granted access only to it. The password is sent to the server only and never stored locally.": "创建库的同时会建立这个账号，并只授权访问刚创建的库。密码仅下发给服务器，不保存在本机。",
-        "This cannot be undone. Make sure you have a backup.": "删除后无法恢复，请确认已备份重要数据。",
-        "This database only (recommended)": "仅此数据库（推荐）",
-        "This elliptic curve": "该椭圆曲线",
-        "This folder is empty": "此目录中没有内容",
-        "This is the command to run on the server. Verify it before creating.": "这是将在服务器上执行的命令，确认无误后再点创建。",
-        "Time range": "时间范围",
-        "Try another keyword": "试试其他关键词",
-        "Turn off Ctrl lock": "关闭 Ctrl 锁定",
-        "Turn on Ctrl lock": "开启 Ctrl 锁定",
-        "Type": "类型",
-        "Unexpected end of DER data": "DER 数据意外结束",
-        "Unexpected end of data": "数据意外结束",
-        "Unknown Group": "未知组",
-        "Unknown User": "未知用户",
-        "Unknown User · Unknown Group": "未知用户 · 未知组",
-        "Unknown algorithm": "未知算法",
-        "Unless stopped manually": "除非手动停止",
-        "Unrecognized private key format. Use a PEM private key (starting with -----BEGIN).": "无法识别私钥格式，请使用 PEM 格式的私钥（以 -----BEGIN 开头）",
-        "Upload File": "上传文件",
-        "Upload failed: not connected to server. Reconnect and retry.": "上传失败：未连接到服务器，请重新连接后重试",
-        "Uploaded 1 file": "已上传 1 个文件",
-        "Uploading": "正在上传",
-        "User": "用户",
-        "User management": "用户管理",
-        "Username": "用户名",
-        "Username (leave empty to use the database name)": "用户名（留空则与库名相同）",
-        "Username may contain only letters, digits, underscore, dot and hyphen, 1-64 characters": "用户名只能包含字母、数字、下划线、点、中划线，长度 1–64",
-        "Value": "值",
-        "Version": "版本号",
-        "View logs": "查看日志",
-        "Volume Mounts": "卷挂载",
-        "Volume mounts": "目录挂载",
-        "Website": "网站",
-        "Websites": "网站管理",
-        "Working directory": "工作目录",
-        "Yes, Continue Deleting": "我确认，继续删除",
-        "[Connection lost, reconnecting...]": "[连接中断，正在重连…]",
-        "[Disconnected]": "[连接已断开]",
-        "[Session ended]": "[会话已结束]",
-        "days": "天",
-        "hours": "小时",
-        "minutes": "分钟",
-        "months": "个月",
-        "requirepass updated": "requirepass 已更新",
-        "seconds": "秒",
-        "weeks": "周",
-    ]
+    // 运行期逐条构建，避免编译器对大型字典字面量生成 Dictionary(uniqueKeysWithValues:)，
+    // 那会在存在重复 key 时触发 preconditionFailure（EXC_BREAKPOINT / brk 1）导致启动即崩。
+    static let zhHans: [String: String] = {
+        var d: [String: String] = [:]
+        d["Sync via iCloud"] = "通过 iCloud 同步"
+        d["Local Only"] = "仅本机"
+        d["Turn on to sync language preference and custom packs via iCloud across your devices. Requires a paid developer account with iCloud enabled; sideloaded or free-signed builds always store everything locally."] = "开启后，语言偏好与自定义语言包会通过 iCloud 在你的设备间同步。需使用开启 iCloud 的付费开发者账号签名；侧载或免费签名的版本始终只存本机。"
+        d["Delete \"%@\"? This cannot be undone."] = "确定删除「%@」吗？此操作不可撤销。"
+        d["Private key is empty. Paste the complete key file."] = "私钥为空。请粘贴完整的密钥文件。"
+        d["Unrecognized private key format. Use a PEM private key (starting with -----BEGIN)."] = "无法识别私钥格式。请使用 PEM 格式私钥（以 -----BEGIN 开头）。"
+        d["Invalid Base64 content in the private key. Check it was copied completely without extra characters."] = "私钥中的 Base64 内容无效。请确认已完整复制且没有多余字符。"
+        d["This private key is encrypted (%@) and cannot be used directly by the SSH core. Please decrypt it first, e.g. run: ssh-keygen -p -f <keyfile>"] = "此私钥已加密（%@），SSH 内核无法直接使用。请先解密，例如执行：ssh-keygen -p -f <keyfile>"
+        d["%@ private keys are not supported for SSH login. Please use an Ed25519 or ECDSA key instead (ssh-keygen -t ed25519)"] = "%@ 私钥不支持 SSH 登录。请改用 Ed25519 或 ECDSA 密钥（ssh-keygen -t ed25519）"
+        d["Private key is incomplete or malformed (%@). Please make sure you copied the whole key file."] = "私钥不完整或格式错误（%@）。请确认已复制完整的密钥文件。"
+        d["Port must be between 1 and 65535"] = "端口必须在 1 到 65535 之间"
+        d["Server rejected the session channel"] = "服务器拒绝了会话通道"
+        d["Server does not accept the chosen auth method. Check whether key/password auth is enabled."] = "服务器不接受所选的认证方式。请检查是否启用了密钥/密码认证。"
+        d["Authentication failed: incorrect username or credential"] = "认证失败：用户名或凭据不正确"
+        d["Connection timed out. Check the address, port and network connectivity."] = "连接超时。请检查地址、端口和网络连接。"
+        d["Connection closed by the server, usually due to auth failure or host rejection."] = "连接被服务器关闭，通常是认证失败或主机拒绝导致。"
+        d["Failed to save credential (system error %@)"] = "保存凭据失败（系统错误 %@）"
+        d["Failed to load credential (system error %@)"] = "加载凭据失败（系统错误 %@）"
+        d["Credential not found in Keychain"] = "钥匙串中未找到凭据"
+        d["Not connected to server yet. Retry shortly."] = "尚未连接到服务器，请稍后重试。"
+        d["Server returned unparseable data (%@)"] = "服务器返回了无法解析的数据（%@）"
+        d["No more content"] = "没有更多内容"
+        d["File or directory does not exist"] = "文件或目录不存在"
+        d["No permission to access this location"] = "无权访问此位置"
+        d["Server refused this operation"] = "服务器拒绝了该操作"
+        d["SFTP operation failed (code %@)"] = "SFTP 操作失败（代码 %@）"
+        d["SFTP operation failed: %@"] = "SFTP 操作失败：%@"
+        d["Invalid language pack: %@"] = "语言包无效：%@"
+        d["Run %@"] = "运行 %@"
+        d["Enter %@ then tap Run"] = "输入 %@ 后点击运行"
+        d["%@ is not installed on the server. Please install the client first."] = "服务器上未安装 %@，请先安装客户端。"
+        d["Detecting %@ ..."] = "正在检测 %@ ..."
+        d["%@ · %@"] = "%1$@ · %2$@"
+        d["Only letters, digits and underscores, up to 64 characters. %@ will run the corresponding command on the server."] = "仅支持字母、数字和下划线，最多 64 个字符。%@ 将在服务器上执行相应命令。"
+        d["Delete database \"%@\"? Its tables and data will be deleted. This cannot be undone."] = "确定删除数据库「%@」吗？其中的表和数据都会被删除，此操作不可撤销。"
+        d["User: %@"] = "用户：%@"
+        d["Delete user \"%@\"? This cannot be undone."] = "确定删除用户「%@」吗？此操作不可撤销。"
+        d["Perform %@ on \"%@\"? Compose actions affect all containers in this project."] = "确定对「%2$@」执行 %1$@ 吗？Compose 操作会影响本项目中的所有容器。"
+        d["Remove container \"%@\"? This cannot be undone."] = "确定删除容器「%@」吗？此操作不可撤销。"
+        d["Environment Variables (%@)"] = "环境变量（%@）"
+        d["Processes (%@)"] = "进程（%@）"
+        d["Force stopping \"%@\" equals docker kill. Processes are terminated immediately and unsaved data may be lost. Use only if the container is unresponsive."] = "强制停止「%@」等同于 docker kill。进程会被立即终止，未保存的数据可能丢失。仅在容器无响应时使用。"
+        d["Logs · %@"] = "日志 · %@"
+        d["Remove image \"%@\"? If it is in use by a container, removal will fail."] = "确定删除镜像「%@」吗？如果被容器占用，删除会失败。"
+        d["In use by %@"] = "被 %@ 占用"
+        d["Paste (%@ items)"] = "粘贴（%@ 项）"
+        d["%@ items"] = "%@ 项"
+        d["%@/%@ items"] = "%1$@/%2$@ 项"
+        d["This will delete about %@ of this cache category, without affecting others."] = "这将删除该缓存类别约 %@ 的空间，不影响其他类别。"
+        d["Clear \"%@\""] = "清理「%@」"
+        d["%@ · %@ items · %@"] = "%1$@ · %2$@ 项 · %3$@"
+        d["Delete \"%@\"? Its credential will also be removed from Keychain. This cannot be undone."] = "确定删除「%@」吗？其凭据也会从钥匙串中移除，此操作不可撤销。"
+        d["Language"] = "语言"
+        d["Switching language takes effect immediately. Built-in packs: English and Simplified Chinese; you can import a custom language pack."] = "切换语言立即生效。内置英文与简体中文；也可导入自定义语言包。"
+        d["Language takes effect after restarting the app. Built-in packs: English and Simplified Chinese; you can import a custom language pack."] = "语言将在重启 App 后生效。内置英文与简体中文；也可导入自定义语言包。"
+        d["Restart the app to apply the selected language."] = "已选择新语言，重启 App 后生效。"
+        d["entries"] = "条"
+        d["Custom Language Packs"] = "自定义语言包"
+        d["Import Language Pack"] = "导入语言包"
+        d["Export Translation Template"] = "导出翻译模板"
+        d["Export the English template, translate the values into your language, then import the JSON back. Keys must stay in English."] = "导出英文模板，把值翻译成你的语言后再导入 JSON。key 必须保持英文。"
+        d["iCloud Sync Available"] = "iCloud 同步可用"
+        d["iCloud Unavailable - Stored Locally"] = "iCloud 不可用 - 存于本机"
+        d["Language preference and custom packs sync via iCloud when the app is signed with a paid developer account and iCloud is enabled. Sideloaded or free-signed builds store everything locally."] = "当 App 使用付费开发者账号签名且开启 iCloud 时，语言偏好与自定义包会通过 iCloud 同步。侧载或免费签名的版本全部存于本机。"
+        d["Import Failed"] = "导入失败"
+        d["Delete Language Pack"] = "删除语言包"
+        d["Connected to"] = "已连接到"
+        d["\") equals docker kill. Processes are terminated immediately and unsaved data may be lost. Use only when the container is unresponsive."] = ")」相当于 docker kill，容器内进程会立即被终止，未保存的数据可能丢失。仅在容器无响应时使用。"
+        d["\") then tap Run"] = ")后点击执行"
+        d["\")? If the image is in use by a container, removal will fail."] = ")」吗？若镜像正被容器使用，删除会失败。"
+        d["\")? Its tables and data will be deleted. This cannot be undone."] = ")」？其中的表和数据会一并删除，此操作不可撤销。"
+        d["\")? The credential will also be removed from Keychain. This cannot be undone."] = ")」吗？凭证也会一并从钥匙串移除，此操作不可撤销。"
+        d["\")? This cannot be undone."] = ")」吗？此操作不可撤销。"
+        d["(Automatic)"] = "（自动）"
+        d["(Empty)"] = "（空）"
+        d["(No authentication)"] = "（无认证）"
+        d["(None)"] = "（无）"
+        d["Account"] = "账号"
+        d["Action Notice"] = "操作提示"
+        d["Action only"] = "只干活"
+        d["Add Server"] = "添加服务器"
+        d["Add a connection to browse tables, query data and run SQL in the app.\nThe database client must be installed on the server."] = "添加一条连接，即可在 App 里浏览库表、查询数据、执行 SQL。\\n数据库客户端需已安装在服务器上。"
+        d["Add a remote connection on the Database page first"] = "请先在「数据库」页添加一条远程连接"
+        d["Add and connect a server in Settings > My Servers first"] = "请先在「设置 → 我的服务器」添加并连接一台服务器"
+        d["Add and connect a server in Settings > My Servers, then retry"] = "请在「设置 → 我的服务器」中添加并连接一台服务器，然后重试"
+        d["Add connection"] = "添加连接"
+        d["Add database"] = "添加数据库"
+        d["Add environment variable"] = "添加环境变量"
+        d["Add mount"] = "添加挂载"
+        d["Add port"] = "添加端口"
+        d["Add remote database"] = "添加远程数据库"
+        d["Adding a database also creates a dedicated user granted access to it. Swipe to rename or delete; tap to browse tables and data."] = "添加数据库时会一并创建专属用户并授权该库；左滑可重命名或删除；点进可浏览表与数据。"
+        d["Address"] = "地址"
+        d["Admin has full privileges; regular users can be limited to a database."] = "管理员拥有全部权限；普通用户可限定到某个库。"
+        d["Admin password"] = "管理员口令"
+        d["Admin password updated"] = "管理员密码已更新"
+        d["Admin password updated (compatibility mode)"] = "管理员密码已更新（兼容模式）"
+        d["Admin privileges"] = "管理员权限"
+        d["Advanced options"] = "高级选项"
+        d["After changing the password, local credentials are updated; rediscovery and future connections use the new password. User management supports viewing, creating, changing passwords and deleting."] = "改密后会同步更新本地凭据，重新发现容器 / 下次连接仍使用新密码。用户管理支持查看、新建、改密与删除。"
+        d["After running MySQL / MariaDB / PostgreSQL / MongoDB / Redis in Docker on the server, they are listed here for direct management."] = "在服务器上用 Docker 运行 MySQL / MariaDB / PostgreSQL / MongoDB / Redis 后，这里会自动列出并直接管理容器内的数据库。"
+        d["Algorithm OID"] = "算法 OID"
+        d["Alive"] = "活着"
+        d["All cached file copies will be removed. They will be re-downloaded on next preview."] = "将删除所有已缓存的文件副本，下次预览需重新下载。"
+        d["All databases (admin)"] = "全部库（管理员）"
+        d["Always"] = "总是"
+        d["Archive"] = "归档文件"
+        d["Ascending"] = "升序"
+        d["Attributes"] = "属性"
+        d["Auth DB / DB index (optional)"] = "认证库 / db 索引（可选）"
+        d["Authentication"] = "认证方式"
+        d["Authentication failed. Check your username and password or private key."] = "认证失败，请检查用户名与密码或私钥是否正确"
+        d["Authorized database (leave empty to create account only)"] = "授权数据库（留空为仅建账号）"
+        d["Basic Info"] = "基本信息"
+        d["Browse data"] = "数据浏览"
+        d["Browse data and run SQL"] = "数据浏览与执行 SQL"
+        d["By Category"] = "按类别"
+        d["By default only the current database is granted, following least privilege. Choose admin for cross-database management."] = "默认只授权当前库，符合最小权限原则；需要跨库管理时再选管理员。"
+        d["CPU limit (e.g. 0.5 / 2)"] = "CPU 限制（如 0.5 / 2）"
+        d["CPU must be a number (e.g. 0.5 / 2)"] = "CPU 应为数字（如 0.5 / 2）"
+        d["Cache Management"] = "缓存管理"
+        d["Cache Used"] = "已占用缓存"
+        d["Cache speeds up file preview and sharing and can be cleared anytime without affecting server data. Above 1 GB, the app auto-clears the least recently used parts."] = "缓存用于加快文件预览与分享，可随时清理，不影响服务器上的数据。超出 1 GB 时 App 会自动清理最久未使用的部分。"
+        d["Cancel"] = "取消"
+        d["Cannot resolve the server address. Check that the address is correct."] = "无法解析服务器地址，请检查地址是否填写正确"
+        d["Card view"] = "卡片视图"
+        d["Change password"] = "修改密码"
+        d["Check Again"] = "重新检测"
+        d["Choose"] = "选择"
+        d["Choose Location"] = "选择位置"
+        d["Choose from existing images"] = "从现有镜像选择"
+        d["Choose host directory"] = "选择宿主目录"
+        d["Choose this directory"] = "选择此目录"
+        d["Clear"] = "清空"
+        d["Clear All"] = "全部清理"
+        d["Clear All Cache"] = "清理全部缓存"
+        d["Client"] = "客户端"
+        d["Client available"] = "客户端可用"
+        d["Client not found"] = "未找到客户端"
+        d["Collapse Terminal"] = "收起终端"
+        d["Collections"] = "集合"
+        d["Coming Soon"] = "即将推出"
+        d["Command"] = "命令"
+        d["Command executed"] = "命令已执行"
+        d["Command preview"] = "命令预览"
+        d["Commands run directly inside the container with no port mapping; credentials are read from container environment variables."] = "命令直接在容器内执行，无需端口映射；凭据从容器环境变量读取。"
+        d["Commands run inside the container; credentials are read from environment variables and never written to local config."] = "命令直接在容器内运行，凭据从容器环境变量读取，不写入本机配置。"
+        d["Configuration is stored locally and passwords in Keychain; all commands still run through the current SSH server."] = "配置存在本机、口令存钥匙串；所有命令仍通过当前 SSH 服务器执行。"
+        d["Confirm Action"] = "操作确认"
+        d["Confirm new password"] = "确认新密码"
+        d["Connect"] = "连接"
+        d["Connect Terminal"] = "连接终端"
+        d["Connected"] = "连接成功"
+        d["Connected, but no execution identity is available"] = "连上了但不知道用什么身份执行"
+        d["Connected: SSH handshake and authentication succeeded; command channel is ready."] = "连接成功：SSH 握手与认证通过，命令通道可用"
+        d["Connecting to server..."] = "正在连接服务器…"
+        d["Connecting…"] = "正在连接…"
+        d["Connection Failed"] = "连接失败"
+        d["Connection config is stored locally and passwords in Keychain. All commands run through the current SSH server."] = "连接配置保存在本机，密码存系统钥匙串。所有命令通过当前 SSH 服务器执行。"
+        d["Connection failed. Check the address, port and network, then retry."] = "连接失败，请检查服务器地址、端口和网络后重试"
+        d["Connection info"] = "连接信息"
+        d["Connection interrupted by the server. Retry later or check server status."] = "连接被服务器中断，请稍后重试或检查服务器状态"
+        d["Connection parameters"] = "连接参数"
+        d["Connection refused. Verify the address and port and that SSH is running."] = "服务器拒绝连接，请确认地址与端口正确、对方 SSH 服务已开启"
+        d["Connection timed out. Check your network and whether the server is online."] = "连接超时，请检查网络是否通畅、服务器是否在线"
+        d["Container"] = "容器"
+        d["Container ID"] = "容器 ID"
+        d["Container Logs"] = "容器日志"
+        d["Container databases"] = "容器数据库"
+        d["Container force-stopped"] = "容器已强制停止"
+        d["Container info"] = "容器信息"
+        d["Container is not running; cannot read databases"] = "容器未运行，无法读取数据库"
+        d["Container is paused; docker exec is unavailable. Resume it to connect a terminal. Logs still show past output."] = "容器已暂停，docker exec 无法进入；恢复运行后可连接终端。日志仍可查看历史输出。"
+        d["Container is stopped; start it to connect a terminal. Logs still show past output."] = "容器已停止，启动后可连接终端；日志仍可查看历史输出。"
+        d["Container name"] = "容器名称"
+        d["Container name may contain only letters, digits, underscore, dot and hyphen, and cannot start with a special character"] = "容器名称只能包含字母、数字、下划线、点、中划线，且不能以特殊字符开头"
+        d["Container path (e.g. /data)"] = "容器内路径（如 /data）"
+        d["Container paused"] = "容器已暂停"
+        d["Container removed"] = "容器已删除"
+        d["Container restarted"] = "容器已重启"
+        d["Container resumed"] = "容器已恢复"
+        d["Container started"] = "容器已启动"
+        d["Container stopped"] = "容器已停止"
+        d["Contents"] = "内容"
+        d["Copied"] = "已复制"
+        d["Copy"] = "拷贝"
+        d["Copy All Logs"] = "复制全部日志"
+        d["Copy config from existing container"] = "从已有容器复制配置"
+        d["Copying"] = "正在复制"
+        d["Create"] = "创建"
+        d["Create an ACL user with full key and command permissions."] = "新建 ACL 用户并授予全部 key 与命令权限。"
+        d["Created"] = "创建时间"
+        d["Current Connection"] = "当前连接"
+        d["Cursor blink"] = "白块跳动"
+        d["Custom query"] = "自定义查询"
+        d["DB index"] = "db 索引"
+        d["DER content length out of range"] = "DER 内容长度超出范围"
+        d["Danger Path"] = "危险路径"
+        d["Dangerous action"] = "危险操作"
+        d["Data too short"] = "数据过短"
+        d["Database"] = "数据库"
+        d["Database connection"] = "数据库连接"
+        d["Database created but no user can access it"] = "库建好了却没人能用"
+        d["Database index (db)"] = "数据库索引 (db)"
+        d["Database name"] = "库名"
+        d["Database name (letters, digits, underscore)"] = "数据库名（字母、数字、下划线）"
+        d["Database name may contain only letters, digits and underscores"] = "库名只能包含字母、数字、下划线"
+        d["Database name may contain only letters, digits and underscores, up to 64 characters"] = "库名只能包含字母、数字、下划线，且不超过 64 字符"
+        d["Database source"] = "数据库来源"
+        d["Date Modified"] = "修改日期"
+        d["Dedicated user"] = "专属用户"
+        d["Default database"] = "默认库"
+        d["Default database (optional)"] = "默认数据库（可选）"
+        d["Delete"] = "删除"
+        d["Delete Selected Items?"] = "删除所选项目？"
+        d["Delete Server"] = "删除服务器"
+        d["Delete database"] = "删除数据库"
+        d["Delete failed: server refused the operation"] = "删除失败：服务器拒绝了操作"
+        d["Delete user"] = "删除用户"
+        d["Descending"] = "降序"
+        d["Deselect All"] = "取消全选"
+        d["Detect again"] = "重新探测"
+        d["Detection Failed"] = "检测失败"
+        d["Detection failed"] = "探测失败"
+        d["Diagnostics"] = "诊断"
+        d["Disabled modules disappear from the bottom bar. Settings and base capabilities (SSH, notifications, logs, terminal) stay available; with all off, the app opens in the SSH terminal."] = "关闭的模块将不再显示在底部栏。设置与底座能力（SSH 连接、通知、日志、终端）始终可用；全部关闭后，App 将直接进入 SSH 终端。"
+        d["Discovering container databases..."] = "正在发现容器数据库..."
+        d["Disk (R/W)"] = "磁盘 (读/写)"
+        d["Disk Usage"] = "磁盘占用"
+        d["Docker Access Denied"] = "无权访问 Docker"
+        d["Docker Diagnostics"] = "Docker 诊断"
+        d["Docker Not Found"] = "未检测到 Docker"
+        d["Document"] = "文稿"
+        d["Done"] = "操作已完成"
+        d["Download & Share"] = "下载并分享"
+        d["Download logs"] = "下载日志"
+        d["Downloaded copies for preview and sharing"] = "预览与分享时下载的文件副本"
+        d["EC private scalar"] = "EC 私钥标量"
+        d["EC version"] = "EC 版本号"
+        d["ENTRYPOINT (optional, overrides image)"] = "ENTRYPOINT（可选，覆盖镜像）"
+        d["Ed25519 seed"] = "Ed25519 种子"
+        d["Edit"] = "编辑"
+        d["Edit Server"] = "编辑服务器"
+        d["Edit connection"] = "编辑连接"
+        d["Empty directory"] = "空目录"
+        d["Enter a container name"] = "请填写容器名称"
+        d["Enter a name"] = "请填写名称"
+        d["Enter a statement to execute"] = "请输入要执行的语句"
+        d["Enter an image name"] = "请填写镜像名称"
+        d["Enter name, address and port"] = "请填写名称、地址和端口"
+        d["Enter password"] = "请输入密码"
+        d["Enter private key"] = "请输入私钥"
+        d["Enter the image manually or tap the icon to pick from images on the server. Checking Pull runs docker pull first."] = "镜像可手动填写，也可点图标从服务器上已有的镜像里选。勾选拉取会先执行 docker pull。"
+        d["Entry mode / Call mode"] = "入口态 / 调用态"
+        d["Environment variables"] = "环境变量"
+        d["Execution failed"] = "执行失败"
+        d["Execution mode"] = "执行方式"
+        d["Expected directory listing response"] = "期望目录列表响应"
+        d["Expected file data response"] = "期望文件数据响应"
+        d["Expected status response"] = "期望状态响应"
+        d["Failed to create container"] = "创建容器失败"
+        d["Failed to load container details"] = "读取容器详情失败"
+        d["Failed to load containers"] = "读取容器列表失败"
+        d["Failed to load images"] = "读取镜像列表失败"
+        d["Failed to load logs"] = "读取日志失败"
+        d["Failed to load process list"] = "读取进程列表失败"
+        d["Failed to pull image"] = "拉取镜像失败"
+        d["Field"] = "字段"
+        d["File Name"] = "文件名"
+        d["File Preview"] = "文件预览"
+        d["Files"] = "文件"
+        d["Files module"] = "文件模块"
+        d["Folder"] = "文件夹"
+        d["Folder Name"] = "文件夹名称"
+        d["Folder is Empty"] = "文件夹为空"
+        d["Font Size"] = "字号"
+        d["For MongoDB enter the auth DB (blank = admin); for Redis enter the DB index (e.g. 0)."] = "MongoDB 填认证库（留空为 admin）；Redis 填 db 索引（如 0）。"
+        d["Force stop"] = "强制停止"
+        d["Force stop container"] = "强制停止容器"
+        d["Force stop equals docker kill; remove deletes the container and its writable layer. Neither can be undone."] = "强制停止相当于 docker kill，删除会移除容器及其可写层，均不可撤销。"
+        d["General"] = "通用"
+        d["Get Info"] = "获取信息"
+        d["Grant"] = "授权"
+        d["Hide Font Size"] = "收起字号设置"
+        d["Hide Hidden Files"] = "隐藏隐藏文件"
+        d["Hide Keyboard"] = "收起键盘"
+        d["Host"] = "宿主"
+        d["Host port : container port. Add multiple. Empty entries are ignored."] = "宿主端口 : 容器端口，可加多条。留空的条目不会被写入命令。"
+        d["Hostname"] = "主机名"
+        d["Icon View"] = "图标视图"
+        d["Icons"] = "图标"
+        d["Image"] = "图像"
+        d["Image (e.g. nginx:latest)"] = "镜像（如 nginx:latest）"
+        d["Image name cannot be empty"] = "镜像名不能为空"
+        d["Image removed"] = "镜像已删除"
+        d["Immediately terminates all processes in the container (docker kill); unsaved data may be lost."] = "将立即终止容器内所有进程（docker kill），未保存的数据可能丢失。"
+        d["Info"] = "信息"
+        d["Installed"] = "已安装"
+        d["Instance management"] = "实例管理"
+        d["Invalid DER length field"] = "DER 长度字段无效"
+        d["Invalid database name"] = "库名不合法"
+        d["Invalid port"] = "端口无效"
+        d["Invalid username"] = "用户名不合法"
+        d["Keys"] = "键 (Keys)"
+        d["Kind"] = "种类"
+        d["Last 1 day"] = "最近 1 天"
+        d["Last 1 hour"] = "最近 1 小时"
+        d["Last 10 minutes"] = "最近 10 分钟"
+        d["Last 300 lines"] = "最近 300 行"
+        d["Leave empty to select a database manually after connecting."] = "留空则连接后手动选择数据库。"
+        d["Leave limits and command empty to use defaults. Privileged mode is powerful-enable only when necessary."] = "限制与命令留空即使用默认值。特权模式权限很高，仅在必要时开启。"
+        d["Legacy PEM"] = "传统 PEM"
+        d["Length field out of data range"] = "长度字段超出数据范围"
+        d["Length out of range"] = "长度越界"
+        d["List"] = "列表"
+        d["List View"] = "列表视图"
+        d["Load failed"] = "读取失败"
+        d["Loading Compose projects…"] = "正在读取 Compose 项目…"
+        d["Loading containers…"] = "正在读取容器…"
+        d["Loading data..."] = "正在读取数据..."
+        d["Loading database list..."] = "正在读取数据库列表..."
+        d["Loading databases..."] = "正在读取数据库..."
+        d["Loading directory..."] = "正在读取目录…"
+        d["Loading images…"] = "正在读取镜像…"
+        d["Loading list..."] = "正在读取列表..."
+        d["Loading logs…"] = "正在读取日志…"
+        d["Loading users..."] = "正在读取用户..."
+        d["Loading…"] = "加载中…"
+        d["Local cached copy"] = "本地缓存副本"
+        d["Local credentials synced; future connections will use the new password."] = "本地凭据已同步，后续连接将使用新密码。"
+        d["Local databases"] = "本地数据库"
+        d["Location"] = "位置"
+        d["Logs"] = "日志"
+        d["Memory"] = "内存"
+        d["Memory limit (e.g. 512m / 1g)"] = "内存限制（如 512m / 1g）"
+        d["Memory must be a number plus unit (e.g. 512m / 1g)"] = "内存格式应为数字+单位（如 512m / 1g）"
+        d["Missing elliptic curve identifier"] = "缺少椭圆曲线标识"
+        d["Missing openssh-key-v1 marker"] = "缺少 openssh-key-v1 标识"
+        d["Module management"] = "模块管理"
+        d["Move"] = "移动"
+        d["Move / Copy"] = "移动/复制"
+        d["Moving"] = "正在移动"
+        d["My Servers"] = "我的服务器"
+        d["Name"] = "名称"
+        d["Name (Note)"] = "名称（备注）"
+        d["Name (e.g. Production MySQL)"] = "名称（如：生产 MySQL）"
+        d["Name cannot contain invalid characters like \"/\""] = "名称不能包含「/」等非法字符"
+        d["Network"] = "网络"
+        d["Network (RX/TX)"] = "网络 (收/发)"
+        d["Network unreachable. Check your network connection."] = "网络不可达，请检查本机网络连接"
+        d["Never restart"] = "不重启"
+        d["New container"] = "新建容器"
+        d["New database"] = "新建数据库"
+        d["New file"] = "新建文件"
+        d["New folder"] = "新建文件夹"
+        d["New password"] = "新密码"
+        d["New user"] = "新建用户"
+        d["No Compose projects"] = "没有 Compose 项目"
+        d["No Results"] = "无搜索结果"
+        d["No command records yet. Open the Containers or Images tab to refresh once."] = "尚无命令记录，请先进入容器或镜像页面刷新一次。"
+        d["No containers"] = "没有容器"
+        d["No data"] = "无数据"
+        d["No database connection yet"] = "还没有数据库连接"
+        d["No database containers found"] = "未发现数据库容器"
+        d["No databases found"] = "未读取到数据库"
+        d["No databases to display for this instance"] = "该实例下暂无可显示的数据库"
+        d["No images"] = "没有镜像"
+        d["No logs yet"] = "暂无日志"
+        d["No matching containers"] = "没有匹配的容器"
+        d["No matching images"] = "没有匹配的镜像"
+        d["No permission to view this file"] = "无权查看该文件"
+        d["No remote database added yet"] = "尚未添加远程数据库"
+        d["No servers yet. Tap + to add one."] = "暂无服务器，点击右上角添加"
+        d["No users found (this instance may not use user authentication)"] = "未读取到用户（该实例可能未启用用户认证）"
+        d["Not Connected"] = "未连接服务器"
+        d["Not detected yet"] = "尚未探测"
+        d["Not published"] = "未发布"
+        d["Notice"] = "提示"
+        d["OK"] = "确定"
+        d["Old and new names are the same; nothing to change"] = "新旧库名相同，无需修改"
+        d["On failure"] = "失败时"
+        d["One small card per row"] = "每行一张小卡"
+        d["Online preview unavailable"] = "无法在线预览"
+        d["Only letters, digits and underscores, up to 64 characters."] = "仅支持字母、数字、下划线，长度不超过 64 字符。"
+        d["Open terminal; long press to drag its position"] = "打开终端，长按可拖动位置"
+        d["OpenSSH Private Key (PEM, unencrypted)"] = "OpenSSH 私钥（PEM，未加密）"
+        d["Operation result"] = "操作结果"
+        d["Owner"] = "属主"
+        d["Partial Failure"] = "部分失败"
+        d["Password"] = "密码 / 口令"
+        d["Password cannot be empty"] = "密码不能为空"
+        d["Password updated"] = "密码已更新"
+        d["Passwords do not match"] = "两次输入不一致"
+        d["Pause"] = "暂停"
+        d["Paused"] = "已暂停"
+        d["Permission scope"] = "权限范围"
+        d["Permissions"] = "权限"
+        d["Pick a directory from the server"] = "从服务器挑一个目录"
+        d["Plain Text"] = "纯文本文稿"
+        d["Please add and select a server in Settings → My Servers first"] = "请先到「设置 → 我的服务器」添加并选择一个服务器"
+        d["Port"] = "端口"
+        d["Port Bindings"] = "端口映射"
+        d["Private Key"] = "私钥"
+        d["Private key data"] = "私钥数据"
+        d["Privileged mode"] = "特权模式"
+        d["Process count"] = "进程数"
+        d["Projects started with docker compose appear here. Legacy docker-compose or an outdated Docker version may not be detected."] = "使用 docker compose 启动的项目会显示在这里。旧版 docker-compose 或 Docker 版本过低时可能不显示。"
+        d["Pull latest image before creating"] = "创建前拉取最新镜像"
+        d["Query complete, no data"] = "查询完成，无数据"
+        d["Quick Look"] = "快速查看"
+        d["Read only"] = "只读"
+        d["Reading file…"] = "正在读取文件…"
+        d["Ready"] = "准备就绪"
+        d["Reconnect"] = "重连自救"
+        d["Redis 6+ uses ACL users; older versions only support requirepass-change it in Reset Password."] = "Redis 6+ 使用 ACL 用户；老版本仅支持 requirepass，请在重置密码中修改。"
+        d["Redis does not support deleting a DB index; open it to clear data"] = "Redis 不支持删除 db 索引，可进入该库清空数据"
+        d["Redis does not support renaming databases"] = "Redis 不支持重命名数据库"
+        d["Redis uses fixed DB indexes (0-15); databases cannot be created"] = "Redis 使用固定 db 索引（0–15），无需也不能新建数据库"
+        d["Redis uses fixed DB indexes; tap an index to browse / clear keys."] = "Redis 使用固定 db 索引，可点进索引浏览 / 清空 Key。"
+        d["Rediscover container databases"] = "重新发现容器数据库"
+        d["Refresh Now"] = "立即刷新"
+        d["Remote database connection"] = "远程数据库连接"
+        d["Remote databases"] = "远程数据库"
+        d["Remote databases connect to instances outside the server, complementing local container databases."] = "远程数据库用于连接服务器之外的实例，作为本地容器数据库的补充能力。"
+        d["Remove Container"] = "删除容器"
+        d["Remove Image"] = "删除镜像"
+        d["Rename"] = "重命名"
+        d["Rename database"] = "重命名数据库"
+        d["Repository:Tag"] = "仓库:标签"
+        d["Rescan"] = "重新扫描"
+        d["Reset admin password"] = "重置管理员密码"
+        d["Reset password"] = "重置密码"
+        d["Reset requirepass"] = "重置 requirepass"
+        d["Resource Usage"] = "资源占用"
+        d["Restart"] = "重启"
+        d["Restart Compose Project"] = "重启 Compose 项目"
+        d["Restart Policy"] = "重启策略"
+        d["Result"] = "结果"
+        d["Resume"] = "恢复"
+        d["Retry"] = "重试"
+        d["Run"] = "执行"
+        d["Run SQL / command"] = "执行 SQL / 命令"
+        d["Run inside container"] = "容器内执行"
+        d["Running"] = "运行中"
+        d["Running..."] = "正在执行..."
+        d["Runs CONFIG SET requirepass and attempts CONFIG REWRITE to persist it."] = "将执行 CONFIG SET requirepass，并尝试 CONFIG REWRITE 持久化。"
+        d["SQL statement"] = "SQL 语句"
+        d["SSH Terminal"] = "SSH 终端"
+        d["SSH negotiation failed. The server configuration may be incompatible with this app."] = "SSH 协商失败，服务器配置可能与本 App 不兼容"
+        d["Save"] = "存储"
+        d["Save failed (possibly a Keychain write error)"] = "保存失败（可能是钥匙串写入错误）"
+        d["Scan Failed"] = "扫描失败"
+        d["Scanning folder…"] = "正在扫描文件夹…"
+        d["Search"] = "搜索"
+        d["Search container name or image"] = "搜索容器名或镜像"
+        d["Search images"] = "搜索镜像"
+        d["Section"] = "模块"
+        d["Select All"] = "全选"
+        d["Select a connection..."] = "选择连接..."
+        d["Select image"] = "选择镜像"
+        d["Server"] = "服务器"
+        d["Server Files"] = "服务器文件"
+        d["Server response timed out"] = "服务器响应超时"
+        d["Set as Default"] = "设为默认"
+        d["Set as Default Directory"] = "设为默认访问目录"
+        d["Settings"] = "设置"
+        d["Share"] = "共享"
+        d["Show Floating Terminal Button"] = "显示悬浮终端按钮"
+        d["Show Hidden Files"] = "显示隐藏文件"
+        d["Show Keyboard"] = "展开键盘"
+        d["Size"] = "大小"
+        d["Sort By"] = "排序方式"
+        d["Source Code"] = "源代码"
+        d["Start"] = "启动"
+        d["Start Compose Project"] = "启动 Compose 项目"
+        d["Start following"] = "开启实时跟随"
+        d["Start this container in the Docker module first, then manage its databases."] = "请先在 Docker 模块启动该容器，再回来管理数据库。"
+        d["Startup command"] = "启动命令"
+        d["Startup command and arguments (optional)"] = "启动命令及参数（可选）"
+        d["Status"] = "状态"
+        d["Stop"] = "停止"
+        d["Stop Compose Project"] = "停止 Compose 项目"
+        d["Stop following"] = "停止实时跟随"
+        d["Stopped"] = "已停止"
+        d["Subfolders"] = "子目录"
+        d["Swipe a user to change password or delete. Do not delete admin accounts casually."] = "左滑用户可修改密码或删除；管理员账号请勿随意删除。"
+        d["Table schema"] = "表结构"
+        d["Tables"] = "数据表"
+        d["Tap any mount to open that directory in the Files module (read-only)."] = "点按任意挂载点，调用文件模块打开该目录（只读浏览）。"
+        d["Tap the host path row to pick a directory from server files. Both paths must be absolute to be written to the command."] = "点宿主目录行会从服务器文件里挑一个目录；两边都填绝对路径才会写入命令。"
+        d["Tap to choose host directory"] = "点此选择宿主目录"
+        d["Terminal"] = "终端"
+        d["Terminal interface"] = "终端界面"
+        d["Terminal is a global base capability and is always available. With all content modules off, the app opens directly in the SSH terminal; the floating button offers quick access on multi-module pages."] = "终端是全局底座能力，始终可用。关闭所有内容模块后，App 将直接进入 SSH 终端；悬浮按钮在多模块页面右下角提供快捷入口。"
+        d["Test Connection"] = "测试连接"
+        d["Test Result"] = "测试结果"
+        d["Test runs a lightweight query over SSH to verify the client and database are available."] = "测试会通过 SSH 在服务器上执行一条轻量查询，验证客户端与数据库均可用。"
+        d["The current user cannot access the Docker socket. Add the user to the docker group (sudo usermod -aG docker $USER, then re-login) or check execution permissions in Settings."] = "当前用户无权访问 Docker socket。请把用户加入 docker 组（sudo usermod -aG docker $USER 后重新登录），或在设置中检查执行权限。"
+        d["The docker command was not found on the server. LonePanel calls native docker commands over SSH with no server-side panel required, but Docker itself must be installed."] = "服务器上未找到 docker 命令。LonePanel 通过 SSH 调用原生 docker 命令，无需在服务端安装任何面板，但服务器本身需要安装 Docker。"
+        d["The selection is in a critical system directory (e.g. /etc, /usr). Deleting may break the system. Make sure you understand the consequences."] = "所选内容位于系统关键目录（如 /etc、/usr）。删除可能导致系统异常，请务必确认你清楚后果。"
+        d["This account is created with the database and granted access only to it. The password is sent to the server only and never stored locally."] = "创建库的同时会建立这个账号，并只授权访问刚创建的库。密码仅下发给服务器，不保存在本机。"
+        d["This cannot be undone. Make sure you have a backup."] = "删除后无法恢复，请确认已备份重要数据。"
+        d["This database only (recommended)"] = "仅此数据库（推荐）"
+        d["This elliptic curve"] = "该椭圆曲线"
+        d["This folder is empty"] = "此目录中没有内容"
+        d["This is the command to run on the server. Verify it before creating."] = "这是将在服务器上执行的命令，确认无误后再点创建。"
+        d["Time range"] = "时间范围"
+        d["Try another keyword"] = "试试其他关键词"
+        d["Turn off Ctrl lock"] = "关闭 Ctrl 锁定"
+        d["Turn on Ctrl lock"] = "开启 Ctrl 锁定"
+        d["Type"] = "类型"
+        d["Unexpected end of DER data"] = "DER 数据意外结束"
+        d["Unexpected end of data"] = "数据意外结束"
+        d["Unknown Group"] = "未知组"
+        d["Unknown User"] = "未知用户"
+        d["Unknown User · Unknown Group"] = "未知用户 · 未知组"
+        d["Unknown algorithm"] = "未知算法"
+        d["Unless stopped manually"] = "除非手动停止"
+        d["Upload File"] = "上传文件"
+        d["Upload failed: not connected to server. Reconnect and retry."] = "上传失败：未连接到服务器，请重新连接后重试"
+        d["Uploaded 1 file"] = "已上传 1 个文件"
+        d["Uploading"] = "正在上传"
+        d["User"] = "用户"
+        d["User management"] = "用户管理"
+        d["Username"] = "用户名"
+        d["Username (leave empty to use the database name)"] = "用户名（留空则与库名相同）"
+        d["Username may contain only letters, digits, underscore, dot and hyphen, 1-64 characters"] = "用户名只能包含字母、数字、下划线、点、中划线，长度 1–64"
+        d["Value"] = "值"
+        d["Version"] = "版本号"
+        d["View logs"] = "查看日志"
+        d["Volume Mounts"] = "卷挂载"
+        d["Volume mounts"] = "目录挂载"
+        d["Website"] = "网站"
+        d["Websites"] = "网站管理"
+        d["Working directory"] = "工作目录"
+        d["Yes, Continue Deleting"] = "我确认，继续删除"
+        d["[Connection lost, reconnecting...]"] = "[连接中断，正在重连…]"
+        d["[Disconnected]"] = "[连接已断开]"
+        d["[Session ended]"] = "[会话已结束]"
+        d["days"] = "天"
+        d["hours"] = "小时"
+        d["minutes"] = "分钟"
+        d["months"] = "个月"
+        d["requirepass updated"] = "requirepass 已更新"
+        d["seconds"] = "秒"
+        d["weeks"] = "周"
+        return d
+    }()
 }

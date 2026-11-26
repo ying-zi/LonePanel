@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.71.0`，版本 1.71.0（详见第 9 节） |
+| 当前基线 | tag `t1.72.0`，版本 1.72.0（详见第 9 节） |
 
 ---
 
@@ -236,6 +236,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **t1.68** | **修复 t1.67 闪退（L10n.f 的 String(format:)+%@ 传 Swift String 崩溃，改为纯字符串替换）；设置页新增 iCloud 同步开关** |
 | **t1.70** | **修复切换中文闪退：把 .id(revision) 的内层子树与承载 sheet 的根容器分成两层（稳定 ZStack 根 + contentArea 子视图），换语言只重建内容区、sheet 宿主身份不变；bump dispatch 到下一 runloop，避开视图更新事务内换身份** |
 | **t1.71** | **切换中文闪退根治：改为「重启后生效」——拆分生效语言 currentID（启动锁定、运行期恒定）与待选 selectedID（Picker 绑定、只持久化）；彻底移除 revision / .id 视图重建机制，切换时不重算任何文案、不重建任何视图树** |
+| **t1.72** | **真正根治切中文闪退：崩溃日志定位到 EXC_BREAKPOINT/brk 1 来自 Swift 静态字典 `BuiltinPacks.zhHans` 的懒初始化——Release 下编译器用 `Dictionary(uniqueKeysWithValues:)`，遇 15 个重复 key 触发 preconditionFailure。删除全部重复 key，并把字典改为运行期逐条下标赋值构建，彻底根除 trap** |
 
 ---
 
@@ -261,6 +262,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **切换中文就闪退** | `.id(localization.revision)` 挂在 body 根链上（该链还挂着设置/终端/调用态三个 `.sheet`）。换语言 revision+1 → 整条根链换身份 → 正在显示的 sheet 宿主被销毁重建 → 重新 present 崩溃。**正解：引入稳定 ZStack 根容器承载全部 sheet，`.id(revision)` 只挂在它的子视图 `contentArea` 上**——注意计算属性会内联，仅把 .id 移进 `contentArea` 而不加稳定根容器是**无效**的（展开后结构不变）；且 `revision` 自增用 `DispatchQueue.main.async` 推到下一 runloop，绝不在 Picker/Toggle 的 set（视图更新事务）内同步改身份。 |
 | **切换中文闪退（t1.70 的 ZStack 方案仍没解决）** | 任何「运行期改生效语言 + 重建视图树」的方案都可能因 sheet 重新 present 崩溃。**最终正解：语言切换改为「重启后生效」**——`currentID`（生效）仅启动时从持久化读入、运行期恒定；Picker 绑定 `selectedID`（待选），`select()` 只改 selectedID + 持久化、绝不碰 currentID；彻底删除 `revision` 与 `.id(localization.revision)`。切换时不重算任何 L10n.t()、不重建任何视图，崩溃从根上消失。 |
 
+| **切中文必崩（t1.71「重启生效」仍没解决，真正根因）** | 崩溃日志 `EXC_BREAKPOINT`/`SIGTRAP`/`brk 1` + 堆栈 `dispatch_once_callout` 表明是 Swift `static let` 懒初始化时 `preconditionFailure`，不是视图重建/野指针。`BuiltinPacks.zhHans` 是 561 条字典字面量且含 15 个重复 key；Swift 在 Release(-O) 下把字典字面量编译为 `Dictionary(uniqueKeysWithValues:)`，遇重复 key 直接 trap（Debug 逐条覆盖不崩，故本地复现不了、英文永不碰该字典故不崩）。**正解：①删除全部重复 key；②把字典字面量改成运行期 `var d=[:]; d[k]=v; return d` 闭包构建，编译器无法再用 uniqueKeysWithValues，重复也只覆盖不崩。** |
 ---
 
 ## 10. 接手指南：常见任务怎么干
@@ -269,7 +271,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 2. **新增一个可插拔模块**：建 `<Name>/<Name>Tab.swift`（导出 `TabModule`）+ View；在 `TabRegistry.modules` 加一行；如需开关，`ModuleID` 加 case（`isCore=false`）；如需设置项，填 `settingsSection`。删模块反过来即可。
 3. **加悬浮终端的宿主模块**：在模块 TabModule 里设 `showsFloatingTerminal: true`。
 4. **改终端行为**：动 `TerminalSession` / `TerminalView` 前，先读 6.1 与踩坑表；终端是底座，任何"模块级终端开关"都不能加。
-5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前下一个是 t1.72.0）。
+5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前下一个是 t1.73.0）。
 
 ### 当前待办 / 方向（供参考）
 
@@ -279,4 +281,4 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 
 ---
 
-*最后更新：2026-11-26，基线 t1.71.0。文档随版本演进同步更新。*
+*最后更新：2026-11-26，基线 t1.72.0。文档随版本演进同步更新。*
