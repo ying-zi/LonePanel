@@ -27,14 +27,14 @@ enum SSHConnectionError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidPort: return "Port must be between 1 and 65535"
-        case .invalidChannelType: return "Server rejected the session channel"
+        case .invalidPort: return L10n.t("Port must be between 1 and 65535")
+        case .invalidChannelType: return L10n.t("Server rejected the session channel")
         case .invalidPrivateKey(let text): return text
         case .authenticationUnsupported:
-            return "Server does not accept the chosen auth method. Check whether key/password auth is enabled."
-        case .authenticationFailed: return "Authentication failed: incorrect username or credential"
-        case .timedOut: return "Connection timed out. Check the address, port and network connectivity."
-        case .closedUnexpectedly: return "Connection closed by the server, usually due to auth failure or host rejection."
+            return L10n.t("Server does not accept the chosen auth method. Check whether key/password auth is enabled.")
+        case .authenticationFailed: return L10n.t("Authentication failed: incorrect username or credential")
+        case .timedOut: return L10n.t("Connection timed out. Check the address, port and network connectivity.")
+        case .closedUnexpectedly: return L10n.t("Connection closed by the server, usually due to auth failure or host rejection.")
         case .underlying(let text): return text
         }
     }

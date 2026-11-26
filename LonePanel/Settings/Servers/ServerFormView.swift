@@ -97,12 +97,12 @@ struct ServerFormView: View {
                     Button(L10n.t("Save")) { save() }
                 }
             }
-            .alert("Notice", isPresented: errorAlertBinding) {
+            .alert(L10n.t("Notice"), isPresented: errorAlertBinding) {
                 Button(L10n.t("OK"), role: .cancel) { errorMessage = nil }
             } message: {
                 Text(errorMessage ?? "")
             }
-            .alert("Connection Failed", isPresented: testErrorAlertBinding) {
+            .alert(L10n.t("Connection Failed"), isPresented: testErrorAlertBinding) {
                 Button(L10n.t("OK"), role: .cancel) { testError = nil }
             } message: {
                 Text(testError ?? "")

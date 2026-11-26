@@ -117,7 +117,7 @@ struct FileBrowserView: View {
         }
         .quickLookPreview($previewURL)
         .sheet(item: $shareItem) { ActivityShareSheet(items: $0.urls) }
-        .alert("Action Notice", isPresented: errorBinding) {
+        .alert(L10n.t("Action Notice"), isPresented: errorBinding) {
             Button(L10n.t("OK"), role: .cancel) { model.dismissError() }
         } message: {
             Text(model.errorMessage ?? "")
@@ -139,7 +139,7 @@ struct FileBrowserView: View {
                         .font(.subheadline.weight(.semibold))
                     Spacer(minLength: 0)
                     if progress.total > 0 {
-                        Text("\(progress.completed)/\(progress.total) items")
+                        Text(L10n.f("%@/%@ items", String(describing: (progress.completed)), String(describing: (progress.total))))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -306,21 +306,21 @@ private struct DirectoryPage: View {
     /// 所有弹窗集中在独立宿主，避免 body 的 modifier 链过长导致 type-check 超时。
     private var dialogHost: some View {
         Color.clear.frame(width: 0, height: 0)
-        .alert("New folder", isPresented: $pendingCreateFolder) {
+        .alert(L10n.t("New folder"), isPresented: $pendingCreateFolder) {
             TextField("Folder Name", text: $newFolderName)
             Button(L10n.t("Cancel"), role: .cancel) { newFolderName = "" }
             Button(L10n.t("Create")) {
                 Task { await model.makeDirectory(at: node.path, named: newFolderName); newFolderName = ""; await load() }
             }
         }
-        .alert("New file", isPresented: $pendingCreateFile) {
+        .alert(L10n.t("New file"), isPresented: $pendingCreateFile) {
             TextField("File Name", text: $newFileName)
             Button(L10n.t("Cancel"), role: .cancel) { newFileName = "" }
             Button(L10n.t("Create")) {
                 Task { await model.makeFile(at: node.path, named: newFileName); newFileName = ""; await load() }
             }
         }
-        .alert("Rename", isPresented: renameBinding) {
+        .alert(L10n.t("Rename"), isPresented: renameBinding) {
             TextField("Name", text: $renameText)
             Button(L10n.t("Cancel"), role: .cancel) { renaming = nil }
             Button(L10n.t("Save")) {
@@ -330,7 +330,7 @@ private struct DirectoryPage: View {
                 }
             }
         }
-        .alert("Delete Selected Items?", isPresented: $showDeleteConfirm) {
+        .alert(L10n.t("Delete Selected Items?"), isPresented: $showDeleteConfirm) {
             Button(L10n.t("Delete"), role: .destructive) {
                 let filesToDelete = deleting
                 Task {
@@ -344,7 +344,7 @@ private struct DirectoryPage: View {
         } message: {
             Text(L10n.t("This cannot be undone. Make sure you have a backup."))
         }
-        .alert("Danger Path", isPresented: $showDangerConfirm) {
+        .alert(L10n.t("Danger Path"), isPresented: $showDangerConfirm) {
             Button(L10n.t("Yes, Continue Deleting"), role: .destructive) {
                 showDangerConfirm = false
                 showDeleteConfirm = true
@@ -353,7 +353,7 @@ private struct DirectoryPage: View {
         } message: {
             Text(L10n.t("The selection is in a critical system directory (e.g. /etc, /usr). Deleting may break the system. Make sure you understand the consequences."))
         }
-        .alert("Online preview unavailable", isPresented: noticeBinding) {
+        .alert(L10n.t("Online preview unavailable"), isPresented: noticeBinding) {
             Button(L10n.t("Cancel"), role: .cancel) { pendingNoticeFile = nil; previewNotice = nil }
             Button(L10n.t("Download & Share")) {
                 if let file = pendingNoticeFile {
@@ -590,7 +590,7 @@ private struct DirectoryPage: View {
                     titleMenu
                         .opacity(!isSelecting ? 1 : 0)
                         .allowsHitTesting(!isSelecting)
-                    Text("\(selectedIDs.count) items").font(.headline)
+                    Text(L10n.f("%@ items", String(describing: (selectedIDs.count)))).font(.headline)
                         .opacity(isSelecting ? 1 : 0)
                         .allowsHitTesting(isSelecting)
                 }
@@ -707,7 +707,7 @@ private struct DirectoryPage: View {
                 Button {
                     Task { await pasteHere() }
                 } label: {
-                    Label("Paste (\(model.clipboard.count) items)", systemImage: "doc.on.clipboard")
+                    Label(L10n.f("Paste (%@ items)", String(describing: (model.clipboard.count))), systemImage: "doc.on.clipboard")
                 }
             }
             Divider()
@@ -974,7 +974,7 @@ private struct FileRow: View {
         let date = file.modified?.formatted(date: .abbreviated, time: .omitted) ?? ""
         if file.isDirectory { return date.isEmpty ? "Folder" : date }
         let size = FileBrowserModel.sizeText(file.size)
-        return date.isEmpty ? size : "\(date) · \(size)"
+        return date.isEmpty ? size : L10n.f("%@ · %@", String(describing: (date)), String(describing: (size)))
     }
 }
 

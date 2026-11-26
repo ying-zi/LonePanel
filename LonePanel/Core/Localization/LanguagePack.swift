@@ -40,7 +40,7 @@ enum LanguagePackError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalid(let reason): return "Invalid language pack: \(reason)"
+        case .invalid(let reason): return L10n.f("Invalid language pack: %@", String(describing: (reason)))
         }
     }
 }

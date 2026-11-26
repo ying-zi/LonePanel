@@ -100,7 +100,7 @@ struct LanguageSettingsView: View {
         }
         .sheet(isPresented: $showExporter) {
             if let data = exportData {
-                DocumentExporter(data: data, filename: "\(exportID ?? "language").json")
+                DocumentExporter(data: data, filename: "\(exportID ?? "language").json", isPresented: $showExporter)
             }
         }
         .alert(L10n.t("Import Failed"), isPresented: Binding(
@@ -148,11 +148,36 @@ private struct DocumentPicker: UIViewControllerRepresentable {
 private struct DocumentExporter: UIViewControllerRepresentable {
     let data: Data
     let filename: String
+    @Binding var isPresented: Bool
 
-    func makeUIViewController(context: Context) -> UIActivityViewController {
+    func makeCoordinator() -> Coordinator { Coordinator(isPresented: $isPresented) }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        let vc = UIViewController()
+        vc.view.backgroundColor = .clear
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        guard isPresented, !context.coordinator.presented else { return }
+        context.coordinator.presented = true
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         try? data.write(to: tmp, options: .atomic)
-        return UIActivityViewController(activityItems: [tmp], applicationActivities: nil)
+        let activity = UIActivityViewController(activityItems: [tmp], applicationActivities: nil)
+        activity.completionWithItemsHandler = { _, _, _, _ in
+            context.coordinator.presented = false
+            isPresented = false
+        }
+        if let pop = activity.popoverPresentationController {
+            pop.sourceView = uiViewController.view
+            pop.sourceRect = uiViewController.view.bounds
+        }
+        uiViewController.present(activity, animated: true)
     }
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+
+    final class Coordinator {
+        var presented = false
+        @Binding var isPresented: Bool
+        init(isPresented: Binding<Bool>) { _isPresented = isPresented }
+    }
 }

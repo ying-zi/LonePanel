@@ -499,7 +499,7 @@ final class FileBrowserModel: ObservableObject {
     func ownerDisplay(uid: UInt32?, gid: UInt32?) -> String {
         let user = uid.flatMap { uidNames[$0] } ?? uid.map { "UID \($0)" } ?? "Unknown User"
         let group = gid.flatMap { gidNames[$0] } ?? gid.map { "GID \($0)" } ?? "Unknown Group"
-        return "\(user) · \(group)"
+        return L10n.f("%@ · %@", String(describing: (user)), String(describing: (group)))
     }
 
     // MARK: - 上传（本地文件 → 当前目录）

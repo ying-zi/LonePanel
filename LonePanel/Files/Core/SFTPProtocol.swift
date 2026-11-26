@@ -124,20 +124,20 @@ enum SFTPError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notConnected:
-            return "Not connected to server yet. Retry shortly."
+            return L10n.t("Not connected to server yet. Retry shortly.")
         case .malformed(let text):
-            return "Server returned unparseable data (\(text))"
+            return L10n.f("Server returned unparseable data (%@)", String(describing: (text)))
         case .status(let code, let message):
             if message.isEmpty {
                 switch code {
-                case 1: return "No more content"
-                case 2: return "File or directory does not exist"
-                case 3: return "No permission to access this location"
-                case 4: return "Server refused this operation"
-                default: return "SFTP operation failed (code \(code))"
+                case 1: return L10n.t("No more content")
+                case 2: return L10n.t("File or directory does not exist")
+                case 3: return L10n.t("No permission to access this location")
+                case 4: return L10n.t("Server refused this operation")
+                default: return L10n.f("SFTP operation failed (code %@)", String(describing: (code)))
                 }
             }
-            return "SFTP operation failed: \(message)"
+            return L10n.f("SFTP operation failed: %@", String(describing: (message)))
         }
     }
 }

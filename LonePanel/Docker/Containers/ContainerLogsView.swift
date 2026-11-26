@@ -67,7 +67,7 @@ struct ContainerLogsView: View {
                     }
                 }
             }
-            .navigationTitle("Logs · \(containerName)")
+            .navigationTitle(L10n.f("Logs · %@", String(describing: (containerName))))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
             .task {

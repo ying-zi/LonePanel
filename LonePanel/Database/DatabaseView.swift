@@ -183,7 +183,7 @@ private struct DatabaseInstanceRow: View {
                 .background(DatabaseView.kindColor(conn.kind).opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
             VStack(alignment: .leading, spacing: 3) {
                 Text(conn.name).font(.body.weight(.semibold))
-                Text("\(conn.kind.title) · \(conn.imageName ?? "")")
+                Text(L10n.f("%@ · %@", String(describing: (conn.kind.title)), String(describing: (conn.imageName ?? ""))))
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
@@ -328,7 +328,7 @@ private struct AdminPasswordView: View {
                         .disabled(isRunning || password.isEmpty || mismatch)
                 }
             }
-            .alert("Password updated", isPresented: $success) {
+            .alert(L10n.t("Password updated"), isPresented: $success) {
                 Button(L10n.t("OK"), role: .cancel) { dismiss() }
             } message: {
                 Text(L10n.t("Local credentials synced; future connections will use the new password."))
@@ -437,7 +437,7 @@ private struct UserManagementView: View {
                 present(message)
             }
         }
-        .alert("Delete user", isPresented: Binding(
+        .alert(L10n.t("Delete user"), isPresented: Binding(
             get: { deleting != nil },
             set: { if !$0 { deleting = nil } }
         )) {
@@ -446,9 +446,9 @@ private struct UserManagementView: View {
                 if let user = deleting { Task { await remove(user) } }
             }
         } message: {
-            Text("Delete user \"\(deleting?.name ?? "")\"? This cannot be undone.")
+            Text(L10n.f("Delete user \"%@\"? This cannot be undone.", String(describing: (deleting?.name ?? ""))))
         }
-        .alert("Operation result", isPresented: $showToast) {
+        .alert(L10n.t("Operation result"), isPresented: $showToast) {
             Button(L10n.t("OK"), role: .cancel) {}
         } message: {
             Text(toast ?? "")
@@ -559,7 +559,7 @@ private struct UserPasswordView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("User: \(user.name)").foregroundStyle(.secondary)
+                    Text(L10n.f("User: %@", String(describing: (user.name)))).foregroundStyle(.secondary)
                     SecureField("New password", text: $password)
                     SecureField("Confirm new password", text: $confirm)
                     if mismatch {
@@ -706,7 +706,7 @@ private struct DatabaseListSection: View {
                 await load()
             }
         }
-        .alert("Delete database", isPresented: Binding(
+        .alert(L10n.t("Delete database"), isPresented: Binding(
             get: { deleting != nil },
             set: { if !$0 { deleting = nil } }
         )) {
@@ -715,9 +715,9 @@ private struct DatabaseListSection: View {
                 if let db = deleting { Task { await remove(db) } }
             }
         } message: {
-            Text("Delete database \"\(deleting?.name ?? "")\"? Its tables and data will be deleted. This cannot be undone.")
+            Text(L10n.f("Delete database \"%@\"? Its tables and data will be deleted. This cannot be undone.", String(describing: (deleting?.name ?? ""))))
         }
-        .alert("Operation result", isPresented: $showActionResult) {
+        .alert(L10n.t("Operation result"), isPresented: $showActionResult) {
             Button(L10n.t("OK"), role: .cancel) {}
         } message: {
             Text(actionMessage ?? "")
@@ -862,7 +862,7 @@ private struct DatabaseNameEditor: View {
                 } header: {
                     Text(L10n.t("Database name"))
                 } footer: {
-                    Text("Only letters, digits and underscores, up to 64 characters. \(conn.kind.title) will run the corresponding command on the server.")
+                    Text(L10n.f("Only letters, digits and underscores, up to 64 characters. %@ will run the corresponding command on the server.", String(describing: (conn.kind.title))))
                 }
                 if let error {
                     Section {
@@ -993,7 +993,7 @@ private struct ConnectionRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(conn.name)
                     .font(.body.weight(.semibold))
-                Text("\(conn.kind.title) · \(conn.endpoint)")
+                Text(L10n.f("%@ · %@", String(describing: (conn.kind.title)), String(describing: (conn.endpoint))))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -1029,7 +1029,7 @@ struct ConnectionDetailView: View {
                 HStack(alignment: .top, spacing: 10) {
                     if isChecking {
                         ProgressView()
-                        Text("Detecting \(conn.kind.clientCommand) ...")
+                        Text(L10n.f("Detecting %@ ...", String(describing: (conn.kind.clientCommand))))
                             .foregroundStyle(.secondary)
                     } else if let availability {
                         switch availability {
@@ -1043,7 +1043,7 @@ struct ConnectionDetailView: View {
                             Image(systemName: "xmark.circle.fill").foregroundStyle(.orange)
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(L10n.t("Client not found")).foregroundStyle(.orange)
-                                Text("\(conn.kind.clientCommand) is not installed on the server. Please install the client first.")
+                                Text(L10n.f("%@ is not installed on the server. Please install the client first.", String(describing: (conn.kind.clientCommand))))
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         case .failed(let message):
@@ -1650,13 +1650,13 @@ struct QueryView: View {
                         ContentUnavailableView {
                             Label(L10n.t("Ready"), systemImage: "chevron.left.forwardslash.chevron.right")
                         } description: {
-                            Text("Enter \(conn.kind.supportsSQL ? " SQL" : " command") then tap Run")
+                            Text(L10n.f("Enter %@ then tap Run", String(describing: (conn.kind.supportsSQL ? " SQL" : " command"))))
                         }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .navigationTitle("Run \(conn.kind.supportsSQL ? " SQL" : " command")")
+            .navigationTitle(L10n.f("Run %@", String(describing: (conn.kind.supportsSQL ? " SQL" : " command"))))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

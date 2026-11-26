@@ -74,7 +74,7 @@ struct ServersView: View {
         .sheet(item: $editing) { server in
             ServerFormView(server: server) { reload() }
         }
-        .alert("Delete Server", isPresented: deleteAlertBinding) {
+        .alert(L10n.t("Delete Server"), isPresented: deleteAlertBinding) {
             Button(L10n.t("Cancel"), role: .cancel) { pendingDelete = nil }
             Button(L10n.t("Delete"), role: .destructive) {
                 if let target = pendingDelete {
@@ -84,9 +84,9 @@ struct ServersView: View {
                 pendingDelete = nil
             }
         } message: {
-            Text("Delete \"\(pendingDelete?.name ?? "")\"? Its credential will also be removed from Keychain. This cannot be undone.")
+            Text(L10n.f("Delete \"%@\"? Its credential will also be removed from Keychain. This cannot be undone.", String(describing: (pendingDelete?.name ?? ""))))
         }
-        .alert("Notice", isPresented: errorAlertBinding) {
+        .alert(L10n.t("Notice"), isPresented: errorAlertBinding) {
             Button(L10n.t("OK"), role: .cancel) { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")

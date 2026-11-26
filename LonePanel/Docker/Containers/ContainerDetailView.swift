@@ -88,7 +88,7 @@ struct ContainerDetailView: View {
 
             // 进程列表（docker top）
             if container.state == .running && !processes.isEmpty {
-                Section("Processes (\(processes.count))") {
+                Section(L10n.f("Processes (%@)", String(describing: (processes.count)))) {
                     ForEach(processes) { proc in
                         VStack(alignment: .leading, spacing: 3) {
                             HStack {
@@ -150,7 +150,7 @@ struct ContainerDetailView: View {
                         Button {
                             ModuleCoordinator.shared.openFiles(
                                 at: mount.source,
-                                title: "\(container.name) · \(mount.destination)"
+                                title: L10n.f("%@ · %@", String(describing: (container.name)), String(describing: (mount.destination)))
                             )
                         } label: {
                             HStack(spacing: 8) {
@@ -184,7 +184,7 @@ struct ContainerDetailView: View {
 
             // 环境变量
             if let info = inspectInfo, !info.env.isEmpty {
-                Section("Environment Variables (\(info.env.count))") {
+                Section(L10n.f("Environment Variables (%@)", String(describing: (info.env.count)))) {
                     ForEach(info.env, id: \.self) { env in
                         Text(env)
                             .font(.caption.monospaced())
@@ -238,7 +238,7 @@ struct ContainerDetailView: View {
                 .interactiveDismissDisabled(true)
                 .onDisappear { session.closeForContainer() }
         }
-        .alert("Force stop container", isPresented: $confirmKill) {
+        .alert(L10n.t("Force stop container"), isPresented: $confirmKill) {
             Button(L10n.t("Cancel"), role: .cancel) {}
             Button(L10n.t("Force stop"), role: .destructive) {
                 Task {
@@ -250,7 +250,7 @@ struct ContainerDetailView: View {
         } message: {
             Text(L10n.t("Immediately terminates all processes in the container (docker kill); unsaved data may be lost."))
         }
-        .alert("Remove Container", isPresented: $confirmRemove) {
+        .alert(L10n.t("Remove Container"), isPresented: $confirmRemove) {
             Button(L10n.t("Cancel"), role: .cancel) {}
             Button(L10n.t("Delete"), role: .destructive) {
                 Task {
@@ -260,7 +260,7 @@ struct ContainerDetailView: View {
                 }
             }
         } message: {
-            Text("Remove container \"\(container.name)\"? This cannot be undone.")
+            Text(L10n.f("Remove container \"%@\"? This cannot be undone.", String(describing: (container.name))))
         }
         .overlay {
             if acting {

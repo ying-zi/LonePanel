@@ -53,7 +53,7 @@ struct CacheSettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(categoryTitle(item.category))
                                     .font(.body)
-                                Text("\(formatBytes(item.size)) · \(item.count) items · \(categoryDetail(item.category))")
+                                Text(L10n.f("%@ · %@ items · %@", String(describing: (formatBytes(item.size))), String(describing: (item.count)), String(describing: (categoryDetail(item.category)))))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -78,7 +78,7 @@ struct CacheSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await reload() }
         .refreshable { await reload() }
-        .alert("Clear All Cache", isPresented: $confirmAll) {
+        .alert(L10n.t("Clear All Cache"), isPresented: $confirmAll) {
             Button(L10n.t("Cancel"), role: .cancel) {}
             Button(L10n.t("Clear"), role: .destructive) {
                 Task { await FileCache.shared.clearAll(); await reload() }
@@ -88,8 +88,8 @@ struct CacheSettingsView: View {
         }
         .alert(item: $pendingCategory) { item in
             Alert(
-                title: Text("Clear \"\(categoryTitle(item.category))\""),
-                message: Text("This will delete about \(formatBytes(item.size)) of this cache category, without affecting others."),
+                title: Text(L10n.f("Clear \"%@\"", String(describing: (categoryTitle(item.category))))),
+                message: Text(L10n.f("This will delete about %@ of this cache category, without affecting others.", String(describing: (formatBytes(item.size))))),
                 primaryButton: .destructive(Text(L10n.t("Clear"))) {
                     Task { await FileCache.shared.clear(category: item.category); await reload() }
                 },

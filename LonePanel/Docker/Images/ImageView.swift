@@ -41,7 +41,7 @@ struct ImageView: View {
                                     Text(image.size)
                                     Text(image.createdSince)
                                     if Int(image.containers) ?? 0 > 0 {
-                                        Text("In use by \(image.containers)")
+                                        Text(L10n.f("In use by %@", String(describing: (image.containers))))
                                             .foregroundStyle(.orange)
                                     }
                                 }
@@ -85,7 +85,7 @@ struct ImageView: View {
         .searchToolbarBehavior(.minimize)
         .refreshable { await load() }
         .task { await load() }
-        .alert("Remove Image", isPresented: Binding(
+        .alert(L10n.t("Remove Image"), isPresented: Binding(
             get: { confirmRemove != nil },
             set: { if !$0 { confirmRemove = nil } }
         )) {
@@ -100,7 +100,7 @@ struct ImageView: View {
                 }
             }
         } message: {
-            Text("Remove image \"\(confirmRemove?.fullName ?? "")\"? If it is in use by a container, removal will fail.")
+            Text(L10n.f("Remove image \"%@\"? If it is in use by a container, removal will fail.", String(describing: (confirmRemove?.fullName ?? ""))))
         }
     }
 

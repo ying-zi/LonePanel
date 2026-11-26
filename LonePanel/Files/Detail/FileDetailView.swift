@@ -85,8 +85,8 @@ struct FileInfoSheet: View {
                 }
             } else if let stats = folderStats {
                 LabeledContent("Disk Usage", value: FileBrowserModel.sizeText(stats.sizeBytes))
-                LabeledContent("Files", value: "\(stats.fileCount) items")
-                LabeledContent("Subfolders", value: "\(stats.directoryCount) items")
+                LabeledContent("Files", value: L10n.f("%@ items", String(describing: (stats.fileCount))))
+                LabeledContent("Subfolders", value: L10n.f("%@ items", String(describing: (stats.directoryCount))))
             } else {
                 HStack {
                     Text(L10n.t("Scan Failed")).foregroundStyle(.secondary)

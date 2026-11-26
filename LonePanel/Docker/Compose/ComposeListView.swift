@@ -97,7 +97,7 @@ struct ComposeListView: View {
                 pendingAction = nil
             }
         } message: {
-            Text("Perform \(actionLabel) on \"\(actionTarget?.name ?? "")\"? Compose actions affect all containers in this project.")
+            Text(L10n.f("Perform %@ on \"%@\"? Compose actions affect all containers in this project.", String(describing: (actionLabel)), String(describing: (actionTarget?.name ?? ""))))
         }
     }
 

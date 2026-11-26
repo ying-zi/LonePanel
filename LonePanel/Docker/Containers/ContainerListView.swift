@@ -37,7 +37,7 @@ struct ContainerListView: View {
         .sheet(item: $logsContainer) { container in
             ContainerLogsView(containerID: container.id, containerName: container.name)
         }
-        .alert("Force stop container", isPresented: Binding(
+        .alert(L10n.t("Force stop container"), isPresented: Binding(
             get: { confirmKill != nil },
             set: { if !$0 { confirmKill = nil } }
         )) {
@@ -52,9 +52,9 @@ struct ContainerListView: View {
                 }
             }
         } message: {
-            Text("Force stopping \"\(confirmKill?.name ?? "")\" equals docker kill. Processes are terminated immediately and unsaved data may be lost. Use only if the container is unresponsive.")
+            Text(L10n.f("Force stopping \"%@\" equals docker kill. Processes are terminated immediately and unsaved data may be lost. Use only if the container is unresponsive.", String(describing: (confirmKill?.name ?? ""))))
         }
-        .alert("Remove Container", isPresented: Binding(
+        .alert(L10n.t("Remove Container"), isPresented: Binding(
             get: { confirmRemove != nil },
             set: { if !$0 { confirmRemove = nil } }
         )) {
@@ -69,7 +69,7 @@ struct ContainerListView: View {
                 }
             }
         } message: {
-            Text("Remove container \"\(confirmRemove?.name ?? "")\"? This cannot be undone.")
+            Text(L10n.f("Remove container \"%@\"? This cannot be undone.", String(describing: (confirmRemove?.name ?? ""))))
         }
     }
 

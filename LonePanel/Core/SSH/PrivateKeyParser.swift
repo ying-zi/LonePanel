@@ -14,17 +14,17 @@ enum PrivateKeyError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .empty:
-            return "Private key is empty. Paste the complete key file."
+            return L10n.t("Private key is empty. Paste the complete key file.")
         case .notPEM:
-            return "Unrecognized private key format. Use a PEM private key (starting with -----BEGIN)."
+            return L10n.t("Unrecognized private key format. Use a PEM private key (starting with -----BEGIN).")
         case .undecodable:
-            return "Invalid Base64 content in the private key. Check it was copied completely without extra characters."
+            return L10n.t("Invalid Base64 content in the private key. Check it was copied completely without extra characters.")
         case .encrypted(let kind):
-            return "This private key is encrypted (\(kind)) and cannot be used directly by the SSH core. Please decrypt it first, e.g. run: ssh-keygen -p -f <keyfile>"
+            return L10n.f("This private key is encrypted (%@) and cannot be used directly by the SSH core. Please decrypt it first, e.g. run: ssh-keygen -p -f <keyfile>", String(describing: (kind)))
         case .unsupportedAlgorithm(let name):
-            return "\(name) private keys are not supported for SSH login. Please use an Ed25519 or ECDSA key instead (ssh-keygen -t ed25519)"
+            return L10n.f("%@ private keys are not supported for SSH login. Please use an Ed25519 or ECDSA key instead (ssh-keygen -t ed25519)", String(describing: (name)))
         case .malformed(let detail):
-            return "Private key is incomplete or malformed (\(detail)). Please make sure you copied the whole key file."
+            return L10n.f("Private key is incomplete or malformed (%@). Please make sure you copied the whole key file.", String(describing: (detail)))
         }
     }
 }

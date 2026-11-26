@@ -169,7 +169,7 @@ struct ResourceRingsView: View {
         for (english, chinese) in replacements {
             text = text.replacingOccurrences(of: english, with: chinese)
         }
-        return text.isEmpty ? "Running" : "Run \(text)"
+        return text.isEmpty ? "Running" : L10n.f("Run %@", String(describing: (text)))
     }
 }
 

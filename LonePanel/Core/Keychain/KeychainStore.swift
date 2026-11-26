@@ -12,9 +12,9 @@ enum KeychainStore {
 
         var errorDescription: String? {
             switch self {
-            case .saveFailed(let status): return "Failed to save credential (system error \(status))"
-            case .loadFailed(let status): return "Failed to load credential (system error \(status))"
-            case .notFound: return "Credential not found in Keychain"
+            case .saveFailed(let status): return L10n.f("Failed to save credential (system error %@)", String(describing: (status)))
+            case .loadFailed(let status): return L10n.f("Failed to load credential (system error %@)", String(describing: (status)))
+            case .notFound: return L10n.t("Credential not found in Keychain")
             }
         }
     }

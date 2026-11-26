@@ -6,6 +6,13 @@ enum L10n {
     static func t(_ key: String) -> String {
         LocalizationStore.shared.t(key)
     }
+
+    /// 带参数的本地化：模板用 %@ / %d 等格式占位，参数为 CVarArg。
+    /// 用于含插值的句子，例如 L10n.f("Delete \"%@\"? This cannot be undone.", name)
+    static func f(_ key: String, _ args: CVarArg...) -> String {
+        let template = LocalizationStore.shared.t(key)
+        return String(format: template, arguments: args)
+    }
 }
 
 /// 自动跟随语言切换刷新的文本视图。用于 let 常量 / 非 body 直接求值的文案。
