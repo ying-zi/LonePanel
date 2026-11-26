@@ -142,6 +142,9 @@ final class DatabaseService {
             let env = Self.parseEnv(envResult.out)
             let (user, password, database) = Self.credentials(for: kind, env: env)
             let name = row.Names.split(separator: ",").first.map(String.init) ?? cid
+            // 探测容器内真实可用的客户端命令名：mariadb:11 只有 mariadb、没有 mysql；
+            // mongosh/mongo 也因版本而异。停机的容器无法 exec，探测失败时回退到默认名。
+            let client = await detectClientCommand(for: kind, containerID: cid)
             let instance = DatabaseConnection(
                 name: name,
                 kind: kind,
@@ -153,7 +156,8 @@ final class DatabaseService {
                 containerID: cid,
                 statusText: Self.containerStatus(row.Status),
                 imageName: row.Image,
-                inlinePassword: password
+                inlinePassword: password,
+                containerClient: client
             )
             instances.append(instance)
         }
@@ -188,9 +192,12 @@ final class DatabaseService {
     private static func credentials(for kind: DatabaseKind, env: [String: String]) -> (String, String, String) {
         switch kind {
         case .mysql:
-            let user = env["MYSQL_USER"] ?? "root"
-            let password = env["MYSQL_PASSWORD"] ?? env["MYSQL_ROOT_PASSWORD"] ?? ""
-            return (user, password, env["MYSQL_DATABASE"] ?? "")
+            // MariaDB 官方镜像用 MARIADB_*，MySQL 用 MYSQL_*；两者都兼容旧名，优先新名。
+            let user = env["MARIADB_USER"] ?? env["MYSQL_USER"] ?? "root"
+            let password = env["MARIADB_PASSWORD"] ?? env["MYSQL_PASSWORD"]
+                ?? env["MARIADB_ROOT_PASSWORD"] ?? env["MYSQL_ROOT_PASSWORD"] ?? ""
+            let database = env["MARIADB_DATABASE"] ?? env["MYSQL_DATABASE"] ?? ""
+            return (user, password, database)
         case .postgresql:
             return (env["POSTGRES_USER"] ?? "postgres",
                     env["POSTGRES_PASSWORD"] ?? "",
@@ -202,6 +209,27 @@ final class DatabaseService {
         case .redis:
             return ("", env["REDIS_PASSWORD"] ?? "", "0")
         }
+    }
+
+    /// 按类型探测容器内真实可执行的客户端名。命令名均为硬编码常量，无注入风险。
+    /// 停机容器无法 exec，返回 nil 让调用方回退到类型默认客户端。
+    private func detectClientCommand(for kind: DatabaseKind, containerID: String) async -> String? {
+        let candidates: [String]
+        switch kind {
+        case .mysql: candidates = ["mysql", "mariadb"]
+        case .postgresql: candidates = ["psql"]
+        case .mongodb: candidates = ["mongosh", "mongo"]
+        case .redis: candidates = ["redis-cli"]
+        }
+        let quoted = ShellQuote.quote(containerID)
+        for candidate in candidates {
+            let probe = await run(
+                "docker exec \(quoted) sh -c 'command -v \(candidate) >/dev/null 2>&1'",
+                timeout: 8
+            )
+            if probe.exit == 0 { return candidate }
+        }
+        return nil
     }
 
     private static func containerStatus(_ status: String) -> String {
@@ -552,7 +580,8 @@ final class DatabaseService {
         if let cid = conn.containerID {
             var exec = "docker exec"
             if !password.isEmpty { exec += " -e MYSQL_PWD=\(ShellQuote.quote(password))" }
-            var cmd = "\(exec) \(ShellQuote.quote(cid)) mysql -u \(ShellQuote.quote(conn.username))"
+            let client = conn.containerClient ?? "mysql"
+            var cmd = "\(exec) \(ShellQuote.quote(cid)) \(client) -u \(ShellQuote.quote(conn.username))"
             if !conn.database.isEmpty { cmd += " -D \(ShellQuote.quote(conn.database))" }
             return cmd
         }
@@ -569,7 +598,8 @@ final class DatabaseService {
         if let cid = conn.containerID {
             var exec = "docker exec"
             if !password.isEmpty { exec += " -e PGPASSWORD=\(ShellQuote.quote(password))" }
-            return "\(exec) \(ShellQuote.quote(cid)) psql -U \(ShellQuote.quote(conn.username)) -d \(ShellQuote.quote(database))"
+            let client = conn.containerClient ?? "psql"
+            return "\(exec) \(ShellQuote.quote(cid)) \(client) -U \(ShellQuote.quote(conn.username)) -d \(ShellQuote.quote(database))"
         }
         var parts: [String] = []
         if !password.isEmpty { parts.append("PGPASSWORD=\(ShellQuote.quote(password))") }
@@ -583,7 +613,8 @@ final class DatabaseService {
         if let cid = conn.containerID {
             var exec = "docker exec"
             if !password.isEmpty { exec += " -e REDISCLI_AUTH=\(ShellQuote.quote(password))" }
-            var cmd = "\(exec) \(ShellQuote.quote(cid)) redis-cli"
+            let client = conn.containerClient ?? "redis-cli"
+            var cmd = "\(exec) \(ShellQuote.quote(cid)) \(client)"
             if let dbIndex = Int(conn.database) { cmd += " -n \(dbIndex)" }
             return cmd
         }
@@ -595,9 +626,10 @@ final class DatabaseService {
     }
 
     private func mongoClient(_ conn: DatabaseConnection) -> String {
-        // 容器内实例：在容器里跑 mongosh，连接参数由 mongoURI 提供。
+        // 容器内实例：在容器里跑探测到的客户端（mongosh/mongo），连接参数由 mongoURI 提供。
         if let cid = conn.containerID {
-            return "docker exec \(ShellQuote.quote(cid)) mongosh"
+            let client = conn.containerClient ?? "mongosh"
+            return "docker exec \(ShellQuote.quote(cid)) \(client)"
         }
         // 优先 mongosh，回退 mongo（探测阶段已确认可用者）。
         return DatabaseKind.mongodb.clientCommand

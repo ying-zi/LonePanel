@@ -95,6 +95,9 @@ struct DatabaseConnection: Identifiable, Codable, Equatable {
     var imageName: String?
     /// 容器内实例：从环境变量读到的口令，仅内存态，不写入本地存储/钥匙串。
     var inlinePassword: String?
+    /// 容器内实例：探测到的实际客户端命令名（mysql/mariadb/psql/mongosh/mongo/redis-cli）。
+    /// 不同镜像可执行文件不同（如 mariadb:11 只有 mariadb 没有 mysql），仅内存态。
+    var containerClient: String?
 
     enum CodingKeys: String, CodingKey {
         case id, name, kind, host, port, username, database, credentialKey
@@ -114,7 +117,8 @@ struct DatabaseConnection: Identifiable, Codable, Equatable {
         containerID: String? = nil,
         statusText: String? = nil,
         imageName: String? = nil,
-        inlinePassword: String? = nil
+        inlinePassword: String? = nil,
+        containerClient: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -129,6 +133,7 @@ struct DatabaseConnection: Identifiable, Codable, Equatable {
         self.statusText = statusText
         self.imageName = imageName
         self.inlinePassword = inlinePassword
+        self.containerClient = containerClient
     }
 
     /// 兼容旧数据的解码：新增字段缺失时用默认值（远程 / 无容器）。
@@ -146,7 +151,9 @@ struct DatabaseConnection: Identifiable, Codable, Equatable {
         containerID = try c.decodeIfPresent(String.self, forKey: .containerID)
         statusText = try c.decodeIfPresent(String.self, forKey: .statusText)
         imageName = try c.decodeIfPresent(String.self, forKey: .imageName)
-        // inlinePassword 不在 CodingKeys 中，故意不解码：容器口令只在内存存在。
+        // inlinePassword / containerClient 不在 CodingKeys 中，故意不解码：仅内存存在。
+        inlinePassword = nil
+        containerClient = nil
     }
 
     func encode(to encoder: Encoder) throws {
