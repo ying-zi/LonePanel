@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 应用根视图：按模块开关决定根形态——多模块 Tab / 单模块全屏 / 纯终端全屏。
 /// 采用 iOS 26 Liquid Glass 浮动标签栏。
@@ -10,6 +11,11 @@ struct ContentView: View {
     @ObservedObject private var terminal = TerminalSession.shared
     @State private var showTerminal = false
     @State private var showSettings = false
+
+    // 悬浮终端按钮可拖动定位（避开右下角删除/搜索等控件），位置持久化；松手吸附左右边缘。
+    @AppStorage("com.lone.lonepanel.terminal.fab.offsetX") private var fabOffsetX: Double = 0
+    @AppStorage("com.lone.lonepanel.terminal.fab.offsetY") private var fabOffsetY: Double = 0
+    @State private var fabDragStart: CGSize = .zero
 
     /// 当前可见的 Tab 模块（多模块形态下使用）。
     private var visibleTabs: [TabModule] {
@@ -122,23 +128,63 @@ struct ContentView: View {
     // MARK: - 悬浮终端按钮
 
     private var terminalFab: some View {
-        Button {
-            showTerminal = true
-        } label: {
-            Image(systemName: "terminal")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 52, height: 52)
-                .background(terminalStatusColor, in: Circle())
-                .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 3)
-        }
-        .buttonStyle(.plain)
-        .padding(.trailing, 20)
-        .padding(.bottom, fabBottomPadding)
-        .accessibilityLabel("打开终端")
-        .transition(.scale.combined(with: .opacity))
-        .animation(.spring(response: 0.3), value: currentModuleShowsTerminal)
-        .animation(.easeInOut, value: terminalStatusColor)
+        Image(systemName: "terminal")
+            .font(.system(size: 20, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 56, height: 56)
+            .background(terminalStatusColor, in: Circle())
+            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 3)
+            .overlay {
+                // 右下角小角标：提示「可拖动」，避免用户不知道能挪走避开遮挡。
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .offset(x: 18, y: -18)
+            }
+            .contentShape(Circle())
+            .onTapGesture { showTerminal = true }
+            .gesture(
+                DragGesture(minimumDistance: 6)
+                    .onChanged { value in
+                        let x = Double(fabDragStart.width) + value.translation.width
+                        let y = Double(fabDragStart.height) + value.translation.height
+                        fabOffsetX = clamp(fabX: x)
+                        fabOffsetY = clamp(fabY: y)
+                    }
+                    .onEnded { _ in
+                        // 松手吸附：越过屏幕中线则贴左，否则贴右；纵向钳制在安全区。
+                        withAnimation(.spring(response: 0.3)) {
+                            fabOffsetX = fabOffsetX < fabMidX ? fabMinX : 0
+                            fabOffsetY = clamp(fabY: fabOffsetY)
+                        }
+                        fabDragStart = CGSize(width: fabOffsetX, height: fabOffsetY)
+                    }
+            )
+            .offset(x: fabOffsetX, y: fabOffsetY)
+            .padding(.trailing, 20)
+            .padding(.bottom, fabBottomPadding)
+            .onAppear { fabDragStart = CGSize(width: fabOffsetX, height: fabOffsetY) }
+            .accessibilityLabel("打开终端，长按可拖动位置")
+            .transition(.scale.combined(with: .opacity))
+            .animation(.spring(response: 0.3), value: currentModuleShowsTerminal)
+            .animation(.easeInOut, value: terminalStatusColor)
+    }
+
+    /// FAB 拖动边界：X 从贴右(0)到贴左(fabMinX)，中线用于吸附判定。
+    private var fabMinX: Double {
+        -Double(max(0, UIScreen.main.bounds.width - 56 - 40))
+    }
+
+    private var fabMidX: Double { fabMinX / 2 }
+
+    private func clamp(fabX: Double) -> Double {
+        min(0, max(fabMinX, fabX))
+    }
+
+    private func clamp(fabY: Double) -> Double {
+        // 向上最多到导航栏下方，向下不越过原始位置太多。
+        let upLimit = -Double(UIScreen.main.bounds.height) * 0.6
+        return min(120, max(upLimit, fabY))
     }
 
     /// 开关变化后，若当前 selection 已不在可见 Tab 中，切到第一个可见模块。
