@@ -455,11 +455,11 @@ final class DatabaseService {
         )
         switch userResult {
         case .success:
-            let scope = grantAll ? L10n.t("All databases (admin)") : "Only \(dbName)"
+            let scope = grantAll ? L10n.t("All databases (admin)") : L10n.f("Only %@", String(describing: (dbName)))
             return .success("Database \(dbName) created; dedicated user \(user) created and granted (\(scope))")
         case .failure(let error):
             return .failure(.commandFailed(
-                message: "Database \(dbName) created, but dedicated user \(user) creation failed: \(error.localizedDescription). Go to \"Instance Management > User Management\" to create and grant manually."
+                message: L10n.f("Database %@ created, but dedicated user %@ creation failed: %@. Go to \"Instance Management > User Management\" to create and grant manually.", String(describing: (dbName)), String(describing: (user)), String(describing: (error.localizedDescription)))
             ))
         }
     }
@@ -526,7 +526,7 @@ final class DatabaseService {
             let sql = "RENAME TABLE `\(old)`.`\(table)` TO `\(new)`.`\(table)`"
             let moved = await run("\(mysqlBase(conn)) -e \(ShellQuote.quote(sql)) 2>&1", timeout: listTimeout)
             guard moved.exit == 0, !looksLikeError(moved.out) else {
-                return .failure(.commandFailed(message: "Failed to migrate table \(table): \(readableError(moved))"))
+                return .failure(.commandFailed(message: L10n.f("Failed to migrate table %@: %@", String(describing: (table)), String(describing: (readableError(moved))))))
             }
         }
         let dropSQL = "DROP DATABASE IF EXISTS `\(old)`"
@@ -762,7 +762,7 @@ final class DatabaseService {
             ContainerCredentialStore.shared.set(password, for: cid)
         } else {
             do { try KeychainStore.save(password, for: conn.credentialKey) }
-            catch { return .failure(.commandFailed(message: "Password changed, but failed to save to Keychain: \(error.localizedDescription)")) }
+            catch { return .failure(.commandFailed(message: L10n.f("Password changed, but failed to save to Keychain: %@", String(describing: (error.localizedDescription))))) }
         }
         return .success(message)
     }
@@ -803,7 +803,7 @@ final class DatabaseService {
             rows = lines.map { [$0] }
         }
         return .success(QueryResult(columns: columns, rows: rows,
-                                    message: "Type: \(type)", isWriteOperation: false))
+                                    message: L10n.f("Type: %@", String(describing: (type))), isWriteOperation: false))
     }
 
     // MARK: - 连接测试
@@ -950,7 +950,7 @@ final class DatabaseService {
             }
         }
         return .success(QueryResult(columns: columns, rows: rows,
-                                    message: "\(array.count) documents", isWriteOperation: false))
+                                    message: L10n.f("%@ documents", String(describing: (array.count))), isWriteOperation: false))
     }
 
     /// MongoDB eval 输出：JSON / 简单值 / 文本。
@@ -968,7 +968,7 @@ final class DatabaseService {
             for dict in array { for key in dict.keys where !columns.contains(key) { columns.append(key) } }
             let rows = array.map { dict in columns.map { key in stringifyJSONValue(dict[key] ?? NSNull()) } }
             return .success(QueryResult(columns: columns, rows: rows,
-                                        message: "\(array.count) results", isWriteOperation: false))
+                                        message: L10n.f("%@ results", String(describing: (array.count))), isWriteOperation: false))
         }
         return .success(QueryResult(columns: ["Result"], rows: [[out]],
                                     message: L10n.t("Command executed"), isWriteOperation: false))

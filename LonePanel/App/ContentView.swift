@@ -6,6 +6,8 @@ import UIKit
 struct ContentView: View {
     @ObservedObject private var visibility = ModuleVisibility.shared
     @ObservedObject private var coordinator = ModuleCoordinator.shared
+    /// 语言切换后重建内容区，让所有 L10n.t() 立即重算；sheet 宿主身份保持不变。
+    @ObservedObject private var localization = LocalizationStore.shared
     @AppStorage("com.lone.lonepanel.terminal.floating") private var floatingEnabled = true
     @State private var selection: String = ""
     @ObservedObject private var terminal = TerminalSession.shared
@@ -63,7 +65,10 @@ struct ContentView: View {
         }
     }
 
-    var body: some View {
+    /// 主内容区。语言切换时仅此子树随 revision 重建，让所有 L10n.t() 立即重算；
+    /// 外层的 ZStack 根容器（承载 sheet）身份保持不变。
+    @ViewBuilder
+    private var contentArea: some View {
         Group {
             switch visibility.rootMode {
             case .tabs:
@@ -76,8 +81,17 @@ struct ContentView: View {
                 }
             }
         }
-        // 语言改为「重启后生效」：运行期生效语言恒定，不再需要 .id 重建视图树，
-        // 从根上杜绝切换语言时换身份导致 sheet 被重新 present 的闪退。
+        .id(localization.revision)
+    }
+
+    var body: some View {
+        // 关键结构：稳定的 ZStack 根容器承载全部 sheet / overlay；
+        // 会随语言换身份的 contentArea 作为它的子视图，.id(revision) 只作用于内层子树。
+        // 切换语言时只有内容区重建，根容器（连着它的三个 .sheet）身份不变，
+        // 正在显示的 sheet 不会被重新 present。
+        ZStack {
+            contentArea
+        }
         // 悬浮终端入口：开关开启 + 当前形态宿主模块允许时出现。
         // 单模块全屏（moduleFocus）里容器/网站/数据库同样要有悬浮终端——只留一个模块
         // 恰恰是最需要终端兜底的场景；纯终端形态（terminalFocus）本身就是终端，自动隐藏。

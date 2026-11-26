@@ -127,8 +127,8 @@ struct ServersView: View {
     private func displayName(_ server: Server) -> String {
         let isDefault = server.id == defaultID
         let isCurrent = session.currentServer?.id == server.id
-        if isDefault { return "\(server.name) (default)" }
-        if isCurrent { return "\(server.name) (current)" }
+        if isDefault { return L10n.f("%@ (default)", String(describing: (server.name))) }
+        if isCurrent { return L10n.f("%@ (current)", String(describing: (server.name))) }
         return server.name
     }
 

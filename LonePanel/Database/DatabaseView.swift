@@ -312,7 +312,7 @@ private struct AdminPasswordView: View {
                 } footer: {
                     Text(conn.kind == .redis
                          ? L10n.t("Runs CONFIG SET requirepass and attempts CONFIG REWRITE to persist it.")
-                         : "This will change the login password for \(adminLabel); the actual scope depends on the instance account.")
+                         : L10n.f("This will change the login password for %@; the actual scope depends on the instance account.", String(describing: (adminLabel))))
                 }
                 if let error {
                     Section { Label(error, systemImage: "xmark.circle.fill").foregroundStyle(.red).font(.caption) }
@@ -1659,17 +1659,17 @@ struct QueryView: View {
             .navigationTitle(L10n.f("Run %@", String(describing: (conn.kind.supportsSQL ? " SQL" : " command"))))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(L10n.t("Done")) { dismiss() }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    if let result {
-                        Button {
-                            UIPasteboard.general.string = flatResult(result)
-                            copied = true
-                        } label: {
-                            Label(copied ? L10n.t("Copied") : L10n.t("Copy"), systemImage: copied ? "checkmark" : "doc.on.doc")
+                    HStack(spacing: 12) {
+                        if let result {
+                            Button {
+                                UIPasteboard.general.string = flatResult(result)
+                                copied = true
+                            } label: {
+                                Label(copied ? L10n.t("Copied") : L10n.t("Copy"), systemImage: copied ? "checkmark" : "doc.on.doc")
+                            }
                         }
+                        DismissChevronButton()
                     }
                 }
             }

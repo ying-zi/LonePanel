@@ -94,7 +94,7 @@ struct FileCallView: View {
                     }
                 } else {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button(L10n.t("Done")) { dismiss() }
+                        DismissChevronButton()
                     }
                 }
             }

@@ -516,11 +516,11 @@
 			};
 			buildConfigurationList = 010000000000000000000001 /* Build configuration list for PBXProject "LonePanel" */;
 			compatibilityVersion = "Xcode 14.0";
-			developmentRegion = zh-Hans;
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				zh-Hans,
 				en,
+				zh-Hans,
 				Base,
 			);
 			mainGroup = A20000000000000000000001;

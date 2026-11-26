@@ -25,8 +25,8 @@ struct FileInfoSheet: View {
             .navigationTitle(L10n.t("Info"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(L10n.t("Done")) { dismiss() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    DismissChevronButton()
                 }
             }
             .task {

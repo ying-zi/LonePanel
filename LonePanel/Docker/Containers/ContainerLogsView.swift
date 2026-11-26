@@ -89,6 +89,7 @@ struct ContainerLogsView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
+            HStack(spacing: 12) {
             Menu {
                 // 时间范围（1Panel 同款）
                 Section(L10n.t("Time range")) {
@@ -97,7 +98,7 @@ struct ContainerLogsView: View {
                             range = item
                             Task { await refresh() }
                         } label: {
-                            Label(item.rawValue, systemImage: range == item ? "checkmark" : "clock")
+                            Label(L10n.t(item.rawValue), systemImage: range == item ? "checkmark" : "clock")
                         }
                     }
                 }
@@ -122,9 +123,8 @@ struct ContainerLogsView: View {
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
-        }
-        ToolbarItem(placement: .topBarLeading) {
-            Button(L10n.t("Done")) { dismiss() }
+            DismissChevronButton()
+            }
         }
     }
 

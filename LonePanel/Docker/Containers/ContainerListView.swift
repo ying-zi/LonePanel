@@ -240,7 +240,11 @@ struct ContainerListView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(L10n.t("Done")) { moreContainer = nil }
+                    Button { moreContainer = nil } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .accessibilityLabel(L10n.t("Close"))
                 }
             }
         }

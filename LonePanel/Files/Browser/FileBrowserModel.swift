@@ -292,7 +292,7 @@ final class FileBrowserModel: ObservableObject {
                 return
             }
             let reason = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            errorMessage = reason.isEmpty ? L10n.t("Delete failed: server refused the operation") : "Delete failed: \(reason)"
+            errorMessage = reason.isEmpty ? L10n.t("Delete failed: server refused the operation") : L10n.f("Delete failed: %@", String(describing: (reason)))
         } catch {
             // exec 通道不可用（服务端禁用命令执行）：回退纯 SFTP 递归删除。
             do {
@@ -357,7 +357,7 @@ final class FileBrowserModel: ObservableObject {
             return
         } catch {
             // 纯 SFTP 失败，继续尝试 SSH 命令回退（单条命令无法细分，显示不确定进度）。
-            batchProgress = BatchProgress(title: "\(title) (server command)", completed: 0,
+            batchProgress = BatchProgress(title: L10n.f("%@ (server command)", String(describing: (title))), completed: 0,
                                           total: 0, detail: files.first?.name ?? "",
                                           transferredBytes: 0, totalBytes: 0)
         }
@@ -574,7 +574,7 @@ final class FileBrowserModel: ObservableObject {
         // 明确的成功/失败反馈——此前成功无任何提示、失败只在逐文件 catch 里，
         // 小文件秒传时进度 HUD 一闪而过，用户感知就是「点了没反应」。
         if failures.isEmpty {
-            errorMessage = succeeded == 1 ? L10n.t("Uploaded 1 file") : "Uploaded \(succeeded) files"
+            errorMessage = succeeded == 1 ? L10n.t("Uploaded 1 file") : L10n.f("Uploaded %@ files", String(describing: (succeeded)))
         } else {
             let ok = succeeded > 0 ? "\(succeeded) succeeded; " : ""
             errorMessage = "Upload finished: \(ok) failed \(failures.count). \(failures.joined(separator: "\n"))"

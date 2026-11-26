@@ -15,10 +15,10 @@ struct LanguageSettingsView: View {
     var body: some View {
         List {
             Section {
-                // 绑定 selectedID（待重启生效的选择），不绑定运行期生效的 currentID。
-                // 切换只记录选择 + 持久化，不动正在渲染的文案，因此不会崩溃。
+                // 语言即时切换：绑定 currentID，切换后所有文案立即重算。
+                // 视图树重建只作用于内容区，sheet 宿主身份稳定（见 ContentView.contentArea）。
                 Picker(L10n.t("Language"), selection: Binding(
-                    get: { store.selectedID },
+                    get: { store.currentID },
                     set: { store.select($0) }
                 )) {
                     ForEach(store.availablePacks, id: \.id) { pack in
@@ -27,12 +27,7 @@ struct LanguageSettingsView: View {
                 }
                 .pickerStyle(.inline)
             } footer: {
-                Text(L10n.t("Language takes effect after restarting the app. Built-in packs: English and Simplified Chinese; you can import a custom language pack."))
-                if store.hasPendingLanguageChange {
-                    Text(L10n.t("Restart the app to apply the selected language."))
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
+                Text(L10n.t("Built-in packs: English and Simplified Chinese; you can also import a custom language pack."))
             }
 
             // 自定义语言包管理
@@ -164,6 +159,9 @@ private struct DocumentPicker: UIViewControllerRepresentable {
 
 // MARK: - 文件导出
 
+/// 系统分享面板。直接让 UIActivityViewController 作为 sheet 的 root 呈现——
+/// 过去「空 VC + updateUIViewController 里 present」的写法在 VC 尚未进入 window 层级时
+/// present 会静默失败，正是「导出无反应」的根因。
 private struct DocumentExporter: UIViewControllerRepresentable {
     let data: Data
     let filename: String
@@ -171,31 +169,19 @@ private struct DocumentExporter: UIViewControllerRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(isPresented: $isPresented) }
 
-    func makeUIViewController(context: Context) -> UIViewController {
-        let vc = UIViewController()
-        vc.view.backgroundColor = .clear
-        return vc
-    }
-
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
-        guard isPresented, !context.coordinator.presented else { return }
-        context.coordinator.presented = true
+    func makeUIViewController(context: Context) -> UIActivityViewController {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         try? data.write(to: tmp, options: .atomic)
         let activity = UIActivityViewController(activityItems: [tmp], applicationActivities: nil)
         activity.completionWithItemsHandler = { _, _, _, _ in
-            context.coordinator.presented = false
             isPresented = false
         }
-        if let pop = activity.popoverPresentationController {
-            pop.sourceView = uiViewController.view
-            pop.sourceRect = uiViewController.view.bounds
-        }
-        uiViewController.present(activity, animated: true)
+        return activity
     }
 
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+
     final class Coordinator {
-        var presented = false
         @Binding var isPresented: Bool
         init(isPresented: Binding<Bool>) { _isPresented = isPresented }
     }

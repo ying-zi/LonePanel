@@ -554,6 +554,23 @@ enum BuiltinPacks {
         d["requirepass updated"] = "requirepass 已更新"
         d["seconds"] = "秒"
         d["weeks"] = "周"
+        d["This will change the login password for %@; the actual scope depends on the instance account."] = "这将修改 %@ 的登录口令；实际作用范围取决于实例账号。"
+        d["Database %@ created, but dedicated user %@ creation failed: %@. Go to "Instance Management > User Management" to create and grant manually."] = "数据库 %@ 已创建，但专用用户 %@ 创建失败：%@。请前往「实例管理 > 用户管理」手动创建并授权。"
+        d["Delete failed: %@"] = "删除失败：%@"
+        d["Failed to migrate table %@: %@"] = "迁移表 %@ 失败：%@"
+        d["Host path must be absolute (start with /): %@"] = "宿主机路径必须为绝对路径（以 / 开头）：%@"
+        d["Port must be a number between 1 and 65535 (%@)"] = "端口必须是 1 到 65535 之间的数字（%@）"
+        d["Only %@"] = "仅 %@"
+        d["Type: %@"] = "类型：%@"
+        d["Password changed, but failed to save to Keychain: %@"] = "密码已修改，但保存到钥匙串失败：%@"
+        d["%@ documents"] = "%@ 个文档"
+        d["%@ results"] = "%@ 条结果"
+        d["Uploaded %@ files"] = "已上传 %@ 个文件"
+        d["%@ (server command)"] = "%@（服务器命令）"
+        d["%@ (current)"] = "%@（当前）"
+        d["%@ (default)"] = "%@（默认）"
+        d["Close"] = "关闭"
+        d["Built-in packs: English and Simplified Chinese; you can also import a custom language pack."] = "内置英文与简体中文；也可导入自定义语言包。"
         return d
     }()
 }

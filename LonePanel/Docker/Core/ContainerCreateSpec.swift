@@ -66,11 +66,11 @@ struct ContainerCreateSpec {
         }
         for p in ports where !p.hostPort.isEmpty || !p.containerPort.isEmpty {
             guard Self.validPort(p.hostPort), Self.validPort(p.containerPort) else {
-                return "Port must be a number between 1 and 65535 (\(p.hostPort):\(p.containerPort))"
+                return L10n.f("Port must be a number between 1 and 65535 (%@)", String(describing: ("\(p.hostPort):\(p.containerPort)")))
             }
         }
         for m in mounts where !m.hostPath.isEmpty || !m.containerPath.isEmpty {
-            guard m.hostPath.hasPrefix("/") else { return "Host path must be absolute (start with /): \(m.hostPath)" }
+            guard m.hostPath.hasPrefix("/") else { return L10n.f("Host path must be absolute (start with /): %@", String(describing: (m.hostPath))) }
             guard m.containerPath.hasPrefix("/") else { return "Container path must be absolute (start with /): \(m.containerPath)" }
         }
         for e in env where !e.key.isEmpty || !e.value.isEmpty {

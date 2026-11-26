@@ -10,13 +10,15 @@ import Combine
 final class LocalizationStore: ObservableObject {
     static let shared = LocalizationStore()
 
-    /// 当前**生效**的语言包 id（en / zh-Hans / 自定义 id）。仅在 App 启动时从持久化读入，
-    /// 运行期恒定不变——所以切换语言不会触发任何 L10n.t() 重算，也就不需要重建视图树，
-    /// 从根本上杜绝了切换语言时 .id 换身份导致正在显示的 sheet 被重新 present 的闪退。
+    /// 当前**生效**的语言包 id（en / zh-Hans / 自定义 id）。切换语言时即时更新，
+    /// 并通过 revision 驱动视图树重建，让所有 L10n.t() 立即重算。
+    /// 之前切中文闪退的真正根因是中文包字典重复 key（t1.72 已修），并非视图重建，
+    /// 故可安全地恢复即时切换。
     @Published private(set) var currentID: String = "en"
-    /// 用户**本次选择、待重启生效**的语言 id。Picker 绑定的是它；切换只改它 + 持久化，
-    /// 不碰 currentID。下次启动 loadLocal 才会把持久化值提升为 currentID。
+    /// 兼容旧调用：与 currentID 保持一致（Picker 也可绑定它）。
     @Published private(set) var selectedID: String = "en"
+    /// 视图树刷新信号：切换语言后让 let 常量 / body 里求值的 L10n.t() 立即重算。
+    @Published private(set) var revision: Int = 0
     /// 已导入的自定义包（存本地 Documents；iCloud 可用时镜像到 iCloud Drive）。
     @Published private(set) var customPacks: [LanguagePack] = []
     /// iCloud 是否真正可用（运行时探测，未声明 entitlement 时为 false）。
@@ -68,21 +70,26 @@ final class LocalizationStore: ObservableObject {
 
     // MARK: - 切换
 
-    /// 切换语言：只记录用户选择并持久化，**不修改运行期生效的 currentID**。
-    /// 生效语言在下次启动时由 loadLocal 从持久化读入。这样切换时不重算任何文案、
-    /// 不重建任何视图树，从根本上避免切换瞬间的闪退。
+    /// 切换语言：即时生效。更新 currentID + 持久化，并把 revision 自增推到下一 runloop，
+    /// 避开 Picker/Toggle 的 set（视图更新事务）内换身份。闪退根因（字典重复 key）已修。
     func select(_ id: String) {
         guard id == "en" || id == "zh-Hans" || customPacks.contains(where: { $0.id == id }) else { return }
+        currentID = id
         selectedID = id
         defaults.set(id, forKey: currentIDKey)
         if iCloudSyncEnabled {
             kvs.set(id, forKey: currentIDKey)   // 无 entitlement 时自动落本地，安全
             kvs.synchronize()
         }
+        scheduleBump()
     }
 
-    /// 本次选择是否已与生效语言不同（用于「重启后生效」提示）。
-    var hasPendingLanguageChange: Bool { selectedID != currentID }
+    /// revision 自增推到下一主线程 runloop，避免在视图更新事务中途换身份。
+    private func scheduleBump() {
+        DispatchQueue.main.async { [weak self] in
+            self?.revision &+= 1
+        }
+    }
 
     /// 开启/关闭 iCloud 同步。关闭后不写 KVS、不镜像语言包；开启时立即镜像一次。
     func setiCloudSync(_ enabled: Bool) {
@@ -91,6 +98,7 @@ final class LocalizationStore: ObservableObject {
         kvs.set(enabled, forKey: cloudSyncKey)
         kvs.synchronize()
         if enabled { mirrorPacksToICloud() }
+        scheduleBump()
     }
 
     // MARK: - 导入 / 导出
@@ -108,8 +116,8 @@ final class LocalizationStore: ObservableObject {
     func removePack(id: String) {
         customPacks.removeAll { $0.id == id }
         persistCustomPacks()
-        // 删掉待选的包则回退英文（运行期生效语言恒定，重启后再统一应用）
-        if selectedID == id { select("en") }
+        // 删掉正在生效的包则即时回退英文
+        if currentID == id { select("en") }
     }
 
     /// 导出指定包为 JSON（内置包也可导出，作为翻译模板）。
@@ -217,14 +225,15 @@ final class LocalizationStore: ObservableObject {
                 self.defaults.set(synced, forKey: self.cloudSyncKey)
             }
             guard self.iCloudSyncEnabled else { return }
-            // 同步其他设备改动的「当前语言」：只更新待选 selectedID 并持久化，
-            // 不动运行期生效的 currentID——外部通知同样属于视图更新之外的异步时机，
-            // 但为保持「重启生效」的一致语义，一律等下次启动统一应用。
+            // 同步其他设备改动的「当前语言」：即时生效并刷新视图。
+            // 外部通知是异步时机，与视图更新事务错开，bump 安全。
             if let synced = self.kvs.string(forKey: self.currentIDKey),
-               synced != self.selectedID,
+               synced != self.currentID,
                synced == "en" || synced == "zh-Hans" || self.customPacks.contains(where: { $0.id == synced }) {
+                self.currentID = synced
                 self.selectedID = synced
                 self.defaults.set(synced, forKey: self.currentIDKey)
+                self.scheduleBump()
             }
         }
     }
