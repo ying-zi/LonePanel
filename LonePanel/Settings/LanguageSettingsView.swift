@@ -15,8 +15,10 @@ struct LanguageSettingsView: View {
     var body: some View {
         List {
             Section {
+                // 绑定 selectedID（待重启生效的选择），不绑定运行期生效的 currentID。
+                // 切换只记录选择 + 持久化，不动正在渲染的文案，因此不会崩溃。
                 Picker(L10n.t("Language"), selection: Binding(
-                    get: { store.currentID },
+                    get: { store.selectedID },
                     set: { store.select($0) }
                 )) {
                     ForEach(store.availablePacks, id: \.id) { pack in
@@ -25,7 +27,12 @@ struct LanguageSettingsView: View {
                 }
                 .pickerStyle(.inline)
             } footer: {
-                Text(L10n.t("Switching language takes effect immediately. Built-in packs: English and Simplified Chinese; you can import a custom language pack."))
+                Text(L10n.t("Language takes effect after restarting the app. Built-in packs: English and Simplified Chinese; you can import a custom language pack."))
+                if store.hasPendingLanguageChange {
+                    Text(L10n.t("Restart the app to apply the selected language."))
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
 
             // 自定义语言包管理

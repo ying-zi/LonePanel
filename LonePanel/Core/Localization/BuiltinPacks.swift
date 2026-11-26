@@ -56,6 +56,8 @@ enum BuiltinPacks {
         "Delete \"%@\"? Its credential will also be removed from Keychain. This cannot be undone.": "确定删除「%@」吗？其凭据也会从钥匙串中移除，此操作不可撤销。",
         "Language": "语言",
         "Switching language takes effect immediately. Built-in packs: English and Simplified Chinese; you can import a custom language pack.": "切换语言立即生效。内置英文与简体中文；也可导入自定义语言包。",
+        "Language takes effect after restarting the app. Built-in packs: English and Simplified Chinese; you can import a custom language pack.": "语言将在重启 App 后生效。内置英文与简体中文；也可导入自定义语言包。",
+        "Restart the app to apply the selected language.": "已选择新语言，重启 App 后生效。",
         "entries": "条",
         "Custom Language Packs": "自定义语言包",
         "Import Language Pack": "导入语言包",

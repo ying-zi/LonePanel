@@ -6,8 +6,6 @@ import UIKit
 struct ContentView: View {
     @ObservedObject private var visibility = ModuleVisibility.shared
     @ObservedObject private var coordinator = ModuleCoordinator.shared
-    /// 语言切换后重建主内容区，让所有 L10n.t() 立即重算（sheet 宿主不变，不被误收起）。
-    @ObservedObject private var localization = LocalizationStore.shared
     @AppStorage("com.lone.lonepanel.terminal.floating") private var floatingEnabled = true
     @State private var selection: String = ""
     @ObservedObject private var terminal = TerminalSession.shared
@@ -66,14 +64,20 @@ struct ContentView: View {
     }
 
     var body: some View {
-        // 关键结构：把「会换身份的内容区」和「不该换身份的 sheet 宿主」分成两层。
-        // 用一个稳定的 ZStack 作为根容器承载所有 sheet；真正带 .id(revision) 的
-        // contentArea 作为它的子视图。换语言 revision 变化时，只有 contentArea 子树
-        // 被替换，根 ZStack（连着它的 .sheet）身份保持不变，正在显示的设置 sheet
-        // 不会被重新 present——这正是切换中文闪退的根因。
-        ZStack {
-            contentArea
+        Group {
+            switch visibility.rootMode {
+            case .tabs:
+                tabView
+            case .moduleFocus(let module):
+                focusView { module.view }
+            case .terminalFocus:
+                focusView {
+                    TerminalView(presentation: .pushed)
+                }
+            }
         }
+        // 语言改为「重启后生效」：运行期生效语言恒定，不再需要 .id 重建视图树，
+        // 从根上杜绝切换语言时换身份导致 sheet 被重新 present 的闪退。
         // 悬浮终端入口：开关开启 + 当前形态宿主模块允许时出现。
         // 单模块全屏（moduleFocus）里容器/网站/数据库同样要有悬浮终端——只留一个模块
         // 恰恰是最需要终端兜底的场景；纯终端形态（terminalFocus）本身就是终端，自动隐藏。
@@ -121,28 +125,6 @@ struct ContentView: View {
                 showSettings = false
             }
         }
-    }
-
-    // MARK: - 内容区（语言切换时仅此区重建）
-
-    /// 语言切换后只重建内容区，使所有 L10n.t() 立即生效。
-    /// .id 挂在这里而不是 body 根链上：根链上还挂着设置 sheet / 终端 sheet / 调用态 sheet，
-    /// 一旦根链换身份，正在显示的 sheet 宿主被销毁重建，会触发重新 present 而崩溃。
-    @ViewBuilder
-    private var contentArea: some View {
-        Group {
-            switch visibility.rootMode {
-            case .tabs:
-                tabView
-            case .moduleFocus(let module):
-                focusView { module.view }
-            case .terminalFocus:
-                focusView {
-                    TerminalView(presentation: .pushed)
-                }
-            }
-        }
-        .id(localization.revision)
     }
 
     // MARK: - 多模块 Tab 视图
