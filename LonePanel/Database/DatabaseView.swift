@@ -227,6 +227,10 @@ private struct ContainerDatabaseDetailView: View {
                 Text("命令直接在容器内运行，凭据从容器环境变量读取，不写入本机配置。")
             }
 
+            // 实例级管理：改管理员密码 + 用户管理（对标 1Panel 数据库管理）。
+            InstanceAdminSection(conn: instance)
+                .disabled(!instance.isRunning)
+
             if instance.isRunning {
                 // 进详情直接列出并管理该实例下的数据库（对标 1Panel）。
                 DatabaseListSection(conn: instance)
@@ -250,6 +254,346 @@ private struct ContainerDatabaseDetailView: View {
         }
         .navigationTitle(instance.name)
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - 实例级管理（改管理员密码 + 用户管理）
+
+/// 数据库实例的管理入口：重置管理员密码、管理用户。放进任一实例详情页。
+private struct InstanceAdminSection: View {
+    let conn: DatabaseConnection
+    @State private var showPassword = false
+
+    var body: some View {
+        Section {
+            NavigationLink {
+                UserManagementView(conn: conn)
+            } label: {
+                Label("用户管理", systemImage: "person.2")
+            }
+            Button { showPassword = true } label: {
+                Label(conn.kind == .redis ? "重置 requirepass" : "重置管理员密码", systemImage: "key")
+            }
+        } header: {
+            Label("实例管理", systemImage: "wrench.and.screwdriver")
+        } footer: {
+            Text("改密后会同步更新本地凭据，重新发现容器 / 下次连接仍使用新密码。用户管理支持查看、新建、改密与删除。")
+        }
+        .sheet(isPresented: $showPassword) {
+            AdminPasswordView(conn: conn)
+        }
+    }
+}
+
+/// 重置管理员密码。确认密码一致后执行，成功后展示反馈。
+private struct AdminPasswordView: View {
+    let conn: DatabaseConnection
+    @Environment(\.dismiss) private var dismiss
+    @State private var password = ""
+    @State private var confirm = ""
+    @State private var isRunning = false
+    @State private var error: String?
+    @State private var success = false
+
+    private var mismatch: Bool { !confirm.isEmpty && password != confirm }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    SecureField("新密码", text: $password)
+                    SecureField("确认新密码", text: $confirm)
+                    if mismatch {
+                        Label("两次输入不一致", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange).font(.caption)
+                    }
+                } header: {
+                    Text("管理员口令")
+                } footer: {
+                    Text(conn.kind == .redis
+                         ? "将执行 CONFIG SET requirepass，并尝试 CONFIG REWRITE 持久化。"
+                         : "将修改 \(adminLabel) 的登录口令，执行范围取决于该实例的实际账号。")
+                }
+                if let error {
+                    Section { Label(error, systemImage: "xmark.circle.fill").foregroundStyle(.red).font(.caption) }
+                }
+            }
+            .navigationTitle("重置密码")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("保存") { Task { await submit() } }
+                        .fontWeight(.semibold)
+                        .disabled(isRunning || password.isEmpty || mismatch)
+                }
+            }
+            .alert("密码已更新", isPresented: $success) {
+                Button("好", role: .cancel) { dismiss() }
+            } message: {
+                Text("本地凭据已同步，后续连接将使用新密码。")
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private var adminLabel: String {
+        switch conn.kind {
+        case .mysql: return "root"
+        case .postgresql: return "postgres"
+        case .mongodb: return "admin.root"
+        case .redis: return "default"
+        }
+    }
+
+    private func submit() async {
+        guard password == confirm else {
+            error = "两次输入不一致"; return
+        }
+        isRunning = true; error = nil
+        let result = await DatabaseService.shared.resetAdminPassword(conn, newPassword: password)
+        isRunning = false
+        switch result {
+        case .success: success = true
+        case .failure(let e): error = e.localizedDescription
+        }
+    }
+}
+
+/// 用户管理：列出用户，支持新建、改密、删除。整页以 sheet 或 push 形式呈现。
+private struct UserManagementView: View {
+    let conn: DatabaseConnection
+
+    @State private var users: [DatabaseItem] = []
+    @State private var isLoading = false
+    @State private var error: String?
+    @State private var showCreate = false
+    @State private var editingPassword: DatabaseItem?
+    @State private var deleting: DatabaseItem?
+    @State private var toast: String?
+    @State private var showToast = false
+
+    var body: some View {
+        List {
+            Section {
+                if isLoading {
+                    HStack { ProgressView(); Text("正在读取用户...").foregroundStyle(.secondary) }
+                } else if let error {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange).font(.caption)
+                    Button("重试") { Task { await load() } }
+                } else if users.isEmpty {
+                    Text("未读取到用户（该实例可能未启用用户认证）").foregroundStyle(.secondary)
+                } else {
+                    ForEach(users) { user in
+                        HStack {
+                            Image(systemName: "person.fill").foregroundStyle(.tint)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(user.name).font(.body)
+                                if let detail = user.detail {
+                                    Text(detail).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button {
+                                editingPassword = user
+                            } label: {
+                                Label("改密", systemImage: "key")
+                            }
+                            .tint(.indigo)
+                            Button(role: .destructive) { deleting = user } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+            } header: {
+                HStack {
+                    Label("用户", systemImage: "person.2")
+                    Spacer()
+                    Button { Task { await load() } } label: { Image(systemName: "arrow.clockwise") }
+                }
+            } footer: {
+                Text(conn.kind == .redis
+                     ? "Redis 6+ 使用 ACL 用户；老版本仅支持 requirepass，请在重置密码中修改。"
+                     : "左滑用户可修改密码或删除；管理员账号请勿随意删除。")
+            }
+
+            Section {
+                Button { showCreate = true } label: { Label("新建用户", systemImage: "person.badge.plus") }
+            }
+        }
+        .navigationTitle("用户管理")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await load() }
+        .sheet(isPresented: $showCreate) {
+            UserEditorView(conn: conn) { message in
+                present(message); await load()
+            }
+        }
+        .sheet(item: $editingPassword) { user in
+            UserPasswordView(conn: conn, user: user) { message in
+                present(message)
+            }
+        }
+        .alert("删除用户", isPresented: Binding(
+            get: { deleting != nil },
+            set: { if !$0 { deleting = nil } }
+        )) {
+            Button("取消", role: .cancel) { deleting = nil }
+            Button("删除", role: .destructive) {
+                if let user = deleting { Task { await remove(user) } }
+            }
+        } message: {
+            Text("确定删除用户「\(deleting?.name ?? "")」？此操作不可撤销。")
+        }
+        .alert("操作结果", isPresented: $showToast) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(toast ?? "")
+        }
+    }
+
+    private func load() async {
+        isLoading = true; error = nil
+        let result = await DatabaseService.shared.listUsers(conn)
+        switch result {
+        case .success(let items): users = items
+        case .failure(let e): error = e.localizedDescription; users = []
+        }
+        isLoading = false
+    }
+
+    private func remove(_ user: DatabaseItem) async {
+        let result = await DatabaseService.shared.deleteUser(conn, rawName: user.name)
+        switch result {
+        case .success(let message): present(message); await load()
+        case .failure(let e): present(e.localizedDescription)
+        }
+    }
+
+    private func present(_ message: String) { toast = message; showToast = true }
+}
+
+/// 新建用户：用户名 / 密码 / 授权库 / 是否管理员。
+private struct UserEditorView: View {
+    let conn: DatabaseConnection
+    let onDone: (String) async -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var username = ""
+    @State private var password = ""
+    @State private var database = ""
+    @State private var isAdmin = false
+    @State private var isRunning = false
+    @State private var error: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("用户名", text: $username)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    SecureField("密码", text: $password)
+                } header: { Text("账号") }
+                Section {
+                    Toggle("管理员权限", isOn: $isAdmin)
+                    if !isAdmin {
+                        TextField("授权数据库（留空为仅建账号）", text: $database)
+                            .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    }
+                } header: { Text("权限") } footer: {
+                    Text(conn.kind == .redis
+                         ? "新建 ACL 用户并授予全部 key 与命令权限。"
+                         : "管理员拥有全部权限；普通用户可限定到某个库。")
+                }
+                if let error {
+                    Section { Label(error, systemImage: "xmark.circle.fill").foregroundStyle(.red).font(.caption) }
+                }
+            }
+            .navigationTitle("新建用户")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("创建") { Task { await submit() } }
+                        .fontWeight(.semibold)
+                        .disabled(isRunning || username.isEmpty || password.isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func submit() async {
+        isRunning = true; error = nil
+        let result = await DatabaseService.shared.createUser(
+            conn, username: username, password: password,
+            database: isAdmin ? "" : database, isAdmin: isAdmin
+        )
+        isRunning = false
+        switch result {
+        case .success(let message):
+            dismiss(); await onDone(message)
+        case .failure(let e): error = e.localizedDescription
+        }
+    }
+}
+
+/// 修改指定用户密码。
+private struct UserPasswordView: View {
+    let conn: DatabaseConnection
+    let user: DatabaseItem
+    let onDone: (String) async -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var password = ""
+    @State private var confirm = ""
+    @State private var isRunning = false
+    @State private var error: String?
+
+    private var mismatch: Bool { !confirm.isEmpty && password != confirm }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("用户：\(user.name)").foregroundStyle(.secondary)
+                    SecureField("新密码", text: $password)
+                    SecureField("确认新密码", text: $confirm)
+                    if mismatch {
+                        Label("两次输入不一致", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange).font(.caption)
+                    }
+                }
+                if let error {
+                    Section { Label(error, systemImage: "xmark.circle.fill").foregroundStyle(.red).font(.caption) }
+                }
+            }
+            .navigationTitle("修改密码")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("保存") { Task { await submit() } }
+                        .fontWeight(.semibold)
+                        .disabled(isRunning || password.isEmpty || mismatch)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func submit() async {
+        guard password == confirm else { error = "两次输入不一致"; return }
+        isRunning = true; error = nil
+        let result = await DatabaseService.shared.changeUserPassword(conn, rawName: user.name, newPassword: password)
+        isRunning = false
+        switch result {
+        case .success(let message): dismiss(); await onDone(message)
+        case .failure(let e): error = e.localizedDescription
+        }
     }
 }
 
@@ -654,6 +998,9 @@ struct ConnectionDetailView: View {
             } footer: {
                 Text("测试会通过 SSH 在服务器上执行一条轻量查询，验证客户端与数据库均可用。")
             }
+
+            // 实例级管理：改管理员密码 + 用户管理（对标 1Panel 数据库管理）。
+            InstanceAdminSection(conn: conn)
 
             // 进详情直接列出并管理该连接下的数据库（对标 1Panel）。
             DatabaseListSection(conn: conn)

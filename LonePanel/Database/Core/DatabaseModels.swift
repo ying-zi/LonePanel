@@ -249,9 +249,44 @@ final class DatabaseConnectionStore: ObservableObject {
     }
 
     func password(for connection: DatabaseConnection) -> String {
-        // 容器实例的口令来自容器环境变量，仅内存态，不写钥匙串。
-        if let inline = connection.inlinePassword { return inline }
+        // 容器内实例：口令来自环境变量，但允许被「重置密码」覆盖。覆盖值走内存 + 钥匙串，
+        // 这样改密后当前会话立即生效，下次重新发现容器也不会退回环境变量里的旧密码。
+        if let cid = connection.containerID {
+            return ContainerCredentialStore.shared.password(
+                for: cid, fallback: connection.inlinePassword ?? ""
+            )
+        }
         return (try? KeychainStore.load(connection.credentialKey)) ?? ""
+    }
+}
+
+/// 容器内数据库的口令覆盖层。
+/// 容器环境变量里的 root 口令是只读的，改密后不会更新；本层按容器 ID 记录用户设置的新口令，
+/// 优先内存（当前会话立即生效），并落钥匙串（重启 App / 重新发现容器后仍有效）。
+final class ContainerCredentialStore {
+    static let shared = ContainerCredentialStore()
+
+    private var overrides: [String: String] = [:]
+
+    private func key(for containerID: String) -> String { "db.container.\(containerID)" }
+
+    func password(for containerID: String, fallback: String) -> String {
+        if let value = overrides[containerID] { return value }
+        if let saved = try? KeychainStore.load(key(for: containerID)), !saved.isEmpty {
+            overrides[containerID] = saved
+            return saved
+        }
+        return fallback
+    }
+
+    func set(_ password: String, for containerID: String) {
+        overrides[containerID] = password
+        try? KeychainStore.save(password, for: key(for: containerID))
+    }
+
+    func clear(for containerID: String) {
+        overrides[containerID] = nil
+        KeychainStore.delete(key(for: containerID))
     }
 }
 
