@@ -466,8 +466,9 @@ final class DatabaseService {
     /// MongoDB 无原生 renameDB：用 adminCommand 逐集合 renameCollection 到目标库。
     private func mongoRenameDatabase(_ conn: DatabaseConnection, from old: String, to new: String) async -> Result<String, DatabaseError> {
         let uri = mongoURI(conn, database: "admin")
+        // 注意：c 是 JS 回调变量，必须在 JS 侧拼接，不能放进 Swift 的 \(...) 插值。
         let js = "db.getSiblingDB(\(jsString(old))).getCollectionNames().forEach(function(c){" +
-                 "db.adminCommand({renameCollection: \(jsString(old + "." + c)), to: \(jsString(new + "." + c))})}); 'ok'"
+                 "db.adminCommand({renameCollection: \(jsString(old)) + '.' + c, to: \(jsString(new)) + '.' + c})}); 'ok'"
         let command = "\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1"
         return await runWrite(command, success: "已将 \(old) 重命名为 \(new)")
     }
