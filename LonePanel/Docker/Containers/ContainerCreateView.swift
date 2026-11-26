@@ -34,14 +34,14 @@ struct ContainerCreateView: View {
                     }
                 }
             }
-            .navigationTitle("新建容器")
+            .navigationTitle(L10n.t("New container"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
+                    Button(L10n.t("Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("创建") { Task { await submit() } }
+                    Button(L10n.t("Create")) { Task { await submit() } }
                         .fontWeight(.semibold)
                         .disabled(isRunning || spec.validate() != nil)
                 }
@@ -73,10 +73,10 @@ struct ContainerCreateView: View {
 
     private var basicSection: some View {
         Section {
-            TextField("容器名称", text: $spec.name)
+            TextField("Container name", text: $spec.name)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
             HStack {
-                TextField("镜像（如 nginx:latest）", text: $spec.image)
+                TextField("Image (e.g. nginx:latest)", text: $spec.image)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                 Button {
                     showImagePicker = true
@@ -84,22 +84,22 @@ struct ContainerCreateView: View {
                     Image(systemName: "photo.stack")
                 }
                 .buttonStyle(.borderless)
-                .help("从现有镜像选择")
+                .help(L10n.t("Choose from existing images"))
             }
-            Toggle("创建前拉取最新镜像", isOn: $spec.pullImage)
-            Picker("网络", selection: $spec.network) {
+            Toggle("Pull latest image before creating", isOn: $spec.pullImage)
+            Picker("Network", selection: $spec.network) {
                 ForEach(networks, id: \.self) { Text($0).tag($0) }
             }
-            Picker("重启策略", selection: $spec.restartPolicy) {
-                Text("不重启").tag("no")
-                Text("总是").tag("always")
-                Text("除非手动停止").tag("unless-stopped")
-                Text("失败时").tag("on-failure")
+            Picker("Restart Policy", selection: $spec.restartPolicy) {
+                Text(L10n.t("Never restart")).tag("no")
+                Text(L10n.t("Always")).tag("always")
+                Text(L10n.t("Unless stopped manually")).tag("unless-stopped")
+                Text(L10n.t("On failure")).tag("on-failure")
             }
         } header: {
-            Text("基本信息")
+            Text(L10n.t("Basic Info"))
         } footer: {
-            Text("镜像可手动填写，也可点图标从服务器上已有的镜像里选。勾选拉取会先执行 docker pull。")
+            Text(L10n.t("Enter the image manually or tap the icon to pick from images on the server. Checking Pull runs docker pull first."))
         }
     }
 
@@ -109,13 +109,13 @@ struct ContainerCreateView: View {
         Section {
             ForEach($spec.ports) { $port in
                 HStack(spacing: 6) {
-                    TextField("宿主", text: $port.hostPort)
+                    TextField("Host", text: $port.hostPort)
                         .keyboardType(.numberPad)
                         .textFieldStyle(.roundedBorder)
                         .frame(minWidth: 60)
                     Text(":")
                         .foregroundStyle(.secondary)
-                    TextField("容器", text: $port.containerPort)
+                    TextField("Container", text: $port.containerPort)
                         .keyboardType(.numberPad)
                         .textFieldStyle(.roundedBorder)
                         .frame(minWidth: 60)
@@ -132,12 +132,12 @@ struct ContainerCreateView: View {
             Button {
                 spec.ports.append(ContainerCreateSpec.PortMapping())
             } label: {
-                Label("添加端口", systemImage: "plus.circle")
+                Label(L10n.t("Add port"), systemImage: "plus.circle")
             }
         } header: {
-            Text("端口映射")
+            Text(L10n.t("Port Bindings"))
         } footer: {
-            Text("宿主端口 : 容器端口，可加多条。留空的条目不会被写入命令。")
+            Text(L10n.t("Host port : container port. Add multiple. Empty entries are ignored."))
         }
     }
 
@@ -152,7 +152,7 @@ struct ContainerCreateView: View {
                         let current = mount.hostPath.isEmpty ? "/" : mount.hostPath
                         mountPickTarget = ModuleCoordinator.shared.directoryPickTarget(
                             at: current,
-                            title: "选择宿主目录"
+                            title: "Choose host directory"
                         ) { picked in
                             mount.hostPath = picked
                         }
@@ -160,7 +160,7 @@ struct ContainerCreateView: View {
                         HStack {
                             Image(systemName: "folder")
                                 .foregroundStyle(.tint)
-                            Text(mount.hostPath.isEmpty ? "点此选择宿主目录" : mount.hostPath)
+                            Text(mount.hostPath.isEmpty ? "Tap to choose host directory" : mount.hostPath)
                                 .foregroundStyle(mount.hostPath.isEmpty ? .secondary : .primary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
@@ -173,12 +173,12 @@ struct ContainerCreateView: View {
                     }
                     .buttonStyle(.plain)
                     HStack(spacing: 6) {
-                        TextField("容器内路径（如 /data）", text: $mount.containerPath)
+                        TextField("Container path (e.g. /data)", text: $mount.containerPath)
                             .textInputAutocapitalization(.never).autocorrectionDisabled()
                             .textFieldStyle(.roundedBorder)
-                        Toggle("只读", isOn: $mount.readOnly)
+                        Toggle("Read only", isOn: $mount.readOnly)
                             .labelsHidden()
-                        Text("只读").font(.caption).foregroundStyle(.secondary)
+                        Text(L10n.t("Read only")).font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 .padding(.vertical, 2)
@@ -187,12 +187,12 @@ struct ContainerCreateView: View {
             Button {
                 spec.mounts.append(ContainerCreateSpec.Mount())
             } label: {
-                Label("添加挂载", systemImage: "plus.circle")
+                Label(L10n.t("Add mount"), systemImage: "plus.circle")
             }
         } header: {
-            Text("目录挂载")
+            Text(L10n.t("Volume mounts"))
         } footer: {
-            Text("点宿主目录行会从服务器文件里挑一个目录；两边都填绝对路径才会写入命令。")
+            Text(L10n.t("Tap the host path row to pick a directory from server files. Both paths must be absolute to be written to the command."))
         }
     }
 
@@ -217,10 +217,10 @@ struct ContainerCreateView: View {
             Button {
                 spec.env.append(ContainerCreateSpec.EnvVar())
             } label: {
-                Label("添加环境变量", systemImage: "plus.circle")
+                Label(L10n.t("Add environment variable"), systemImage: "plus.circle")
             }
         } header: {
-            Text("环境变量")
+            Text(L10n.t("Environment variables"))
         }
     }
 
@@ -228,23 +228,23 @@ struct ContainerCreateView: View {
 
     private var advancedSection: some View {
         Section {
-            TextField("内存限制（如 512m / 1g）", text: $spec.memory)
+            TextField("Memory limit (e.g. 512m / 1g)", text: $spec.memory)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
-            TextField("CPU 限制（如 0.5 / 2）", text: $spec.cpus)
+            TextField("CPU limit (e.g. 0.5 / 2)", text: $spec.cpus)
                 .keyboardType(.decimalPad)
-            TextField("主机名", text: $spec.hostname)
+            TextField("Hostname", text: $spec.hostname)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
-            TextField("工作目录", text: $spec.workdir)
+            TextField("Working directory", text: $spec.workdir)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
-            TextField("ENTRYPOINT（可选，覆盖镜像）", text: $spec.entrypoint)
+            TextField("ENTRYPOINT (optional, overrides image)", text: $spec.entrypoint)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
-            TextField("启动命令及参数（可选）", text: $spec.command)
+            TextField("Startup command and arguments (optional)", text: $spec.command)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
-            Toggle("特权模式", isOn: $spec.privileged)
+            Toggle("Privileged mode", isOn: $spec.privileged)
         } header: {
-            Text("高级选项")
+            Text(L10n.t("Advanced options"))
         } footer: {
-            Text("限制与命令留空即使用默认值。特权模式权限很高，仅在必要时开启。")
+            Text(L10n.t("Leave limits and command empty to use defaults. Privileged mode is powerful-enable only when necessary."))
         }
     }
 
@@ -257,9 +257,9 @@ struct ContainerCreateView: View {
                 .textSelection(.enabled)
                 .foregroundStyle(.tint)
         } header: {
-            Text("命令预览")
+            Text(L10n.t("Command preview"))
         } footer: {
-            Text("这是将在服务器上执行的命令，确认无误后再点创建。")
+            Text(L10n.t("This is the command to run on the server. Verify it before creating."))
         }
     }
 
@@ -300,11 +300,11 @@ private struct ImagePickerView: View {
                     }
                 }
             }
-            .navigationTitle("选择镜像")
+            .navigationTitle(L10n.t("Select image"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("取消") { dismiss() }
+                    Button(L10n.t("Cancel")) { dismiss() }
                 }
             }
         }

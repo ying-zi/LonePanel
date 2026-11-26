@@ -225,8 +225,9 @@ final class TerminalSession: ObservableObject, Identifiable {
             // 系统终端注入一条本地连接横幅：让"连接成功"有明确视觉反馈
             // （用户反馈空壳时无法判断是否连上）。容器 exec 终端不注入，避免污染 docker exec 输出。
             if execCommand == nil {
-                let name = ServerSession.shared.currentServer?.name ?? "服务器"
-                let banner = "\r\n\u{1B}[1;32m● 已连接到 \(name)\u{1B}[0m\r\n\u{1B}[2m  LonePanel SSH 终端 · 直接输入命令开始操作\u{1B}[0m\r\n\r\n"
+                let name = ServerSession.shared.currentServer?.name ?? L10n.t("Server")
+                // 只保留"已连接到"这一行；第二行提示语已按反馈移除。
+                let banner = "\r\n\u{1B}[1;32m● \(L10n.t("Connected to")) \(name)\u{1B}[0m\r\n\r\n"
                 byteBridge.deliver(Array(banner.utf8))
             }
             isReady = true
@@ -260,13 +261,13 @@ final class TerminalSession: ObservableObject, Identifiable {
                 self.connection.closeShell()
                 if self.autoReconnect {
                     // 系统终端：断线自动重连。
-                    self.showNotice("[连接中断，正在重连…]")
+                    self.showNotice("[Connection lost, reconnecting...]")
                     if !self.userDisconnected {
                         Task { await self.ensureAlive(forceReconnect: true) }
                     }
                 } else {
                     // 容器终端：会话结束即停（用户 exit 或容器退出），不重连、只提示。
-                    self.showNotice("[会话已结束]")
+                    self.showNotice("[Session ended]")
                 }
             }
         }
@@ -308,7 +309,7 @@ final class TerminalSession: ObservableObject, Identifiable {
         if execCommand == nil {
             connection.disconnect()
         }
-        showNotice("[连接已断开]")
+        showNotice("[Disconnected]")
     }
 
     /// 容器终端视图退出：仅关闭本会话的 exec 通道，不触碰共享 SSH 连接。

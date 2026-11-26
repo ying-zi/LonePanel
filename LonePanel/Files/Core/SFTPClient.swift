@@ -155,7 +155,7 @@ final class SFTPClient {
                 self.lock.lock()
                 let entry = self.pending.removeValue(forKey: id)
                 self.lock.unlock()
-                entry?.continuation.resume(throwing: SFTPError.malformed("服务器响应超时"))
+                entry?.continuation.resume(throwing: SFTPError.malformed("Server response timed out"))
             }
             lock.lock()
             if closed {
@@ -173,7 +173,7 @@ final class SFTPClient {
     /// 期望一个 STATUS(OK) 响应，否则抛出人话错误。
     private func expectOK(_ packet: SFTPPacket) throws {
         guard packet.type == SFTPMessage.status else {
-            throw SFTPError.malformed("期望状态响应")
+            throw SFTPError.malformed("Expected status response")
         }
         var reader = PayloadReader(packet.payload)
         _ = try reader.uint32() // request id
@@ -237,7 +237,7 @@ final class SFTPClient {
                 throw SFTPError.status(code: code, message: message)
             }
             guard response.type == SFTPMessage.name else {
-                throw SFTPError.malformed("期望目录列表响应")
+                throw SFTPError.malformed("Expected directory listing response")
             }
 
             var reader = PayloadReader(response.payload)
@@ -397,7 +397,7 @@ final class SFTPClient {
                 throw SFTPError.status(code: code, message: message)
             }
             guard response.type == SFTPMessage.data else {
-                throw SFTPError.malformed("期望文件数据响应")
+                throw SFTPError.malformed("Expected file data response")
             }
             var reader = PayloadReader(response.payload)
             _ = try reader.uint32()

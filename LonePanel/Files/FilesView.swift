@@ -37,17 +37,17 @@ struct FileCallView: View {
             Group {
                 if !model.hasConfiguredServer {
                     ContentUnavailableView {
-                        Label("未连接服务器", systemImage: "server.rack")
+                        Label(L10n.t("Not Connected"), systemImage: "server.rack")
                     } description: {
-                        Text("请先在「设置 → 我的服务器」添加并连接一台服务器")
+                        Text(L10n.t("Add and connect a server in Settings > My Servers first"))
                     }
                 } else if !model.isConnected {
-                    ProgressView("正在连接服务器…")
+                    ProgressView("Connecting to server...")
                 } else if !loaded {
-                    ProgressView("正在读取目录…")
+                    ProgressView("Loading directory...")
                 } else if entries.isEmpty {
                     ContentUnavailableView {
-                        Label("空目录", systemImage: "folder")
+                        Label(L10n.t("Empty directory"), systemImage: "folder")
                     } description: {
                         Text(currentPath)
                             .font(.caption.monospaced())
@@ -80,7 +80,7 @@ struct FileCallView: View {
             .toolbar {
                 if target.pickDirectory {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button("取消") { dismiss() }
+                        Button(L10n.t("Cancel")) { dismiss() }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
@@ -88,13 +88,13 @@ struct FileCallView: View {
                             target.onPick?(currentPath)
                             dismiss()
                         } label: {
-                            Label("选择此目录", systemImage: "checkmark")
+                            Label(L10n.t("Choose this directory"), systemImage: "checkmark")
                                 .fontWeight(.semibold)
                         }
                     }
                 } else {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("完成") { dismiss() }
+                        Button(L10n.t("Done")) { dismiss() }
                     }
                 }
             }

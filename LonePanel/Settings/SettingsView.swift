@@ -23,15 +23,20 @@ struct SettingsView: View {
                     NavigationLink {
                         ServersView()
                     } label: {
-                        Label("我的服务器", systemImage: "server.rack")
+                        Label(L10n.t("My Servers"), systemImage: "server.rack")
                     }
                     NavigationLink {
                         CacheSettingsView()
                     } label: {
-                        Label("缓存管理", systemImage: "internaldrive")
+                        Label(L10n.t("Cache Management"), systemImage: "internaldrive")
+                    }
+                    NavigationLink {
+                        LanguageSettingsView()
+                    } label: {
+                        Label(L10n.t("Language"), systemImage: "globe")
                     }
                 } header: {
-                    Text("通用")
+                    Text(L10n.t("General"))
                 }
 
                 // 模块注册的设置项：各模块自己提供，设置页只负责遍历展示。
@@ -47,13 +52,13 @@ struct SettingsView: View {
                     NavigationLink {
                         TerminalView(presentation: .pushed)
                     } label: {
-                        Label("SSH 终端", systemImage: "terminal")
+                        Label(L10n.t("SSH Terminal"), systemImage: "terminal")
                     }
-                    Toggle("显示悬浮终端按钮", isOn: $floatingEnabled)
+                    Toggle("Show Floating Terminal Button", isOn: $floatingEnabled)
                 } header: {
-                    Text("终端")
+                    Text(L10n.t("Terminal"))
                 } footer: {
-                    Text("终端是全局底座能力，始终可用。关闭所有内容模块后，App 将直接进入 SSH 终端；悬浮按钮在多模块页面右下角提供快捷入口。")
+                    Text(L10n.t("Terminal is a global base capability and is always available. With all content modules off, the app opens directly in the SSH terminal; the floating button offers quick access on multi-module pages."))
                 }
 
                 // 模块管理：所有模块的开关。
@@ -62,12 +67,12 @@ struct SettingsView: View {
                         moduleToggleRow(item)
                     }
                 } header: {
-                    Text("模块管理")
+                    Text(L10n.t("Module management"))
                 } footer: {
-                    Text("关闭的模块将不再显示在底部栏。设置与底座能力（SSH 连接、通知、日志、终端）始终可用；全部关闭后，App 将直接进入 SSH 终端。")
+                    Text(L10n.t("Disabled modules disappear from the bottom bar. Settings and base capabilities (SSH, notifications, logs, terminal) stay available; with all off, the app opens in the SSH terminal."))
                 }
             }
-            .navigationTitle("设置")
+            .navigationTitle(L10n.t("Settings"))
         }
     }
 

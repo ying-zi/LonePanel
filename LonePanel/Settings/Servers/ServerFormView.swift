@@ -32,30 +32,30 @@ struct ServerFormView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("服务器") {
-                    TextField("名称（备注）", text: $name)
-                    TextField("地址", text: $host)
+                Section(L10n.t("Server")) {
+                    TextField("Name (Note)", text: $name)
+                    TextField("Address", text: $host)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    TextField("端口", text: $portText)
+                    TextField("Port", text: $portText)
                     TextField("root", text: $username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
 
-                Section("认证方式") {
-                    Picker("认证方式", selection: $authKind) {
-                        Text("密码").tag(ServerAuthKind.password)
-                        Text("私钥").tag(ServerAuthKind.privateKey)
+                Section(L10n.t("Authentication")) {
+                    Picker("Authentication", selection: $authKind) {
+                        Text(L10n.t("Password")).tag(ServerAuthKind.password)
+                        Text(L10n.t("Private Key")).tag(ServerAuthKind.privateKey)
                     }
                     .pickerStyle(.segmented)
 
                     if authKind == .password {
-                        SecureField("密码", text: $password)
+                        SecureField("Password", text: $password)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     } else {
-                        Text("OpenSSH 私钥（PEM，未加密）")
+                        Text(L10n.t("OpenSSH Private Key (PEM, unencrypted)"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         TextEditor(text: $privateKeyPEM)
@@ -67,10 +67,10 @@ struct ServerFormView: View {
                 }
 
                 if let result = testResult {
-                    Section("测试结果") {
+                    Section(L10n.t("Test Result")) {
                         Text(result)
                             .font(.subheadline)
-                            .foregroundStyle(result.hasPrefix("连接成功") ? Color.green : Color.red)
+                            .foregroundStyle(result.hasPrefix("Connected") ? Color.green : Color.red)
                             .textSelection(.enabled)
                     }
                 }
@@ -81,29 +81,29 @@ struct ServerFormView: View {
                     } label: {
                         HStack(spacing: 8) {
                             if testing { ProgressView() }
-                            Text("测试连接")
+                            Text(L10n.t("Test Connection"))
                         }
                     }
                     .disabled(testing)
                 }
             }
-            .navigationTitle(server == nil ? "添加服务器" : "编辑服务器")
+            .navigationTitle(server == nil ? "Add Server" : "Edit Server")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
+                    Button(L10n.t("Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("保存") { save() }
+                    Button(L10n.t("Save")) { save() }
                 }
             }
-            .alert("提示", isPresented: errorAlertBinding) {
-                Button("好", role: .cancel) { errorMessage = nil }
+            .alert("Notice", isPresented: errorAlertBinding) {
+                Button(L10n.t("OK"), role: .cancel) { errorMessage = nil }
             } message: {
                 Text(errorMessage ?? "")
             }
-            .alert("连接失败", isPresented: testErrorAlertBinding) {
-                Button("好", role: .cancel) { testError = nil }
+            .alert("Connection Failed", isPresented: testErrorAlertBinding) {
+                Button(L10n.t("OK"), role: .cancel) { testError = nil }
             } message: {
                 Text(testError ?? "")
             }
@@ -125,7 +125,7 @@ struct ServerFormView: View {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               port != nil else {
-            errorMessage = "请填写名称、地址和端口"
+            errorMessage = "Enter name, address and port"
             return false
         }
         return true
@@ -139,13 +139,13 @@ struct ServerFormView: View {
             if let server, let stored = try? KeychainStore.load(server.credentialKey) {
                 return .password(stored)
             }
-            throw FormError.missingCredential("请输入密码")
+            throw FormError.missingCredential("Enter password")
         case .privateKey:
             if !privateKeyPEM.isEmpty { return .privateKey(privateKeyPEM) }
             if let server, let stored = try? KeychainStore.load(server.credentialKey) {
                 return .privateKey(stored)
             }
-            throw FormError.missingCredential("请输入私钥")
+            throw FormError.missingCredential("Enter private key")
         }
     }
 

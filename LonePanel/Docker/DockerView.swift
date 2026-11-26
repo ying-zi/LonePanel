@@ -5,8 +5,8 @@ import SwiftUI
 /// 新建容器 / 视图切换 / 诊断收进「更多」，避免多个按钮挤宽导航栏。详情页走 NavigationStack 推入。
 struct DockerView: View {
     enum Section: String, CaseIterable {
-        case containers = "容器"
-        case images = "镜像"
+        case containers = "Container"
+        case images = "Image"
         case compose = "Compose"
     }
 
@@ -40,7 +40,7 @@ struct DockerView: View {
             .toolbar {
                 // 标题位置的分段控件：容器 / 镜像 / Compose
                 ToolbarItem(placement: .principal) {
-                    Picker("模块", selection: $section) {
+                    Picker("Section", selection: $section) {
                         ForEach(Section.allCases, id: \.self) { item in
                             Text(item.rawValue).tag(item)
                         }
@@ -57,14 +57,14 @@ struct DockerView: View {
                             Button {
                                 showCreate = true
                             } label: {
-                                Label("新建容器", systemImage: "plus")
+                                Label(L10n.t("New container"), systemImage: "plus")
                             }
                             Button {
                                 withAnimation {
                                     containerModel.viewMode = (containerModel.viewMode == .cards) ? .list : .cards
                                 }
                             } label: {
-                                Label(containerModel.viewMode == .cards ? "列表视图" : "卡片视图",
+                                Label(containerModel.viewMode == .cards ? "List View" : "Card view",
                                       systemImage: containerModel.viewMode == .cards ? "list.bullet" : "square.grid.2x2")
                             }
                             Divider()
@@ -74,7 +74,7 @@ struct DockerView: View {
                             showDiagnostics = true
                             copied = false
                         } label: {
-                            Label("诊断", systemImage: "ladybug")
+                            Label(L10n.t("Diagnostics"), systemImage: "ladybug")
                         }
                     } label: {
                         // 与文件模块一致：系统文件 App 的更多按钮是裸三点，不套圆圈。
@@ -113,7 +113,7 @@ struct DockerView: View {
                         Image(systemName: "ladybug")
                             .font(.largeTitle)
                             .foregroundStyle(.tertiary)
-                        Text("尚无命令记录，请先进入容器或镜像页面刷新一次。")
+                        Text(L10n.t("No command records yet. Open the Containers or Images tab to refresh once."))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -157,7 +157,7 @@ struct DockerView: View {
                     }
                 }
             }
-            .navigationTitle("Docker 诊断")
+            .navigationTitle(L10n.t("Docker Diagnostics"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -165,11 +165,11 @@ struct DockerView: View {
                         UIPasteboard.general.string = diagnostics.report
                         copied = true
                     } label: {
-                        Label(copied ? "已复制" : "复制", systemImage: copied ? "checkmark" : "doc.on.doc")
+                        Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成") { showDiagnostics = false }
+                    Button(L10n.t("Done")) { showDiagnostics = false }
                 }
             }
         }

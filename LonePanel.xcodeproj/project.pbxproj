@@ -72,6 +72,11 @@
 		D10000000000000000000059 /* DatabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000059 /* DatabaseService.swift */; };
 		D1000000000000000000005A /* ContainerCreateSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000000000000000000005A /* ContainerCreateSpec.swift */; };
 		D1000000000000000000005B /* ContainerCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000000000000000000005B /* ContainerCreateView.swift */; };
+		D30000000000000000000001 /* LanguagePack.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000001 /* LanguagePack.swift */; };
+		D30000000000000000000002 /* LocalizationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000002 /* LocalizationStore.swift */; };
+		D30000000000000000000003 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000003 /* L10n.swift */; };
+		D30000000000000000000004 /* BuiltinPacks.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000004 /* BuiltinPacks.swift */; };
+		D30000000000000000000005 /* LanguageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000005 /* LanguageSettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -138,6 +143,11 @@
 		C10000000000000000000059 /* DatabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseService.swift; sourceTree = "<group>"; };
 		C1000000000000000000005A /* ContainerCreateSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerCreateSpec.swift; sourceTree = "<group>"; };
 		C1000000000000000000005B /* ContainerCreateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerCreateView.swift; sourceTree = "<group>"; };
+		C30000000000000000000001 /* LanguagePack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguagePack.swift; sourceTree = "<group>"; };
+		C30000000000000000000002 /* LocalizationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationStore.swift; sourceTree = "<group>"; };
+		C30000000000000000000003 /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
+		C30000000000000000000004 /* BuiltinPacks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuiltinPacks.swift; sourceTree = "<group>"; };
+		C30000000000000000000005 /* LanguageSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -198,8 +208,20 @@
 				A80000000000000000000002 /* SSH */,
 				A80000000000000000000003 /* Keychain */,
 				A80000000000000000000004 /* Cache */,
+				A80000000000000000000005 /* Localization */,
 			);
 			path = Core;
+			sourceTree = "<group>";
+		};
+		A80000000000000000000005 /* Localization */ = {
+			isa = PBXGroup;
+			children = (
+				C30000000000000000000001 /* LanguagePack.swift */,
+				C30000000000000000000002 /* LocalizationStore.swift */,
+				C30000000000000000000003 /* L10n.swift */,
+				C30000000000000000000004 /* BuiltinPacks.swift */,
+			);
+			path = Localization;
 			sourceTree = "<group>";
 		};
 		A80000000000000000000004 /* Cache */ = {
@@ -366,6 +388,7 @@
 			children = (
 				C10000000000000000000026 /* SettingsTab.swift */,
 				C10000000000000000000027 /* SettingsView.swift */,
+				C30000000000000000000005 /* LanguageSettingsView.swift */,
 				B30000000000000000000001 /* Core */,
 				B30000000000000000000002 /* Servers */,
 				B30000000000000000000003 /* Cache */,
@@ -588,6 +611,11 @@
 				D1000000000000000000005B /* ContainerCreateView.swift in Sources */,
 				D10000000000000000000058 /* DatabaseModels.swift in Sources */,
 				D10000000000000000000059 /* DatabaseService.swift in Sources */,
+				D30000000000000000000001 /* LanguagePack.swift in Sources */,
+				D30000000000000000000002 /* LocalizationStore.swift in Sources */,
+				D30000000000000000000003 /* L10n.swift in Sources */,
+				D30000000000000000000004 /* BuiltinPacks.swift in Sources */,
+				D30000000000000000000005 /* LanguageSettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

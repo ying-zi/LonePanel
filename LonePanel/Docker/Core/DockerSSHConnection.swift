@@ -26,7 +26,7 @@ final class DockerSSHConnection: ObservableObject {
     @discardableResult
     func ensureConnected(force: Bool = false) async -> Bool {
         guard let info = ServerSession.shared.currentServer else {
-            lastError = "请先到「设置 → 我的服务器」添加并选择一个服务器"
+            lastError = "Please add and select a server in Settings → My Servers first"
             return false
         }
         if !force, isConnected, connectedServerID == info.id, session != nil { return true }

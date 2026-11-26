@@ -20,7 +20,7 @@ struct ServersView: View {
                     Image(systemName: "server.rack")
                         .font(.system(size: 44))
                         .foregroundStyle(.secondary)
-                    Text("暂无服务器，点击右上角添加")
+                    Text(L10n.t("No servers yet. Tap + to add one."))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -33,7 +33,7 @@ struct ServersView: View {
                             Button {
                                 editing = server
                             } label: {
-                                Label("编辑", systemImage: "pencil")
+                                Label(L10n.t("Edit"), systemImage: "pencil")
                             }
                             .tint(.blue)
                         }
@@ -43,20 +43,20 @@ struct ServersView: View {
                                     sessionImpl.setDefault(server.id)
                                     reload()
                                 } label: {
-                                    Label("设为默认", systemImage: "star")
+                                    Label(L10n.t("Set as Default"), systemImage: "star")
                                 }
                                 .tint(.orange)
                             }
                             Button(role: .destructive) {
                                 pendingDelete = server
                             } label: {
-                                Label("删除", systemImage: "trash")
+                                Label(L10n.t("Delete"), systemImage: "trash")
                             }
                         }
                 }
             }
         }
-        .navigationTitle("我的服务器")
+        .navigationTitle(L10n.t("My Servers"))
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -65,7 +65,7 @@ struct ServersView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
-                .accessibilityLabel("添加服务器")
+                .accessibilityLabel(L10n.t("Add Server"))
             }
         }
         .sheet(isPresented: $showAdd) {
@@ -74,9 +74,9 @@ struct ServersView: View {
         .sheet(item: $editing) { server in
             ServerFormView(server: server) { reload() }
         }
-        .alert("删除服务器", isPresented: deleteAlertBinding) {
-            Button("取消", role: .cancel) { pendingDelete = nil }
-            Button("删除", role: .destructive) {
+        .alert("Delete Server", isPresented: deleteAlertBinding) {
+            Button(L10n.t("Cancel"), role: .cancel) { pendingDelete = nil }
+            Button(L10n.t("Delete"), role: .destructive) {
                 if let target = pendingDelete {
                     sessionImpl.remove(target.id)
                     reload()
@@ -84,10 +84,10 @@ struct ServersView: View {
                 pendingDelete = nil
             }
         } message: {
-            Text("确定删除「\(pendingDelete?.name ?? "")」吗？凭证也会一并从钥匙串移除，此操作不可撤销。")
+            Text("Delete \"\(pendingDelete?.name ?? "")\"? Its credential will also be removed from Keychain. This cannot be undone.")
         }
-        .alert("提示", isPresented: errorAlertBinding) {
-            Button("好", role: .cancel) { errorMessage = nil }
+        .alert("Notice", isPresented: errorAlertBinding) {
+            Button(L10n.t("OK"), role: .cancel) { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
         }
@@ -115,7 +115,7 @@ struct ServersView: View {
                 if session.currentServer?.id == server.id {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.tint)
-                        .accessibilityLabel("当前连接")
+                        .accessibilityLabel(L10n.t("Current Connection"))
                 }
             }
             .contentShape(Rectangle())
@@ -127,8 +127,8 @@ struct ServersView: View {
     private func displayName(_ server: Server) -> String {
         let isDefault = server.id == defaultID
         let isCurrent = session.currentServer?.id == server.id
-        if isDefault { return "\(server.name)（默认）" }
-        if isCurrent { return "\(server.name)（当前）" }
+        if isDefault { return "\(server.name) (default)" }
+        if isCurrent { return "\(server.name) (current)" }
         return server.name
     }
 

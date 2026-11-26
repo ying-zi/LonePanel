@@ -41,7 +41,7 @@ struct ImageView: View {
                                     Text(image.size)
                                     Text(image.createdSince)
                                     if Int(image.containers) ?? 0 > 0 {
-                                        Text("使用中 \(image.containers)")
+                                        Text("In use by \(image.containers)")
                                             .foregroundStyle(.orange)
                                     }
                                 }
@@ -67,7 +67,7 @@ struct ImageView: View {
                         Image(systemName: "shippingbox")
                             .font(.largeTitle)
                             .foregroundStyle(.tertiary)
-                        Text(searchText.isEmpty ? "没有镜像" : "没有匹配的镜像")
+                        Text(searchText.isEmpty ? "No images" : "No matching images")
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
@@ -77,20 +77,20 @@ struct ImageView: View {
             .listStyle(.insetGrouped)
 
             if isLoading && images.isEmpty {
-                ProgressView("正在读取镜像…")
+                ProgressView("Loading images…")
             }
         }
-        .searchable(text: $searchText, prompt: "搜索镜像")
+        .searchable(text: $searchText, prompt: "Search images")
         // 与容器页、文件模块统一：未聚焦时收缩为放大镜按钮。
         .searchToolbarBehavior(.minimize)
         .refreshable { await load() }
         .task { await load() }
-        .alert("删除镜像", isPresented: Binding(
+        .alert("Remove Image", isPresented: Binding(
             get: { confirmRemove != nil },
             set: { if !$0 { confirmRemove = nil } }
         )) {
-            Button("取消", role: .cancel) { confirmRemove = nil }
-            Button("删除", role: .destructive) {
+            Button(L10n.t("Cancel"), role: .cancel) { confirmRemove = nil }
+            Button(L10n.t("Delete"), role: .destructive) {
                 if let image = confirmRemove {
                     Task {
                         _ = await service.removeImage(image.id)
@@ -100,7 +100,7 @@ struct ImageView: View {
                 }
             }
         } message: {
-            Text("确定删除镜像「\(confirmRemove?.fullName ?? "")」吗？若镜像正被容器使用，删除会失败。")
+            Text("Remove image \"\(confirmRemove?.fullName ?? "")\"? If it is in use by a container, removal will fail.")
         }
     }
 

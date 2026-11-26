@@ -7,10 +7,10 @@ struct ContainerLogsView: View {
 
     /// 日志时间范围，对应 1Panel 的 10 分钟 / 1 小时 / 1 天 / 全部。
     enum LogRange: String, CaseIterable, Identifiable {
-        case tail300 = "最近 300 行"
-        case minutes10 = "最近 10 分钟"
-        case hour1 = "最近 1 小时"
-        case day1 = "最近 1 天"
+        case tail300 = "Last 300 lines"
+        case minutes10 = "Last 10 minutes"
+        case hour1 = "Last 1 hour"
+        case day1 = "Last 1 day"
 
         var id: String { rawValue }
         var sinceArg: String? {
@@ -49,9 +49,9 @@ struct ContainerLogsView: View {
                                 .font(.largeTitle)
                                 .foregroundStyle(.tertiary)
                             if isLoading {
-                                ProgressView("正在读取日志…")
+                                ProgressView("Loading logs…")
                             } else {
-                                Text("暂无日志")
+                                Text(L10n.t("No logs yet"))
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -67,7 +67,7 @@ struct ContainerLogsView: View {
                     }
                 }
             }
-            .navigationTitle("日志 · \(containerName)")
+            .navigationTitle("Logs · \(containerName)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
             .task {
@@ -91,7 +91,7 @@ struct ContainerLogsView: View {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 // 时间范围（1Panel 同款）
-                Section("时间范围") {
+                Section(L10n.t("Time range")) {
                     ForEach(LogRange.allCases) { item in
                         Button {
                             range = item
@@ -106,17 +106,17 @@ struct ContainerLogsView: View {
                         autoRefresh.toggle()
                         if autoRefresh { startAutoRefresh() } else { stopAutoRefresh() }
                     } label: {
-                        Label(autoRefresh ? "停止实时跟随" : "开启实时跟随",
+                        Label(autoRefresh ? "Stop following" : "Start following",
                               systemImage: autoRefresh ? "pause" : "play")
                     }
                     Button { Task { await refresh() } } label: {
-                        Label("立即刷新", systemImage: "arrow.clockwise")
+                        Label(L10n.t("Refresh Now"), systemImage: "arrow.clockwise")
                     }
                     Button { Task { await downloadLogs() } } label: {
-                        Label("下载日志", systemImage: "square.and.arrow.down")
+                        Label(L10n.t("Download logs"), systemImage: "square.and.arrow.down")
                     }
                     Button { copyLogs() } label: {
-                        Label("复制全部日志", systemImage: "doc.on.doc")
+                        Label(L10n.t("Copy All Logs"), systemImage: "doc.on.doc")
                     }
                 }
             } label: {
@@ -124,7 +124,7 @@ struct ContainerLogsView: View {
             }
         }
         ToolbarItem(placement: .topBarLeading) {
-            Button("完成") { dismiss() }
+            Button(L10n.t("Done")) { dismiss() }
         }
     }
 

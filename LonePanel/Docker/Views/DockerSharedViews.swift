@@ -12,9 +12,9 @@ enum DockerStateStyle {
 
     static func label(_ state: DockerContainerState) -> String {
         switch state {
-        case .running: return "运行中"
-        case .paused: return "暂停中"
-        case .stopped: return "已停止"
+        case .running: return "Running"
+        case .paused: return "Paused"
+        case .stopped: return "Stopped"
         }
     }
 }
@@ -127,7 +127,7 @@ struct ResourceRingsView: View {
     private var ringsRow: some View {
         HStack(spacing: 16) {
             UsageRing(value: container.usage.cpuPercent, label: "CPU")
-            UsageRing(value: container.usage.memPercent, label: "内存", tint: .purple)
+            UsageRing(value: container.usage.memPercent, label: "Memory", tint: .purple)
         }
         .fixedSize(horizontal: true, vertical: false)
     }
@@ -159,17 +159,17 @@ struct ResourceRingsView: View {
             text = String(text[..<paren]).trimmingCharacters(in: .whitespaces)
         }
         let replacements: [(String, String)] = [
-            ("months", "个月"), ("month", "个月"),
-            ("weeks", "周"), ("week", "周"),
-            ("days", "天"), ("day", "天"),
-            ("hours", "小时"), ("hour", "小时"),
-            ("minutes", "分钟"), ("minute", "分钟"),
-            ("seconds", "秒"), ("second", "秒")
+            ("months", "months"), ("month", "months"),
+            ("weeks", "weeks"), ("week", "weeks"),
+            ("days", "days"), ("day", "days"),
+            ("hours", "hours"), ("hour", "hours"),
+            ("minutes", "minutes"), ("minute", "minutes"),
+            ("seconds", "seconds"), ("second", "seconds")
         ]
         for (english, chinese) in replacements {
             text = text.replacingOccurrences(of: english, with: chinese)
         }
-        return text.isEmpty ? "运行中" : "运行 \(text)"
+        return text.isEmpty ? "Running" : "Run \(text)"
     }
 }
 
@@ -226,7 +226,7 @@ struct ContainerActionsBar: View {
             Button(action: onLogs) {
                 HStack(spacing: 4) {
                     Image(systemName: "doc.text.magnifyingglass")
-                    Text("日志")
+                    Text(L10n.t("Logs"))
                         .minimumScaleFactor(0.7)
                         .lineLimit(1)
                 }

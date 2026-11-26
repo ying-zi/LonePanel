@@ -12,7 +12,7 @@ struct FileInfoSheet: View {
     @State private var folderStats: FolderStats?
     @State private var statsLoading = false
     /// 属主的可读名称（用户 · 组），由 /etc/passwd 映射解析后回填。
-    @State private var ownerName: String = "未知用户 · 未知组"
+    @State private var ownerName: String = "Unknown User · Unknown Group"
 
     var body: some View {
         NavigationStack {
@@ -22,11 +22,11 @@ struct FileInfoSheet: View {
                 if file.isDirectory { folderStatsSection }
                 locationSection
             }
-            .navigationTitle("信息")
+            .navigationTitle(L10n.t("Info"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button(L10n.t("Done")) { dismiss() }
                 }
             }
             .task {
@@ -56,17 +56,17 @@ struct FileInfoSheet: View {
     }
 
     private var attributesSection: some View {
-        Section("属性") {
-            LabeledContent("种类", value: kindLabel)
+        Section(L10n.t("Attributes")) {
+            LabeledContent("Kind", value: kindLabel)
             // 文件夹的 STAT size 无意义（见 folderStatsSection），只给文件显示大小。
             if !file.isDirectory {
-                LabeledContent("大小", value: byteSize)
+                LabeledContent("Size", value: byteSize)
             }
             if let date = file.modified {
-                LabeledContent("修改日期", value: date.formatted(date: .abbreviated, time: .shortened))
+                LabeledContent("Date Modified", value: date.formatted(date: .abbreviated, time: .shortened))
             }
-            LabeledContent("权限", value: file.permissionText)
-            LabeledContent("属主", value: ownerName)
+            LabeledContent("Permissions", value: file.permissionText)
+            LabeledContent("Owner", value: ownerName)
         }
     }
 
@@ -76,22 +76,22 @@ struct FileInfoSheet: View {
     /// 加载中显示转圈，失败给出「扫描失败」与重试按钮，由用户决定何时再扫。
     @ViewBuilder
     private var folderStatsSection: some View {
-        Section("内容") {
+        Section(L10n.t("Contents")) {
             if statsLoading {
                 HStack {
-                    Text("正在扫描文件夹…")
+                    Text(L10n.t("Scanning folder…"))
                     Spacer()
                     ProgressView()
                 }
             } else if let stats = folderStats {
-                LabeledContent("磁盘占用", value: FileBrowserModel.sizeText(stats.sizeBytes))
-                LabeledContent("文件", value: "\(stats.fileCount) 个")
-                LabeledContent("子目录", value: "\(stats.directoryCount) 个")
+                LabeledContent("Disk Usage", value: FileBrowserModel.sizeText(stats.sizeBytes))
+                LabeledContent("Files", value: "\(stats.fileCount) items")
+                LabeledContent("Subfolders", value: "\(stats.directoryCount) items")
             } else {
                 HStack {
-                    Text("扫描失败").foregroundStyle(.secondary)
+                    Text(L10n.t("Scan Failed")).foregroundStyle(.secondary)
                     Spacer()
-                    Button("重新扫描") { Task { await scanFolder() } }
+                    Button(L10n.t("Rescan")) { Task { await scanFolder() } }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                 }
@@ -112,7 +112,7 @@ struct FileInfoSheet: View {
     }
 
     private var locationSection: some View {
-        Section("位置") {
+        Section(L10n.t("Location")) {
             Text(file.path)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -122,12 +122,12 @@ struct FileInfoSheet: View {
 
     private var kindLabel: String {
         switch FileKind(file: file) {
-        case .directory: return "文件夹"
-        case .image: return "图像"
-        case .text: return "纯文本文稿"
-        case .code: return "源代码"
-        case .archive: return "归档文件"
-        case .other: return "文稿"
+        case .directory: return "Folder"
+        case .image: return "Image"
+        case .text: return "Plain Text"
+        case .code: return "Source Code"
+        case .archive: return "Archive"
+        case .other: return "Document"
         }
     }
 

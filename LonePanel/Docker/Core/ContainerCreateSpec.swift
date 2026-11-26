@@ -57,30 +57,30 @@ struct ContainerCreateSpec {
     /// 校验所有字段，返回第一处错误文案；nil 表示合法。
     func validate() -> String? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return "请填写容器名称" }
+        guard !trimmedName.isEmpty else { return "Enter a container name" }
         guard Self.validContainerName(trimmedName) else {
-            return "容器名称只能包含字母、数字、下划线、点、中划线，且不能以特殊字符开头"
+            return "Container name may contain only letters, digits, underscore, dot and hyphen, and cannot start with a special character"
         }
         guard !image.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return "请填写镜像名称"
+            return "Enter an image name"
         }
         for p in ports where !p.hostPort.isEmpty || !p.containerPort.isEmpty {
             guard Self.validPort(p.hostPort), Self.validPort(p.containerPort) else {
-                return "端口必须是 1–65535 的数字（\(p.hostPort):\(p.containerPort)）"
+                return "Port must be a number between 1 and 65535 (\(p.hostPort):\(p.containerPort))"
             }
         }
         for m in mounts where !m.hostPath.isEmpty || !m.containerPath.isEmpty {
-            guard m.hostPath.hasPrefix("/") else { return "宿主路径必须是绝对路径（以 / 开头）：\(m.hostPath)" }
-            guard m.containerPath.hasPrefix("/") else { return "容器路径必须是绝对路径（以 / 开头）：\(m.containerPath)" }
+            guard m.hostPath.hasPrefix("/") else { return "Host path must be absolute (start with /): \(m.hostPath)" }
+            guard m.containerPath.hasPrefix("/") else { return "Container path must be absolute (start with /): \(m.containerPath)" }
         }
         for e in env where !e.key.isEmpty || !e.value.isEmpty {
-            guard Self.validEnvKey(e.key) else { return "环境变量名只能包含字母、数字、下划线：\(e.key)" }
+            guard Self.validEnvKey(e.key) else { return "Environment variable name may contain only letters, digits and underscore: \(e.key)" }
         }
         if !memory.isEmpty, Self.validMemory(memory) == false {
-            return "内存格式应为数字+单位（如 512m / 1g）"
+            return "Memory must be a number plus unit (e.g. 512m / 1g)"
         }
         if !cpus.isEmpty, Double(cpus) == nil {
-            return "CPU 应为数字（如 0.5 / 2）"
+            return "CPU must be a number (e.g. 0.5 / 2)"
         }
         return nil
     }

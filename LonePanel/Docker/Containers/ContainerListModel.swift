@@ -102,9 +102,9 @@ final class ContainerListModel: ObservableObject {
 
     func primaryActionLabel(for container: DockerContainer) -> String {
         switch container.state {
-        case .running: return "停止"
-        case .paused: return "恢复"
-        case .stopped: return "启动"
+        case .running: return "Stop"
+        case .paused: return "Resume"
+        case .stopped: return "Start"
         }
     }
 

@@ -184,7 +184,7 @@ struct DatabaseConnection: Identifiable, Codable, Equatable {
     /// 容器内实例是否处于可查询状态。
     var isRunning: Bool {
         guard let statusText else { return true }
-        return !statusText.contains("已停止") && !statusText.contains("已暂停")
+        return !statusText.contains("Stopped") && !statusText.contains("Paused")
     }
 }
 

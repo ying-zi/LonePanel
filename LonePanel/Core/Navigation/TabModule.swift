@@ -93,8 +93,8 @@ struct SettingsGearButton: View {
                 Image(systemName: "gearshape")
                     .font(.system(size: 16, weight: .semibold))
             }
-            .help("设置")
-            .accessibilityLabel("设置")
+            .help(L10n.t("Settings"))
+            .accessibilityLabel(L10n.t("Settings"))
         }
     }
 }

@@ -23,7 +23,7 @@ struct ModulePlaceholder: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
 
-                Button("即将推出") { }
+                Button(L10n.t("Coming Soon")) { }
                     .buttonStyle(.glass)
                     .disabled(true)
             }

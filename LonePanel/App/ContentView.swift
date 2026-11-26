@@ -6,6 +6,8 @@ import UIKit
 struct ContentView: View {
     @ObservedObject private var visibility = ModuleVisibility.shared
     @ObservedObject private var coordinator = ModuleCoordinator.shared
+    /// 语言切换后重建主内容区，让所有 L10n.t() 立即重算（sheet 宿主不变，不被误收起）。
+    @ObservedObject private var localization = LocalizationStore.shared
     @AppStorage("com.lone.lonepanel.terminal.floating") private var floatingEnabled = true
     @State private var selection: String = ""
     @ObservedObject private var terminal = TerminalSession.shared
@@ -76,6 +78,8 @@ struct ContentView: View {
                 }
             }
         }
+        // 语言切换后重建内容区，使所有 L10n.t() 立即生效。
+        .id(localization.revision)
         // 悬浮终端入口：开关开启 + 当前形态宿主模块允许时出现。
         // 单模块全屏（moduleFocus）里容器/网站/数据库同样要有悬浮终端——只留一个模块
         // 恰恰是最需要终端兜底的场景；纯终端形态（terminalFocus）本身就是终端，自动隐藏。
@@ -213,7 +217,7 @@ struct ContentView: View {
             .offset(x: fabRenderOffset.width, y: fabRenderOffset.height)
             .padding(.trailing, 20)
             .padding(.bottom, fabBottomPadding)
-            .accessibilityLabel("打开终端，长按可拖动位置")
+            .accessibilityLabel(L10n.t("Open terminal; long press to drag its position"))
             .transition(.scale.combined(with: .opacity))
             // 注意：这两个 animation 不能挂到 offset 上。拖动中 offset 由 fabRenderOffset 驱动，
             // 若带动画会逐帧追赶造成抖动；动画只在出现/隐藏与状态色变化时使用。

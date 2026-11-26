@@ -38,7 +38,7 @@ final class DockerDiagnostics: ObservableObject {
     /// 拼成可复制的纯文本报告。
     var report: String {
         entries.map { e in
-            "[\(e.time)] \(e.command)\n  exit=\(e.exit)\n  out=\(e.out.isEmpty ? "(空)" : e.out)\n  err=\(e.err.isEmpty ? "(空)" : e.err)"
+            "[\(e.time)] \(e.command)\\n  exit=\(e.exit)\\n  out=\(e.out.isEmpty ? "(empty)" : e.out)\\n  err=\(e.err.isEmpty ? "(empty)" : e.err)"
         }
         .joined(separator: "\n\n")
     }

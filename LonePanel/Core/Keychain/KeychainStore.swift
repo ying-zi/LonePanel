@@ -12,9 +12,9 @@ enum KeychainStore {
 
         var errorDescription: String? {
             switch self {
-            case .saveFailed(let status): return "凭证保存失败（系统错误 \(status)）"
-            case .loadFailed(let status): return "凭证读取失败（系统错误 \(status)）"
-            case .notFound: return "钥匙串中没有找到该凭证"
+            case .saveFailed(let status): return "Failed to save credential (system error \(status))"
+            case .loadFailed(let status): return "Failed to load credential (system error \(status))"
+            case .notFound: return "Credential not found in Keychain"
             }
         }
     }

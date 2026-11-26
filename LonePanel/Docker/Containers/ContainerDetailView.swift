@@ -43,10 +43,10 @@ struct ContainerDetailView: View {
 
             // 资源概览（运行中）
             if container.state == .running && container.usage.hasData {
-                Section("资源占用") {
+                Section(L10n.t("Resource Usage")) {
                     HStack(spacing: 24) {
                         UsageRing(value: container.usage.cpuPercent, label: "CPU")
-                        UsageRing(value: container.usage.memPercent, label: "内存", tint: .purple)
+                        UsageRing(value: container.usage.memPercent, label: "Memory", tint: .purple)
                         Spacer()
                     }
                     .padding(.vertical, 8)
@@ -54,13 +54,13 @@ struct ContainerDetailView: View {
                         .font(.subheadline)
                     // 1Panel 统计页核心指标：下行/上行、磁盘读写、进程数。
                     if !container.usage.netIO.isEmpty {
-                        InfoRow(title: "网络 (收/发)", value: container.usage.netIO)
+                        InfoRow(title: "Network (RX/TX)", value: container.usage.netIO)
                     }
                     if !container.usage.blockIO.isEmpty {
-                        InfoRow(title: "磁盘 (读/写)", value: container.usage.blockIO)
+                        InfoRow(title: "Disk (R/W)", value: container.usage.blockIO)
                     }
                     if !container.usage.pids.isEmpty {
-                        InfoRow(title: "进程数", value: container.usage.pids)
+                        InfoRow(title: "Process count", value: container.usage.pids)
                     }
                 }
             }
@@ -70,25 +70,25 @@ struct ContainerDetailView: View {
                 Button {
                     showLogs = true
                 } label: {
-                    Label("容器日志", systemImage: "doc.text.magnifyingglass")
+                    Label(L10n.t("Container Logs"), systemImage: "doc.text.magnifyingglass")
                 }
                 Button {
                     openContainerTerminal()
                 } label: {
-                    Label("连接终端", systemImage: "terminal")
+                    Label(L10n.t("Connect Terminal"), systemImage: "terminal")
                 }
                 .disabled(container.state != .running)
             } footer: {
                 if container.state == .paused {
-                    Text("容器已暂停，docker exec 无法进入；恢复运行后可连接终端。日志仍可查看历史输出。")
+                    Text(L10n.t("Container is paused; docker exec is unavailable. Resume it to connect a terminal. Logs still show past output."))
                 } else if container.state == .stopped {
-                    Text("容器已停止，启动后可连接终端；日志仍可查看历史输出。")
+                    Text(L10n.t("Container is stopped; start it to connect a terminal. Logs still show past output."))
                 }
             }
 
             // 进程列表（docker top）
             if container.state == .running && !processes.isEmpty {
-                Section("进程（\(processes.count)）") {
+                Section("Processes (\(processes.count))") {
                     ForEach(processes) { proc in
                         VStack(alignment: .leading, spacing: 3) {
                             HStack {
@@ -111,32 +111,32 @@ struct ContainerDetailView: View {
             }
 
             // 基本信息
-            Section("基本信息") {
-                InfoRow(title: "状态", value: container.statusText)
-                InfoRow(title: "镜像", value: container.image)
+            Section(L10n.t("Basic Info")) {
+                InfoRow(title: "Status", value: container.statusText)
+                InfoRow(title: "Image", value: container.image)
                 if let info = inspectInfo, !info.restartPolicy.isEmpty, info.restartPolicy != "no" {
-                    InfoRow(title: "重启策略", value: info.restartPolicy)
+                    InfoRow(title: "Restart Policy", value: info.restartPolicy)
                 }
                 if let info = inspectInfo, !info.created.isEmpty {
-                    InfoRow(title: "创建时间", value: formatCreated(info.created))
+                    InfoRow(title: "Created", value: formatCreated(info.created))
                 }
                 if let info = inspectInfo, !info.network.isEmpty {
-                    InfoRow(title: "网络", value: info.network)
+                    InfoRow(title: "Network", value: info.network)
                 }
                 if !container.command.isEmpty {
-                    InfoRow(title: "启动命令", value: container.command)
+                    InfoRow(title: "Startup command", value: container.command)
                 }
             }
 
             // 端口映射
             if let info = inspectInfo, !info.portBindings.isEmpty {
-                Section("端口映射") {
+                Section(L10n.t("Port Bindings")) {
                     ForEach(info.portBindings, id: \.container) { binding in
-                        InfoRow(title: binding.container, value: binding.host.isEmpty ? "未发布" : binding.host)
+                        InfoRow(title: binding.container, value: binding.host.isEmpty ? "Not published" : binding.host)
                     }
                 }
             } else if container.state != .stopped && !container.portsText.isEmpty {
-                Section("端口映射") {
+                Section(L10n.t("Port Bindings")) {
                     Text(container.portsText)
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
@@ -176,15 +176,15 @@ struct ContainerDetailView: View {
                         .buttonStyle(.plain)
                     }
                 } header: {
-                    Text("卷挂载")
+                    Text(L10n.t("Volume Mounts"))
                 } footer: {
-                    Text("点按任意挂载点，调用文件模块打开该目录（只读浏览）。")
+                    Text(L10n.t("Tap any mount to open that directory in the Files module (read-only)."))
                 }
             }
 
             // 环境变量
             if let info = inspectInfo, !info.env.isEmpty {
-                Section("环境变量（\(info.env.count)）") {
+                Section("Environment Variables (\(info.env.count))") {
                     ForEach(info.env, id: \.self) { env in
                         Text(env)
                             .font(.caption.monospaced())
@@ -200,18 +200,18 @@ struct ContainerDetailView: View {
                     Button(role: .destructive) {
                         confirmKill = true
                     } label: {
-                        Label("强制停止", systemImage: "bolt.fill")
+                        Label(L10n.t("Force stop"), systemImage: "bolt.fill")
                     }
                 }
                 Button(role: .destructive) {
                     confirmRemove = true
                 } label: {
-                    Label("删除容器", systemImage: "trash")
+                    Label(L10n.t("Remove Container"), systemImage: "trash")
                 }
             } header: {
-                Text("危险操作")
+                Text(L10n.t("Dangerous action"))
             } footer: {
-                Text("强制停止相当于 docker kill，删除会移除容器及其可写层，均不可撤销。")
+                Text(L10n.t("Force stop equals docker kill; remove deletes the container and its writable layer. Neither can be undone."))
             }
         }
         .navigationTitle(container.name)
@@ -238,9 +238,9 @@ struct ContainerDetailView: View {
                 .interactiveDismissDisabled(true)
                 .onDisappear { session.closeForContainer() }
         }
-        .alert("强制停止容器", isPresented: $confirmKill) {
-            Button("取消", role: .cancel) {}
-            Button("强制停止", role: .destructive) {
+        .alert("Force stop container", isPresented: $confirmKill) {
+            Button(L10n.t("Cancel"), role: .cancel) {}
+            Button(L10n.t("Force stop"), role: .destructive) {
                 Task {
                     _ = await model.service.killContainer(container.id)
                     await model.refresh()
@@ -248,11 +248,11 @@ struct ContainerDetailView: View {
                 }
             }
         } message: {
-            Text("将立即终止容器内所有进程（docker kill），未保存的数据可能丢失。")
+            Text(L10n.t("Immediately terminates all processes in the container (docker kill); unsaved data may be lost."))
         }
-        .alert("删除容器", isPresented: $confirmRemove) {
-            Button("取消", role: .cancel) {}
-            Button("删除", role: .destructive) {
+        .alert("Remove Container", isPresented: $confirmRemove) {
+            Button(L10n.t("Cancel"), role: .cancel) {}
+            Button(L10n.t("Delete"), role: .destructive) {
                 Task {
                     _ = await model.service.removeContainer(container.id)
                     await model.refresh()
@@ -260,7 +260,7 @@ struct ContainerDetailView: View {
                 }
             }
         } message: {
-            Text("确定删除容器「\(container.name)」吗？此操作不可撤销。")
+            Text("Remove container \"\(container.name)\"? This cannot be undone.")
         }
         .overlay {
             if acting {
@@ -288,28 +288,28 @@ struct ContainerDetailView: View {
         switch container.state {
         case .running:
             return [
-                StatusAction(title: "停止", systemImage: "stop.fill", color: .orange) {
+                StatusAction(title: "Stop", systemImage: "stop.fill", color: .orange) {
                     await service.stopContainer(id)
                 },
-                StatusAction(title: "暂停", systemImage: "pause.fill", color: .yellow) {
+                StatusAction(title: "Pause", systemImage: "pause.fill", color: .yellow) {
                     await service.pauseContainer(id)
                 },
-                StatusAction(title: "重启", systemImage: "arrow.clockwise", color: .blue) {
+                StatusAction(title: "Restart", systemImage: "arrow.clockwise", color: .blue) {
                     await service.restartContainer(id)
                 },
             ]
         case .paused:
             return [
-                StatusAction(title: "恢复", systemImage: "play.fill", color: .green) {
+                StatusAction(title: "Resume", systemImage: "play.fill", color: .green) {
                     await service.unpauseContainer(id)
                 },
-                StatusAction(title: "重启", systemImage: "arrow.clockwise", color: .blue) {
+                StatusAction(title: "Restart", systemImage: "arrow.clockwise", color: .blue) {
                     await service.restartContainer(id)
                 },
             ]
         case .stopped:
             return [
-                StatusAction(title: "启动", systemImage: "play.fill", color: .green) {
+                StatusAction(title: "Start", systemImage: "play.fill", color: .green) {
                     await service.startContainer(id)
                 },
             ]

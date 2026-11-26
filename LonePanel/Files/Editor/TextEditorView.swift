@@ -23,7 +23,7 @@ struct TextEditorView: View {
                 if isLoading {
                     VStack(spacing: 12) {
                         ProgressView()
-                        Text("正在读取文件…")
+                        Text(L10n.t("Reading file…"))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -36,7 +36,7 @@ struct TextEditorView: View {
                             ToolbarItem(placement: .keyboard) {
                                 HStack {
                                     Spacer()
-                                    Button("完成") { editorFocused = false }
+                                    Button(L10n.t("Done")) { editorFocused = false }
                                 }
                             }
                         }
@@ -46,10 +46,10 @@ struct TextEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
+                    Button(L10n.t("Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("存储") { Task { await save() } }
+                    Button(L10n.t("Save")) { Task { await save() } }
                         .disabled(isLoading || isSaving || !hasChanges)
                 }
             }

@@ -124,20 +124,20 @@ enum SFTPError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notConnected:
-            return "尚未连接到服务器，请稍候重试"
+            return "Not connected to server yet. Retry shortly."
         case .malformed(let text):
-            return "服务器返回的数据无法解析（\(text)）"
+            return "Server returned unparseable data (\(text))"
         case .status(let code, let message):
             if message.isEmpty {
                 switch code {
-                case 1: return "没有更多内容了"
-                case 2: return "文件或目录不存在"
-                case 3: return "没有权限访问该位置"
-                case 4: return "服务器拒绝了这次操作"
-                default: return "SFTP 操作失败（代码 \(code)）"
+                case 1: return "No more content"
+                case 2: return "File or directory does not exist"
+                case 3: return "No permission to access this location"
+                case 4: return "Server refused this operation"
+                default: return "SFTP operation failed (code \(code))"
                 }
             }
-            return "SFTP 操作失败：\(message)"
+            return "SFTP operation failed: \(message)"
         }
     }
 }
@@ -167,13 +167,13 @@ enum SFTPWire {
     }
 
     static func uint32(_ bytes: [UInt8], at offset: Int) throws -> UInt32 {
-        guard offset >= 0, offset + 4 <= bytes.count else { throw SFTPError.malformed("数据过短") }
+        guard offset >= 0, offset + 4 <= bytes.count else { throw SFTPError.malformed("Data too short") }
         return (UInt32(bytes[offset]) << 24) | (UInt32(bytes[offset + 1]) << 16) |
                (UInt32(bytes[offset + 2]) << 8) | UInt32(bytes[offset + 3])
     }
 
     static func uint64(_ bytes: [UInt8], at offset: Int) throws -> UInt64 {
-        guard offset >= 0, offset + 8 <= bytes.count else { throw SFTPError.malformed("数据过短") }
+        guard offset >= 0, offset + 8 <= bytes.count else { throw SFTPError.malformed("Data too short") }
         var value: UInt64 = 0
         for index in offset..<(offset + 8) { value = (value << 8) | UInt64(bytes[index]) }
         return value
@@ -226,7 +226,7 @@ struct PayloadReader {
 
     mutating func data() throws -> [UInt8] {
         let length = Int(try uint32())
-        guard length >= 0, offset + length <= bytes.count else { throw SFTPError.malformed("长度越界") }
+        guard length >= 0, offset + length <= bytes.count else { throw SFTPError.malformed("Length out of range") }
         let value = Array(bytes[offset..<(offset + length)])
         offset += length
         return value

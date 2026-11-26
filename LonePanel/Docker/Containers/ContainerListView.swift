@@ -22,10 +22,10 @@ struct ContainerListView: View {
             .background(Color(.systemGroupedBackground))
 
             if model.isLoading && model.containers.isEmpty {
-                ProgressView("正在读取容器…")
+                ProgressView("Loading containers…")
             }
         }
-        .searchable(text: $model.searchText, prompt: "搜索容器名或镜像")
+        .searchable(text: $model.searchText, prompt: "Search container name or image")
         // 与文件模块统一：未聚焦时收缩为放大镜按钮，点击展开搜索框，工具栏保持干净。
         .searchToolbarBehavior(.minimize)
         .refreshable { await model.refresh() }
@@ -37,12 +37,12 @@ struct ContainerListView: View {
         .sheet(item: $logsContainer) { container in
             ContainerLogsView(containerID: container.id, containerName: container.name)
         }
-        .alert("强制停止容器", isPresented: Binding(
+        .alert("Force stop container", isPresented: Binding(
             get: { confirmKill != nil },
             set: { if !$0 { confirmKill = nil } }
         )) {
-            Button("取消", role: .cancel) { confirmKill = nil }
-            Button("强制停止", role: .destructive) {
+            Button(L10n.t("Cancel"), role: .cancel) { confirmKill = nil }
+            Button(L10n.t("Force stop"), role: .destructive) {
                 if let container = confirmKill {
                     Task {
                         _ = await model.service.killContainer(container.id)
@@ -52,14 +52,14 @@ struct ContainerListView: View {
                 }
             }
         } message: {
-            Text("强制停止「\(confirmKill?.name ?? "")」相当于 docker kill，容器内进程会立即被终止，未保存的数据可能丢失。仅在容器无响应时使用。")
+            Text("Force stopping \"\(confirmKill?.name ?? "")\" equals docker kill. Processes are terminated immediately and unsaved data may be lost. Use only if the container is unresponsive.")
         }
-        .alert("删除容器", isPresented: Binding(
+        .alert("Remove Container", isPresented: Binding(
             get: { confirmRemove != nil },
             set: { if !$0 { confirmRemove = nil } }
         )) {
-            Button("取消", role: .cancel) { confirmRemove = nil }
-            Button("删除", role: .destructive) {
+            Button(L10n.t("Cancel"), role: .cancel) { confirmRemove = nil }
+            Button(L10n.t("Delete"), role: .destructive) {
                 if let container = confirmRemove {
                     Task {
                         _ = await model.service.removeContainer(container.id)
@@ -69,7 +69,7 @@ struct ContainerListView: View {
                 }
             }
         } message: {
-            Text("确定删除容器「\(confirmRemove?.name ?? "")」吗？此操作不可撤销。")
+            Text("Remove container \"\(confirmRemove?.name ?? "")\"? This cannot be undone.")
         }
     }
 
@@ -129,9 +129,9 @@ struct ContainerListView: View {
     /// 这是工具类 App「打开即看全貌」的核心——同类监控 App（ServerBox / Beszel）共识。
     private var overviewBar: some View {
         HStack(spacing: 10) {
-            overviewCell(count: model.count(for: .running), title: "运行中", color: .green, filter: .running)
-            overviewCell(count: model.count(for: .paused), title: "暂停中", color: .orange, filter: .paused)
-            overviewCell(count: model.count(for: .stopped), title: "已停止", color: .gray, filter: .stopped)
+            overviewCell(count: model.count(for: .running), title: "Running", color: .green, filter: .running)
+            overviewCell(count: model.count(for: .paused), title: "Paused", color: .orange, filter: .paused)
+            overviewCell(count: model.count(for: .stopped), title: "Stopped", color: .gray, filter: .stopped)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -174,10 +174,10 @@ struct ContainerListView: View {
                 .font(.largeTitle)
                 .foregroundStyle(.tertiary)
             if model.searchText.isEmpty {
-                Text("没有容器")
+                Text(L10n.t("No containers"))
                     .foregroundStyle(.secondary)
             } else {
-                Text("没有匹配的容器")
+                Text(L10n.t("No matching containers"))
                     .foregroundStyle(.secondary)
             }
         }
@@ -195,24 +195,24 @@ struct ContainerListView: View {
                         Button {
                             Task { _ = await model.service.startContainer(container.id); await model.refresh() }
                             moreContainer = nil
-                        } label: { Label("启动", systemImage: "play.fill") }
+                        } label: { Label(L10n.t("Start"), systemImage: "play.fill") }
                     }
                     if container.state == .running {
                         Button {
                             Task { _ = await model.service.stopContainer(container.id); await model.refresh() }
                             moreContainer = nil
-                        } label: { Label("停止", systemImage: "pause.fill") }
+                        } label: { Label(L10n.t("Stop"), systemImage: "pause.fill") }
                     }
                     if container.state == .paused {
                         Button {
                             Task { _ = await model.service.unpauseContainer(container.id); await model.refresh() }
                             moreContainer = nil
-                        } label: { Label("恢复", systemImage: "play.fill") }
+                        } label: { Label(L10n.t("Resume"), systemImage: "play.fill") }
                     }
                     Button {
                         Task { _ = await model.service.restartContainer(container.id); await model.refresh() }
                         moreContainer = nil
-                    } label: { Label("重启", systemImage: "arrow.clockwise") }
+                    } label: { Label(L10n.t("Restart"), systemImage: "arrow.clockwise") }
                     .disabled(container.state == .stopped)
                 }
 
@@ -220,12 +220,12 @@ struct ContainerListView: View {
                     Button {
                         moreContainer = nil
                         logsContainer = container
-                    } label: { Label("查看日志", systemImage: "doc.text.magnifyingglass") }
+                    } label: { Label(L10n.t("View logs"), systemImage: "doc.text.magnifyingglass") }
                     if container.state == .running {
                         Button {
                             moreContainer = nil
                             confirmKill = container
-                        } label: { Label("强制停止", systemImage: "bolt.fill") }
+                        } label: { Label(L10n.t("Force stop"), systemImage: "bolt.fill") }
                     }
                 }
 
@@ -233,14 +233,14 @@ struct ContainerListView: View {
                     Button(role: .destructive) {
                         moreContainer = nil
                         confirmRemove = container
-                    } label: { Label("删除容器", systemImage: "trash") }
+                    } label: { Label(L10n.t("Remove Container"), systemImage: "trash") }
                 }
             }
             .navigationTitle(container.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成") { moreContainer = nil }
+                    Button(L10n.t("Done")) { moreContainer = nil }
                 }
             }
         }
@@ -274,7 +274,7 @@ struct ContainerListView: View {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Button("重新检测") {
+                Button(L10n.t("Check Again")) {
                     Task { await model.recheck() }
                 }
                 .font(.caption)
@@ -286,9 +286,9 @@ struct ContainerListView: View {
 
     private func availabilityTitle(_ availability: DockerAvailability) -> String {
         switch availability {
-        case .notInstalled: return "未检测到 Docker"
-        case .permissionDenied: return "无权访问 Docker"
-        case .failed: return "检测失败"
+        case .notInstalled: return "Docker Not Found"
+        case .permissionDenied: return "Docker Access Denied"
+        case .failed: return "Detection Failed"
         case .available: return ""
         }
     }
@@ -296,9 +296,9 @@ struct ContainerListView: View {
     private func availabilityMessage(_ availability: DockerAvailability) -> String {
         switch availability {
         case .notInstalled:
-            return "服务器上未找到 docker 命令。LonePanel 通过 SSH 调用原生 docker 命令，无需在服务端安装任何面板，但服务器本身需要安装 Docker。"
+            return "The docker command was not found on the server. LonePanel calls native docker commands over SSH with no server-side panel required, but Docker itself must be installed."
         case .permissionDenied:
-            return "当前用户无权访问 Docker socket。请把用户加入 docker 组（sudo usermod -aG docker $USER 后重新登录），或在设置中检查执行权限。"
+            return "The current user cannot access the Docker socket. Add the user to the docker group (sudo usermod -aG docker $USER, then re-login) or check execution permissions in Settings."
         case .failed(let message):
             return message
         case .available:

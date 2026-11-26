@@ -173,7 +173,7 @@ private struct TerminalHostView: UIViewRepresentable {
 struct TerminalView: View {
     var presentation: TerminalPresentation = .sheet
     /// 导航栏标题：系统终端为「SSH 终端」，容器终端传容器名。
-    var title: String = "SSH 终端"
+    var title: String = "SSH Terminal"
 
     @ObservedObject private var session: TerminalSession
     @StateObject private var keyState = TerminalKeyState()
@@ -188,7 +188,7 @@ struct TerminalView: View {
 
     /// 默认仍用系统终端单例——ContentView / SettingsView 的现有调用不受影响。
     /// Docker 容器终端注入独立 exec 会话 + 容器名标题。
-    init(session: TerminalSession = .shared, presentation: TerminalPresentation = .sheet, title: String = "SSH 终端") {
+    init(session: TerminalSession = .shared, presentation: TerminalPresentation = .sheet, title: String = "SSH Terminal") {
         self._session = ObservedObject(wrappedValue: session)
         self.presentation = presentation
         self.title = title
@@ -235,8 +235,8 @@ struct TerminalView: View {
                     .font(.system(size: 16, weight: .semibold, design: .serif))
                     .foregroundStyle(showFontPanel ? TerminalTheme.lockBlue : Color.primary)
             }
-            .help("字号设置")
-            .accessibilityLabel(showFontPanel ? "收起字号设置" : "字号设置")
+            .help(L10n.t("Font Size"))
+            .accessibilityLabel(showFontPanel ? "Hide Font Size" : "Font Size")
         }
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 14) {
@@ -248,8 +248,8 @@ struct TerminalView: View {
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .help("重新连接")
-                .accessibilityLabel("重新连接")
+                .help(L10n.t("Reconnect"))
+                .accessibilityLabel(L10n.t("Reconnect"))
                 .disabled(session.isConnecting)
 
                 switch presentation {
@@ -258,7 +258,7 @@ struct TerminalView: View {
                         Image(systemName: "chevron.down")
                             .font(.system(size: 16, weight: .semibold))
                     }
-                    .accessibilityLabel("收起终端")
+                    .accessibilityLabel(L10n.t("Collapse Terminal"))
                 case .pushed:
                     // 全形态唯一的区别：入口态（仅终端模块全屏）才显示设置齿轮——
                     // 它是用户进设置把其它模块开回来的唯一通道；设置页 push 的终端无注入，自动隐藏。
@@ -285,7 +285,7 @@ struct TerminalView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay {
             if session.isConnecting && !session.isReady {
-                ProgressView("正在连接…")
+                ProgressView("Connecting…")
                     .padding()
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
             } else if let error = session.errorMessage, !session.isReady {
@@ -297,7 +297,7 @@ struct TerminalView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                    Button("重试") { Task { await session.activateForUser() } }
+                    Button(L10n.t("Retry")) { Task { await session.activateForUser() } }
                         .buttonStyle(.borderedProminent)
                 }
                 .padding()
@@ -335,7 +335,7 @@ struct TerminalView: View {
     /// 内联展开的字号滑块条：一行「字号 [滑块] Npt」，宽 300pt，磨砂背景。
     private var fontPanel: some View {
         HStack(spacing: 10) {
-            Text("字号")
+            Text(L10n.t("Font Size"))
                 .font(.system(size: 14, weight: .medium))
             Slider(value: $fontSize, in: 12...18, step: 1)
                 .tint(TerminalTheme.lockBlue)
@@ -408,7 +408,7 @@ struct TerminalView: View {
                 )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(keyState.ctrlLocked ? "关闭 Ctrl 锁定" : "开启 Ctrl 锁定")
+        .accessibilityLabel(keyState.ctrlLocked ? "Turn off Ctrl lock" : "Turn on Ctrl lock")
     }
 
     private func controlKey(_ title: String, bytes: [UInt8]) -> some View {
@@ -469,7 +469,7 @@ struct TerminalView: View {
                 )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(keyboardShown ? "收起键盘" : "展开键盘")
+        .accessibilityLabel(keyboardShown ? "Hide Keyboard" : "Show Keyboard")
     }
 
     private func haptic() {

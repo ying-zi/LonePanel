@@ -5,8 +5,8 @@ import SwiftUI
 /// 数据浏览 / 查询复用同一套底层命令，只是连接来源不同。
 struct DatabaseView: View {
     enum Source: String, CaseIterable {
-        case local = "本地数据库"
-        case remote = "远程数据库"
+        case local = "Local databases"
+        case remote = "Remote databases"
     }
 
     @State private var source: Source = .local
@@ -22,12 +22,12 @@ struct DatabaseView: View {
                     RemoteDatabaseListView(store: store)
                 }
             }
-            .navigationTitle("数据库")
+            .navigationTitle(L10n.t("Database"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // 与 Docker 首页一致：标题位的分段切换。
                 ToolbarItem(placement: .principal) {
-                    Picker("数据库来源", selection: $source) {
+                    Picker("Database source", selection: $source) {
                         ForEach(Source.allCases, id: \.self) { item in
                             Text(item.rawValue).tag(item)
                         }
@@ -57,17 +57,17 @@ struct LocalDatabaseListView: View {
                 if isDiscovering {
                     HStack {
                         ProgressView()
-                        Text("正在发现容器数据库...").foregroundStyle(.secondary)
+                        Text(L10n.t("Discovering container databases...")).foregroundStyle(.secondary)
                     }
                 } else if let discoverError {
                     Label(discoverError, systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange).font(.caption)
-                    Button("重试") { Task { await discover() } }
+                    Button(L10n.t("Retry")) { Task { await discover() } }
                 } else if instances.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("未发现数据库容器")
+                        Text(L10n.t("No database containers found"))
                             .font(.subheadline.weight(.semibold))
-                        Text("在服务器上用 Docker 运行 MySQL / MariaDB / PostgreSQL / MongoDB / Redis 后，这里会自动列出并直接管理容器内的数据库。")
+                        Text(L10n.t("After running MySQL / MariaDB / PostgreSQL / MongoDB / Redis in Docker on the server, they are listed here for direct management."))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
@@ -82,12 +82,12 @@ struct LocalDatabaseListView: View {
                 }
             } header: {
                 HStack {
-                    Text("容器数据库")
+                    Text(L10n.t("Container databases"))
                     Spacer()
                     Text("\(instances.count)").foregroundStyle(.secondary)
                 }
             } footer: {
-                Text("命令直接在容器内执行，无需端口映射；凭据从容器环境变量读取。")
+                Text(L10n.t("Commands run directly inside the container with no port mapping; credentials are read from container environment variables."))
             }
         }
         .toolbar {
@@ -96,7 +96,7 @@ struct LocalDatabaseListView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .disabled(isDiscovering)
-                .help("重新发现容器数据库")
+                .help(L10n.t("Rediscover container databases"))
             }
         }
         .refreshable { await discover() }
@@ -127,9 +127,9 @@ struct RemoteDatabaseListView: View {
             Section {
                 if store.connections.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("尚未添加远程数据库")
+                        Text(L10n.t("No remote database added yet"))
                             .font(.subheadline.weight(.semibold))
-                        Text("远程数据库用于连接服务器之外的实例，作为本地容器数据库的补充能力。")
+                        Text(L10n.t("Remote databases connect to instances outside the server, complementing local container databases."))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
@@ -144,7 +144,7 @@ struct RemoteDatabaseListView: View {
                             Button(role: .destructive) {
                                 withAnimation { store.delete(conn) }
                             } label: {
-                                Label("删除", systemImage: "trash")
+                                Label(L10n.t("Delete"), systemImage: "trash")
                             }
                         }
                     }
@@ -152,16 +152,16 @@ struct RemoteDatabaseListView: View {
                 Button {
                     showEditor = true
                 } label: {
-                    Label("添加远程数据库", systemImage: "plus.circle")
+                    Label(L10n.t("Add remote database"), systemImage: "plus.circle")
                 }
             } header: {
                 HStack {
-                    Text("远程数据库连接")
+                    Text(L10n.t("Remote database connection"))
                     Spacer()
                     Text("\(store.connections.count)").foregroundStyle(.secondary)
                 }
             } footer: {
-                Text("配置存在本机、口令存钥匙串；所有命令仍通过当前 SSH 服务器执行。")
+                Text(L10n.t("Configuration is stored locally and passwords in Keychain; all commands still run through the current SSH server."))
             }
         }
         .sheet(isPresented: $showEditor) {
@@ -205,26 +205,26 @@ private struct ContainerDatabaseDetailView: View {
 
     var body: some View {
         List {
-            Section("容器信息") {
-                LabeledContent("名称", value: instance.name)
-                LabeledContent("类型", value: instance.kind.title)
-                LabeledContent("镜像", value: instance.imageName ?? "—")
-                LabeledContent("容器 ID", value: instance.containerID.map { String($0.prefix(12)) } ?? "—")
-                LabeledContent("状态", value: instance.statusText ?? "—")
+            Section(L10n.t("Container info")) {
+                LabeledContent("Name", value: instance.name)
+                LabeledContent("Type", value: instance.kind.title)
+                LabeledContent("Image", value: instance.imageName ?? "—")
+                LabeledContent("Container ID", value: instance.containerID.map { String($0.prefix(12)) } ?? "—")
+                LabeledContent("Status", value: instance.statusText ?? "—")
             }
 
             Section {
-                LabeledContent("执行方式", value: "容器内执行")
-                LabeledContent("用户名", value: instance.username.isEmpty ? "（无认证）" : instance.username)
+                LabeledContent("Execution mode", value: "Run inside container")
+                LabeledContent("Username", value: instance.username.isEmpty ? "(No authentication)" : instance.username)
                 LabeledContent {
-                    Text(instance.database.isEmpty ? "（自动）" : instance.database)
+                    Text(instance.database.isEmpty ? "(Automatic)" : instance.database)
                 } label: {
-                    Text(instance.kind == .redis ? "db 索引" : "默认库")
+                    Text(instance.kind == .redis ? "DB index" : "Default database")
                 }
             } header: {
-                Text("连接信息")
+                Text(L10n.t("Connection info"))
             } footer: {
-                Text("命令直接在容器内运行，凭据从容器环境变量读取，不写入本机配置。")
+                Text(L10n.t("Commands run inside the container; credentials are read from environment variables and never written to local config."))
             }
 
             // 实例级管理：改管理员密码 + 用户管理（对标 1Panel 数据库管理）。
@@ -236,10 +236,10 @@ private struct ContainerDatabaseDetailView: View {
                 DatabaseListSection(conn: instance)
             } else {
                 Section {
-                    Label("容器未运行，无法读取数据库", systemImage: "exclamationmark.triangle")
+                    Label(L10n.t("Container is not running; cannot read databases"), systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                 } footer: {
-                    Text("请先在 Docker 模块启动该容器，再回来管理数据库。")
+                    Text(L10n.t("Start this container in the Docker module first, then manage its databases."))
                 }
             }
 
@@ -247,7 +247,7 @@ private struct ContainerDatabaseDetailView: View {
                 NavigationLink {
                     DatabaseBrowserView(store: store, fixedConnection: instance)
                 } label: {
-                    Label("数据浏览与执行 SQL", systemImage: "tablecells")
+                    Label(L10n.t("Browse data and run SQL"), systemImage: "tablecells")
                 }
                 .disabled(!instance.isRunning)
             }
@@ -269,15 +269,15 @@ private struct InstanceAdminSection: View {
             NavigationLink {
                 UserManagementView(conn: conn)
             } label: {
-                Label("用户管理", systemImage: "person.2")
+                Label(L10n.t("User management"), systemImage: "person.2")
             }
             Button { showPassword = true } label: {
-                Label(conn.kind == .redis ? "重置 requirepass" : "重置管理员密码", systemImage: "key")
+                Label(conn.kind == .redis ? "Reset requirepass" : "Reset admin password", systemImage: "key")
             }
         } header: {
-            Label("实例管理", systemImage: "wrench.and.screwdriver")
+            Label(L10n.t("Instance management"), systemImage: "wrench.and.screwdriver")
         } footer: {
-            Text("改密后会同步更新本地凭据，重新发现容器 / 下次连接仍使用新密码。用户管理支持查看、新建、改密与删除。")
+            Text(L10n.t("After changing the password, local credentials are updated; rediscovery and future connections use the new password. User management supports viewing, creating, changing passwords and deleting."))
         }
         .sheet(isPresented: $showPassword) {
             AdminPasswordView(conn: conn)
@@ -301,37 +301,37 @@ private struct AdminPasswordView: View {
         NavigationStack {
             Form {
                 Section {
-                    SecureField("新密码", text: $password)
-                    SecureField("确认新密码", text: $confirm)
+                    SecureField("New password", text: $password)
+                    SecureField("Confirm new password", text: $confirm)
                     if mismatch {
-                        Label("两次输入不一致", systemImage: "exclamationmark.triangle.fill")
+                        Label(L10n.t("Passwords do not match"), systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange).font(.caption)
                     }
                 } header: {
-                    Text("管理员口令")
+                    Text(L10n.t("Admin password"))
                 } footer: {
                     Text(conn.kind == .redis
-                         ? "将执行 CONFIG SET requirepass，并尝试 CONFIG REWRITE 持久化。"
-                         : "将修改 \(adminLabel) 的登录口令，执行范围取决于该实例的实际账号。")
+                         ? "Runs CONFIG SET requirepass and attempts CONFIG REWRITE to persist it."
+                         : "This will change the login password for \(adminLabel); the actual scope depends on the instance account.")
                 }
                 if let error {
                     Section { Label(error, systemImage: "xmark.circle.fill").foregroundStyle(.red).font(.caption) }
                 }
             }
-            .navigationTitle("重置密码")
+            .navigationTitle(L10n.t("Reset password"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) { Button(L10n.t("Cancel")) { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("保存") { Task { await submit() } }
+                    Button(L10n.t("Save")) { Task { await submit() } }
                         .fontWeight(.semibold)
                         .disabled(isRunning || password.isEmpty || mismatch)
                 }
             }
-            .alert("密码已更新", isPresented: $success) {
-                Button("好", role: .cancel) { dismiss() }
+            .alert("Password updated", isPresented: $success) {
+                Button(L10n.t("OK"), role: .cancel) { dismiss() }
             } message: {
-                Text("本地凭据已同步，后续连接将使用新密码。")
+                Text(L10n.t("Local credentials synced; future connections will use the new password."))
             }
         }
         .presentationDetents([.medium])
@@ -348,7 +348,7 @@ private struct AdminPasswordView: View {
 
     private func submit() async {
         guard password == confirm else {
-            error = "两次输入不一致"; return
+            error = "Passwords do not match"; return
         }
         isRunning = true; error = nil
         let result = await DatabaseService.shared.resetAdminPassword(conn, newPassword: password)
@@ -377,13 +377,13 @@ private struct UserManagementView: View {
         List {
             Section {
                 if isLoading {
-                    HStack { ProgressView(); Text("正在读取用户...").foregroundStyle(.secondary) }
+                    HStack { ProgressView(); Text(L10n.t("Loading users...")).foregroundStyle(.secondary) }
                 } else if let error {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange).font(.caption)
-                    Button("重试") { Task { await load() } }
+                    Button(L10n.t("Retry")) { Task { await load() } }
                 } else if users.isEmpty {
-                    Text("未读取到用户（该实例可能未启用用户认证）").foregroundStyle(.secondary)
+                    Text(L10n.t("No users found (this instance may not use user authentication)")).foregroundStyle(.secondary)
                 } else {
                     ForEach(users) { user in
                         HStack {
@@ -399,32 +399,32 @@ private struct UserManagementView: View {
                             Button {
                                 editingPassword = user
                             } label: {
-                                Label("改密", systemImage: "key")
+                                Label(L10n.t("Change password"), systemImage: "key")
                             }
                             .tint(.indigo)
                             Button(role: .destructive) { deleting = user } label: {
-                                Label("删除", systemImage: "trash")
+                                Label(L10n.t("Delete"), systemImage: "trash")
                             }
                         }
                     }
                 }
             } header: {
                 HStack {
-                    Label("用户", systemImage: "person.2")
+                    Label(L10n.t("User"), systemImage: "person.2")
                     Spacer()
                     Button { Task { await load() } } label: { Image(systemName: "arrow.clockwise") }
                 }
             } footer: {
                 Text(conn.kind == .redis
-                     ? "Redis 6+ 使用 ACL 用户；老版本仅支持 requirepass，请在重置密码中修改。"
-                     : "左滑用户可修改密码或删除；管理员账号请勿随意删除。")
+                     ? "Redis 6+ uses ACL users; older versions only support requirepass-change it in Reset Password."
+                     : "Swipe a user to change password or delete. Do not delete admin accounts casually.")
             }
 
             Section {
-                Button { showCreate = true } label: { Label("新建用户", systemImage: "person.badge.plus") }
+                Button { showCreate = true } label: { Label(L10n.t("New user"), systemImage: "person.badge.plus") }
             }
         }
-        .navigationTitle("用户管理")
+        .navigationTitle(L10n.t("User management"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .sheet(isPresented: $showCreate) {
@@ -437,19 +437,19 @@ private struct UserManagementView: View {
                 present(message)
             }
         }
-        .alert("删除用户", isPresented: Binding(
+        .alert("Delete user", isPresented: Binding(
             get: { deleting != nil },
             set: { if !$0 { deleting = nil } }
         )) {
-            Button("取消", role: .cancel) { deleting = nil }
-            Button("删除", role: .destructive) {
+            Button(L10n.t("Cancel"), role: .cancel) { deleting = nil }
+            Button(L10n.t("Delete"), role: .destructive) {
                 if let user = deleting { Task { await remove(user) } }
             }
         } message: {
-            Text("确定删除用户「\(deleting?.name ?? "")」？此操作不可撤销。")
+            Text("Delete user \"\(deleting?.name ?? "")\"? This cannot be undone.")
         }
-        .alert("操作结果", isPresented: $showToast) {
-            Button("好", role: .cancel) {}
+        .alert("Operation result", isPresented: $showToast) {
+            Button(L10n.t("OK"), role: .cancel) {}
         } message: {
             Text(toast ?? "")
         }
@@ -493,31 +493,31 @@ private struct UserEditorView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("用户名", text: $username)
+                    TextField("Username", text: $username)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    SecureField("密码", text: $password)
-                } header: { Text("账号") }
+                    SecureField("Password", text: $password)
+                } header: { Text(L10n.t("Account")) }
                 Section {
-                    Toggle("管理员权限", isOn: $isAdmin)
+                    Toggle("Admin privileges", isOn: $isAdmin)
                     if !isAdmin {
-                        TextField("授权数据库（留空为仅建账号）", text: $database)
+                        TextField("Authorized database (leave empty to create account only)", text: $database)
                             .textInputAutocapitalization(.never).autocorrectionDisabled()
                     }
-                } header: { Text("权限") } footer: {
+                } header: { Text(L10n.t("Permissions")) } footer: {
                     Text(conn.kind == .redis
-                         ? "新建 ACL 用户并授予全部 key 与命令权限。"
-                         : "管理员拥有全部权限；普通用户可限定到某个库。")
+                         ? "Create an ACL user with full key and command permissions."
+                         : "Admin has full privileges; regular users can be limited to a database.")
                 }
                 if let error {
                     Section { Label(error, systemImage: "xmark.circle.fill").foregroundStyle(.red).font(.caption) }
                 }
             }
-            .navigationTitle("新建用户")
+            .navigationTitle(L10n.t("New user"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) { Button(L10n.t("Cancel")) { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("创建") { Task { await submit() } }
+                    Button(L10n.t("Create")) { Task { await submit() } }
                         .fontWeight(.semibold)
                         .disabled(isRunning || username.isEmpty || password.isEmpty)
                 }
@@ -559,11 +559,11 @@ private struct UserPasswordView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("用户：\(user.name)").foregroundStyle(.secondary)
-                    SecureField("新密码", text: $password)
-                    SecureField("确认新密码", text: $confirm)
+                    Text("User: \(user.name)").foregroundStyle(.secondary)
+                    SecureField("New password", text: $password)
+                    SecureField("Confirm new password", text: $confirm)
                     if mismatch {
-                        Label("两次输入不一致", systemImage: "exclamationmark.triangle.fill")
+                        Label(L10n.t("Passwords do not match"), systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange).font(.caption)
                     }
                 }
@@ -571,12 +571,12 @@ private struct UserPasswordView: View {
                     Section { Label(error, systemImage: "xmark.circle.fill").foregroundStyle(.red).font(.caption) }
                 }
             }
-            .navigationTitle("修改密码")
+            .navigationTitle(L10n.t("Change password"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) { Button(L10n.t("Cancel")) { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("保存") { Task { await submit() } }
+                    Button(L10n.t("Save")) { Task { await submit() } }
                         .fontWeight(.semibold)
                         .disabled(isRunning || password.isEmpty || mismatch)
                 }
@@ -586,7 +586,7 @@ private struct UserPasswordView: View {
     }
 
     private func submit() async {
-        guard password == confirm else { error = "两次输入不一致"; return }
+        guard password == confirm else { error = "Passwords do not match"; return }
         isRunning = true; error = nil
         let result = await DatabaseService.shared.changeUserPassword(conn, rawName: user.name, newPassword: password)
         isRunning = false
@@ -622,14 +622,14 @@ private struct DatabaseListSection: View {
             if isLoading {
                 HStack {
                     ProgressView()
-                    Text("正在读取数据库...").foregroundStyle(.secondary)
+                    Text(L10n.t("Loading databases...")).foregroundStyle(.secondary)
                 }
             } else if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange).font(.caption)
-                Button("重试") { Task { await load() } }
+                Button(L10n.t("Retry")) { Task { await load() } }
             } else if databases.isEmpty {
-                Text("该实例下暂无可显示的数据库").foregroundStyle(.secondary)
+                Text(L10n.t("No databases to display for this instance")).foregroundStyle(.secondary)
             } else {
                 ForEach(databases) { db in
                     NavigationLink {
@@ -649,7 +649,7 @@ private struct DatabaseListSection: View {
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         if canDelete {
                             Button(role: .destructive) { deleting = db } label: {
-                                Label("删除", systemImage: "trash")
+                                Label(L10n.t("Delete"), systemImage: "trash")
                             }
                         }
                         if canRename {
@@ -657,7 +657,7 @@ private struct DatabaseListSection: View {
                                 renaming = db
                                 renameText = db.name
                             } label: {
-                                Label("重命名", systemImage: "pencil")
+                                Label(L10n.t("Rename"), systemImage: "pencil")
                             }
                             .tint(.indigo)
                         }
@@ -668,12 +668,12 @@ private struct DatabaseListSection: View {
                 Button {
                     showCreate = true
                 } label: {
-                    Label("添加数据库", systemImage: "plus.circle")
+                    Label(L10n.t("Add database"), systemImage: "plus.circle")
                 }
             }
         } header: {
             HStack {
-                Label(conn.kind == .redis ? "数据库索引 (db)" : "数据库", systemImage: "cylinder.split.1x2")
+                Label(conn.kind == .redis ? "Database index (db)" : "Database", systemImage: "cylinder.split.1x2")
                 Spacer()
                 if canCreate {
                     Button { Task { await load() } } label: {
@@ -683,9 +683,9 @@ private struct DatabaseListSection: View {
             }
         } footer: {
             if canCreate {
-                Text("添加数据库时会一并创建专属用户并授权该库；左滑可重命名或删除；点进可浏览表与数据。")
+                Text(L10n.t("Adding a database also creates a dedicated user granted access to it. Swipe to rename or delete; tap to browse tables and data."))
             } else {
-                Text("Redis 使用固定 db 索引，可点进索引浏览 / 清空 Key。")
+                Text(L10n.t("Redis uses fixed DB indexes; tap an index to browse / clear keys."))
             }
         }
         .task { await load() }
@@ -696,9 +696,9 @@ private struct DatabaseListSection: View {
             }
         }
         .sheet(item: $renaming) { db in
-            DatabaseNameEditor(title: "重命名数据库",
+            DatabaseNameEditor(title: "Rename database",
                                name: $renameText,
-                               confirmTitle: "保存",
+                               confirmTitle: "Save",
                                conn: conn) { name in
                 await DatabaseService.shared.renameDatabase(conn, from: db.name, to: name)
             } onDone: { message in
@@ -706,19 +706,19 @@ private struct DatabaseListSection: View {
                 await load()
             }
         }
-        .alert("删除数据库", isPresented: Binding(
+        .alert("Delete database", isPresented: Binding(
             get: { deleting != nil },
             set: { if !$0 { deleting = nil } }
         )) {
-            Button("取消", role: .cancel) { deleting = nil }
-            Button("删除", role: .destructive) {
+            Button(L10n.t("Cancel"), role: .cancel) { deleting = nil }
+            Button(L10n.t("Delete"), role: .destructive) {
                 if let db = deleting { Task { await remove(db) } }
             }
         } message: {
-            Text("确定删除数据库「\(deleting?.name ?? "")」？其中的表和数据会一并删除，此操作不可撤销。")
+            Text("Delete database \"\(deleting?.name ?? "")\"? Its tables and data will be deleted. This cannot be undone.")
         }
-        .alert("操作结果", isPresented: $showActionResult) {
-            Button("好", role: .cancel) {}
+        .alert("Operation result", isPresented: $showActionResult) {
+            Button(L10n.t("OK"), role: .cancel) {}
         } message: {
             Text(actionMessage ?? "")
         }
@@ -772,32 +772,32 @@ private struct DatabaseCreateView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("数据库名（字母、数字、下划线）", text: $database)
+                    TextField("Database name (letters, digits, underscore)", text: $database)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                 } header: {
-                    Text("数据库")
+                    Text(L10n.t("Database"))
                 } footer: {
-                    Text("仅支持字母、数字、下划线，长度不超过 64 字符。")
+                    Text(L10n.t("Only letters, digits and underscores, up to 64 characters."))
                 }
                 Section {
-                    TextField("用户名（留空则与库名相同）", text: $username)
+                    TextField("Username (leave empty to use the database name)", text: $username)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    SecureField("密码", text: $password)
+                    SecureField("Password", text: $password)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                 } header: {
-                    Text("专属用户")
+                    Text(L10n.t("Dedicated user"))
                 } footer: {
-                    Text("创建库的同时会建立这个账号，并只授权访问刚创建的库。密码仅下发给服务器，不保存在本机。")
+                    Text(L10n.t("This account is created with the database and granted access only to it. The password is sent to the server only and never stored locally."))
                 }
                 Section {
-                    Picker("权限范围", selection: $grantAll) {
-                        Text("仅此数据库（推荐）").tag(false)
-                        Text("全部库（管理员）").tag(true)
+                    Picker("Permission scope", selection: $grantAll) {
+                        Text(L10n.t("This database only (recommended)")).tag(false)
+                        Text(L10n.t("All databases (admin)")).tag(true)
                     }
                 } header: {
-                    Text("授权")
+                    Text(L10n.t("Grant"))
                 } footer: {
-                    Text("默认只授权当前库，符合最小权限原则；需要跨库管理时再选管理员。")
+                    Text(L10n.t("By default only the current database is granted, following least privilege. Choose admin for cross-database management."))
                 }
                 if let error {
                     Section {
@@ -805,12 +805,12 @@ private struct DatabaseCreateView: View {
                     }
                 }
             }
-            .navigationTitle("新建数据库")
+            .navigationTitle(L10n.t("New database"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) { Button(L10n.t("Cancel")) { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("创建") { Task { await submit() } }
+                    Button(L10n.t("Create")) { Task { await submit() } }
                         .fontWeight(.semibold)
                         .disabled(isRunning || !canSubmit)
                 }
@@ -857,12 +857,12 @@ private struct DatabaseNameEditor: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("数据库名（字母、数字、下划线）", text: $name)
+                    TextField("Database name (letters, digits, underscore)", text: $name)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                 } header: {
-                    Text("库名")
+                    Text(L10n.t("Database name"))
                 } footer: {
-                    Text("仅支持字母、数字、下划线，长度不超过 64 字符。\(conn.kind.title) 将在服务器端执行对应命令。")
+                    Text("Only letters, digits and underscores, up to 64 characters. \(conn.kind.title) will run the corresponding command on the server.")
                 }
                 if let error {
                     Section {
@@ -875,7 +875,7 @@ private struct DatabaseNameEditor: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
+                    Button(L10n.t("Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(confirmTitle) {
@@ -920,13 +920,13 @@ struct ConnectionListView: View {
                         Image(systemName: "cylinder.split.1x2")
                             .font(.system(size: 44))
                             .foregroundStyle(.tint)
-                        Text("还没有数据库连接")
+                        Text(L10n.t("No database connection yet"))
                             .font(.headline)
-                        Text("添加一条连接，即可在 App 里浏览库表、查询数据、执行 SQL。\n数据库客户端需已安装在服务器上。")
+                        Text(L10n.t("Add a connection to browse tables, query data and run SQL in the app.\nThe database client must be installed on the server."))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
-                        Button("添加连接") { showEditor = true }
+                        Button(L10n.t("Add connection")) { showEditor = true }
                             .buttonStyle(.borderedProminent)
                     }
                     .frame(maxWidth: .infinity)
@@ -944,21 +944,21 @@ struct ConnectionListView: View {
                             Button(role: .destructive) {
                                 withAnimation { store.delete(conn) }
                             } label: {
-                                Label("删除", systemImage: "trash")
+                                Label(L10n.t("Delete"), systemImage: "trash")
                             }
                             Button {
                                 editing = conn
                                 showEditor = true
                             } label: {
-                                Label("编辑", systemImage: "pencil")
+                                Label(L10n.t("Edit"), systemImage: "pencil")
                             }
                             .tint(.indigo)
                         }
                     }
                 } header: {
-                    Text("数据库连接")
+                    Text(L10n.t("Database connection"))
                 } footer: {
-                    Text("连接配置保存在本机，密码存系统钥匙串。所有命令通过当前 SSH 服务器执行。")
+                    Text(L10n.t("Connection config is stored locally and passwords in Keychain. All commands run through the current SSH server."))
                 }
             }
         }
@@ -970,7 +970,7 @@ struct ConnectionListView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
-                .help("添加连接")
+                .help(L10n.t("Add connection"))
             }
         }
         .sheet(isPresented: $showEditor) {
@@ -1017,47 +1017,47 @@ struct ConnectionDetailView: View {
 
     var body: some View {
         List {
-            Section("连接信息") {
-                LabeledContent("名称", value: conn.name)
-                LabeledContent("类型", value: conn.kind.title)
-                LabeledContent("主机", value: conn.endpoint)
-                LabeledContent("用户名", value: conn.username.isEmpty ? "（无）" : conn.username)
-                LabeledContent("默认库", value: conn.database.isEmpty ? "（无）" : conn.database)
+            Section(L10n.t("Connection info")) {
+                LabeledContent("Name", value: conn.name)
+                LabeledContent("Type", value: conn.kind.title)
+                LabeledContent("Host", value: conn.endpoint)
+                LabeledContent("Username", value: conn.username.isEmpty ? "(None)" : conn.username)
+                LabeledContent("Default database", value: conn.database.isEmpty ? "(None)" : conn.database)
             }
 
-            Section("客户端") {
+            Section(L10n.t("Client")) {
                 HStack(alignment: .top, spacing: 10) {
                     if isChecking {
                         ProgressView()
-                        Text("正在探测 \(conn.kind.clientCommand) ...")
+                        Text("Detecting \(conn.kind.clientCommand) ...")
                             .foregroundStyle(.secondary)
                     } else if let availability {
                         switch availability {
                         case .available(let version):
                             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("客户端可用").foregroundStyle(.green)
+                                Text(L10n.t("Client available")).foregroundStyle(.green)
                                 Text(version).font(.caption.monospaced()).foregroundStyle(.secondary)
                             }
                         case .clientMissing:
                             Image(systemName: "xmark.circle.fill").foregroundStyle(.orange)
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("未找到客户端").foregroundStyle(.orange)
-                                Text("服务器上未安装 \(conn.kind.clientCommand)。请先在服务器安装对应客户端。")
+                                Text(L10n.t("Client not found")).foregroundStyle(.orange)
+                                Text("\(conn.kind.clientCommand) is not installed on the server. Please install the client first.")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         case .failed(let message):
                             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("探测失败").foregroundStyle(.red)
+                                Text(L10n.t("Detection failed")).foregroundStyle(.red)
                                 Text(message).font(.caption).foregroundStyle(.secondary)
                             }
                         }
                     } else {
-                        Text("尚未探测").foregroundStyle(.secondary)
+                        Text(L10n.t("Not detected yet")).foregroundStyle(.secondary)
                     }
                 }
-                Button("重新探测") { Task { await check() } }
+                Button(L10n.t("Detect again")) { Task { await check() } }
                     .disabled(isChecking)
             }
 
@@ -1067,7 +1067,7 @@ struct ConnectionDetailView: View {
                 } label: {
                     HStack {
                         if isTesting { ProgressView() }
-                        Label("测试连接", systemImage: "bolt")
+                        Label(L10n.t("Test Connection"), systemImage: "bolt")
                     }
                 }
                 .disabled(isTesting)
@@ -1080,7 +1080,7 @@ struct ConnectionDetailView: View {
                     }
                 }
             } footer: {
-                Text("测试会通过 SSH 在服务器上执行一条轻量查询，验证客户端与数据库均可用。")
+                Text(L10n.t("Test runs a lightweight query over SSH to verify the client and database are available."))
             }
 
             // 实例级管理：改管理员密码 + 用户管理（对标 1Panel 数据库管理）。
@@ -1093,7 +1093,7 @@ struct ConnectionDetailView: View {
                 NavigationLink {
                     DatabaseBrowserView(store: store, fixedConnection: conn)
                 } label: {
-                    Label("数据浏览与执行 SQL", systemImage: "tablecells")
+                    Label(L10n.t("Browse data and run SQL"), systemImage: "tablecells")
                 }
             }
         }
@@ -1139,9 +1139,9 @@ struct ConnectionEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("基本信息") {
-                    TextField("名称（如：生产 MySQL）", text: $name)
-                    Picker("类型", selection: $kind) {
+                Section(L10n.t("Basic Info")) {
+                    TextField("Name (e.g. Production MySQL)", text: $name)
+                    Picker("Type", selection: $kind) {
                         ForEach(DatabaseKind.allCases) { k in
                             Text(k.title).tag(k)
                         }
@@ -1153,20 +1153,20 @@ struct ConnectionEditorView: View {
                 .onAppear { initialize() }
 
                 Section {
-                    TextField("主机", text: $host)
+                    TextField("Host", text: $host)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    TextField("端口", text: $portText).keyboardType(.numberPad)
-                    TextField("用户名", text: $username)
+                    TextField("Port", text: $portText).keyboardType(.numberPad)
+                    TextField("Username", text: $username)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    SecureField("密码 / 口令", text: $password)
-                    TextField(isMongoOrRedis ? "认证库 / db 索引（可选）" : "默认数据库（可选）", text: $database)
+                    SecureField("Password", text: $password)
+                    TextField(isMongoOrRedis ? "Auth DB / DB index (optional)" : "Default database (optional)", text: $database)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                 } header: {
-                    Text("连接参数")
+                    Text(L10n.t("Connection parameters"))
                 } footer: {
                     Text(isMongoOrRedis
-                         ? "MongoDB 填认证库（留空为 admin）；Redis 填 db 索引（如 0）。"
-                         : "留空则连接后手动选择数据库。")
+                         ? "For MongoDB enter the auth DB (blank = admin); for Redis enter the DB index (e.g. 0)."
+                         : "Leave empty to select a database manually after connecting.")
                 }
 
                 if showError {
@@ -1176,12 +1176,12 @@ struct ConnectionEditorView: View {
                     }
                 }
             }
-            .navigationTitle(isEditing ? "编辑连接" : "添加连接")
+            .navigationTitle(isEditing ? "Edit connection" : "Add connection")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) { Button(L10n.t("Cancel")) { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("保存") { save() }.fontWeight(.semibold)
+                    Button(L10n.t("Save")) { save() }.fontWeight(.semibold)
                 }
             }
         }
@@ -1199,11 +1199,11 @@ struct ConnectionEditorView: View {
 
     private func save() {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            errorMessage = "请填写名称"; showError = true; return
+            errorMessage = "Enter a name"; showError = true; return
         }
         let port = Int(portText) ?? kind.defaultPort
         guard port > 0, port <= 65535 else {
-            errorMessage = "端口无效"; showError = true; return
+            errorMessage = "Invalid port"; showError = true; return
         }
         let ok: Bool
         if let conn {
@@ -1221,7 +1221,7 @@ struct ConnectionEditorView: View {
             ok = store.add(new, password: password)
         }
         if ok { dismiss() }
-        else { errorMessage = "保存失败（可能是钥匙串写入错误）"; showError = true }
+        else { errorMessage = "Save failed (possibly a Keychain write error)"; showError = true }
     }
 }
 
@@ -1266,13 +1266,13 @@ struct DatabaseBrowserView: View {
         List {
             // 连接选择：容器实例直连时跳过，不暴露连接切换。
             if fixedConnection == nil {
-                Section("数据库") {
+                Section(L10n.t("Database")) {
                     if store.connections.isEmpty {
-                        Text("请先在「数据库」页添加一条远程连接")
+                        Text(L10n.t("Add a remote connection on the Database page first"))
                             .foregroundStyle(.secondary)
                     } else {
-                        Picker("连接", selection: $selectedConnectionID) {
-                            Text("选择连接...").tag(nil as UUID?)
+                        Picker("Connect", selection: $selectedConnectionID) {
+                            Text(L10n.t("Select a connection...")).tag(nil as UUID?)
                             ForEach(store.connections) { conn in
                                 Text(conn.name).tag(conn.id as UUID?)
                             }
@@ -1286,13 +1286,13 @@ struct DatabaseBrowserView: View {
             if selectedConnection != nil {
                 Section {
                     if isLoadingDatabases {
-                        HStack { ProgressView(); Text("正在读取数据库列表...").foregroundStyle(.secondary) }
+                        HStack { ProgressView(); Text(L10n.t("Loading database list...")).foregroundStyle(.secondary) }
                     } else if let loadError {
                         Label(loadError, systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.red).font(.caption)
-                        Button("重试") { Task { await loadDatabases() } }
+                        Button(L10n.t("Retry")) { Task { await loadDatabases() } }
                     } else if databases.isEmpty {
-                        Text("未读取到数据库").foregroundStyle(.secondary)
+                        Text(L10n.t("No databases found")).foregroundStyle(.secondary)
                     } else {
                         ForEach(databases) { db in
                             Button {
@@ -1313,7 +1313,7 @@ struct DatabaseBrowserView: View {
                     }
                 } header: {
                     HStack {
-                        Text(selectedConnection?.kind == .redis ? "数据库索引 (db)" : "数据库")
+                        Text(selectedConnection?.kind == .redis ? "Database index (db)" : "Database")
                         Spacer()
                         if selectedConnection != nil {
                             Button { Task { await loadDatabases() } } label: {
@@ -1328,9 +1328,9 @@ struct DatabaseBrowserView: View {
             if selectedDatabase != nil {
                 Section {
                     if isLoadingTables {
-                        HStack { ProgressView(); Text("正在读取列表...").foregroundStyle(.secondary) }
+                        HStack { ProgressView(); Text(L10n.t("Loading list...")).foregroundStyle(.secondary) }
                     } else if tables.isEmpty {
-                        Text("（空）").foregroundStyle(.secondary)
+                        Text(L10n.t("(Empty)")).foregroundStyle(.secondary)
                     } else {
                         ForEach(tables) { table in
                             NavigationLink {
@@ -1352,7 +1352,7 @@ struct DatabaseBrowserView: View {
                 }
             }
         }
-        .navigationTitle("数据浏览")
+        .navigationTitle(L10n.t("Browse data"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -1362,7 +1362,7 @@ struct DatabaseBrowserView: View {
                     Image(systemName: "terminal")
                 }
                 .disabled(selectedConnection == nil)
-                .help("执行 SQL / 命令")
+                .help(L10n.t("Run SQL / command"))
             }
         }
         .sheet(isPresented: $showQuery) {
@@ -1389,9 +1389,9 @@ struct DatabaseBrowserView: View {
     private var listSectionTitle: String {
         guard let kind = selectedConnection?.kind else { return "" }
         switch kind {
-        case .mysql, .postgresql: return "数据表"
-        case .mongodb: return "集合"
-        case .redis: return "键 (Keys)"
+        case .mysql, .postgresql: return "Tables"
+        case .mongodb: return "Collections"
+        case .redis: return "Keys"
         }
     }
 
@@ -1461,15 +1461,15 @@ struct DataBrowserView: View {
             if isLoading {
                 VStack(spacing: 12) {
                     ProgressView()
-                    Text("正在读取数据...").foregroundStyle(.secondary)
+                    Text(L10n.t("Loading data...")).foregroundStyle(.secondary)
                 }
             } else if let error {
                 ContentUnavailableView {
-                    Label("读取失败", systemImage: "exclamationmark.triangle")
+                    Label(L10n.t("Load failed"), systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(error)
                 } actions: {
-                    Button("重试") { Task { await load() } }
+                    Button(L10n.t("Retry")) { Task { await load() } }
                 }
             } else if let result {
                 QueryResultView(result: result)
@@ -1484,7 +1484,7 @@ struct DataBrowserView: View {
                 } label: {
                     Image(systemName: "magnifyingglass")
                 }
-                .help("自定义查询")
+                .help(L10n.t("Custom query"))
             }
         }
         .sheet(isPresented: $showQuery) {
@@ -1528,7 +1528,7 @@ struct QueryResultView: View {
                     .padding(.horizontal)
             }
             if result.columns.isEmpty && result.rows.isEmpty {
-                ContentUnavailableView("无数据", systemImage: "tablecells")
+                ContentUnavailableView("No data", systemImage: "tablecells")
             } else {
                 ScrollView([.horizontal, .vertical]) {
                     Grid(alignment: .topLeading, horizontalSpacing: 1, verticalSpacing: 1) {
@@ -1602,7 +1602,7 @@ struct QueryView: View {
             VStack(spacing: 0) {
                 // 输入区
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(conn.kind.supportsSQL ? "SQL 语句" : "命令")
+                    Text(conn.kind.supportsSQL ? "SQL statement" : "Command")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     TextEditor(text: $statement)
@@ -1611,14 +1611,14 @@ struct QueryView: View {
                         .padding(8)
                         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8))
                     HStack {
-                        Button("清空") { statement = "" }
+                        Button(L10n.t("Clear")) { statement = "" }
                         Spacer()
                         Button {
                             Task { await runStatement() }
                         } label: {
                             HStack {
                                 if isRunning { ProgressView() }
-                                Label("执行", systemImage: "play.fill")
+                                Label(L10n.t("Run"), systemImage: "play.fill")
                             }
                         }
                         .buttonStyle(.borderedProminent)
@@ -1635,12 +1635,12 @@ struct QueryView: View {
                     if isRunning {
                         VStack(spacing: 12) {
                             ProgressView()
-                            Text("正在执行...").foregroundStyle(.secondary)
+                            Text(L10n.t("Running...")).foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if let error {
                         ContentUnavailableView {
-                            Label("执行失败", systemImage: "exclamationmark.triangle")
+                            Label(L10n.t("Execution failed"), systemImage: "exclamationmark.triangle")
                         } description: {
                             Text(error)
                         }
@@ -1648,19 +1648,19 @@ struct QueryView: View {
                         QueryResultView(result: result)
                     } else {
                         ContentUnavailableView {
-                            Label("准备就绪", systemImage: "chevron.left.forwardslash.chevron.right")
+                            Label(L10n.t("Ready"), systemImage: "chevron.left.forwardslash.chevron.right")
                         } description: {
-                            Text("输入\(conn.kind.supportsSQL ? " SQL 语句" : "命令")后点击执行")
+                            Text("Enter \(conn.kind.supportsSQL ? " SQL" : " command") then tap Run")
                         }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .navigationTitle("执行\(conn.kind.supportsSQL ? " SQL" : "命令")")
+            .navigationTitle("Run \(conn.kind.supportsSQL ? " SQL" : " command")")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("完成") { dismiss() }
+                    Button(L10n.t("Done")) { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     if let result {
@@ -1668,7 +1668,7 @@ struct QueryView: View {
                             UIPasteboard.general.string = flatResult(result)
                             copied = true
                         } label: {
-                            Label(copied ? "已复制" : "复制", systemImage: copied ? "checkmark" : "doc.on.doc")
+                            Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
                         }
                     }
                 }
