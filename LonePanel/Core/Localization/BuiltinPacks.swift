@@ -571,7 +571,19 @@ enum BuiltinPacks {
         d["%@ (default)"] = "%@（默认）"
         d["Close"] = "关闭"
         d["Paste"] = "粘贴"
+        d["Select"] = "选择"
         d["Built-in packs: English and Simplified Chinese; you can also import a custom language pack."] = "内置英文与简体中文；也可导入自定义语言包。"
+        d["This language pack will be removed from this device."] = "该语言包将从此设备移除。"
+        // 压缩 / 解压
+        d["Compress"] = "压缩"
+        d["Extract"] = "解压"
+        d["Archive Name"] = "压缩包名称"
+        d["Selected items will be compressed into a .tar.gz archive in this folder."] = "所选项目将被压缩为此目录下的一个 .tar.gz 压缩包。"
+        d["Extract \"%@\" into the current folder?"] = "将“%@”解压到当前文件夹？"
+        d["Compress failed: server refused the operation"] = "压缩失败：服务器拒绝了该操作"
+        d["Compress failed: %@"] = "压缩失败：%@"
+        d["Extract failed: server refused the operation"] = "解压失败：服务器拒绝了该操作"
+        d["Extract failed: %@"] = "解压失败：%@"
         return d
     }()
 }

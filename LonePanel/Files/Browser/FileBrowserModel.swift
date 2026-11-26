@@ -304,6 +304,71 @@ final class FileBrowserModel: ObservableObject {
         }
     }
 
+    // MARK: - 压缩 / 解压（走远端 shell 命令，失败给出可读错误）
+
+    /// 把选中的多项压缩成当前目录下的一个 .tar.gz 归档。
+    /// 用 tar -czf，源项按 basename 引入（不带绝对路径），解压后不会套出整条路径。
+    func compress(_ files: [RemoteFile], in directory: String, named name: String) async {
+        guard let client, !files.isEmpty, let trimmed = validName(name) else { return }
+        // 统一补 .tar.gz 后缀，避免用户漏写导致产物无扩展名、后续无法识别。
+        let archiveName = trimmed.hasSuffix(".tar.gz") ? trimmed : trimmed + ".tar.gz"
+        let parent = (directory as NSString).deletingLastPathComponent
+        let basenames = files.map { shellQuote(($0.path as NSString).lastPathComponent) }.joined(separator: " ")
+        let script = "tar -czf \(shellQuote(client.joined(directory, archiveName))) -C \(shellQuote(parent)) \(basenames)"
+        do {
+            let result = try await client.execute(script, timeoutSeconds: 120)
+            if result.exitStatus == 0 {
+                refreshToken &+= 1
+            } else {
+                let reason = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                errorMessage = reason.isEmpty
+                    ? L10n.t("Compress failed: server refused the operation")
+                    : L10n.f("Compress failed: %@", String(describing: (reason)))
+            }
+        } catch {
+            errorMessage = describeFileError(error)
+        }
+    }
+
+    /// 把归档解压到指定目录。按扩展名选择工具，覆盖 tar/gz/bz2/xz/zip/7z/rar。
+    func extract(_ file: RemoteFile, into directory: String) async {
+        guard let client else { return }
+        let ext = (file.name as NSString).pathExtension.lowercased()
+        let src = shellQuote(file.path)
+        let dst = shellQuote(directory)
+        let command: String
+        switch ext {
+        case "zip":
+            command = "unzip -o \(src) -d \(dst)"
+        case "tar", "gz", "tgz":
+            command = "tar -xzf \(src) -C \(dst)"
+        case "bz2", "tbz2":
+            command = "tar -xjf \(src) -C \(dst)"
+        case "xz", "txz":
+            command = "tar -xJf \(src) -C \(dst)"
+        case "7z":
+            command = "7z x -y -o\(dst) \(src)"
+        case "rar":
+            command = "unrar x -o+ \(src) \(dst)/"
+        default:
+            // 单文件 .gz（非 tar 包）：gunzip -c 输出到同目录去掉 .gz 的文件。
+            command = "gzip -cd \(src) > \(shellQuote(client.joined(directory, (file.name as NSString).deletingPathExtension)))"
+        }
+        do {
+            let result = try await client.execute(command, timeoutSeconds: 120)
+            if result.exitStatus == 0 {
+                refreshToken &+= 1
+            } else {
+                let reason = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                errorMessage = reason.isEmpty
+                    ? L10n.t("Extract failed: server refused the operation")
+                    : L10n.f("Extract failed: %@", String(describing: (reason)))
+            }
+        } catch {
+            errorMessage = describeFileError(error)
+        }
+    }
+
     /// 纯 SFTP 递归删除：目录先删子项再删自身；软链按文件删，避免跟随。
     private func deleteRecursive(_ client: SFTPClient, _ file: RemoteFile) async throws {
         if file.isSymlink {

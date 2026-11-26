@@ -248,6 +248,13 @@ private struct DirectoryPage: View {
     @State private var editingFile: RemoteFile?
     @State private var targetOperation: BatchOperation?
     @State private var targetFiles: [RemoteFile] = []
+    /// 压缩：记录待压缩项 + 归档名输入。
+    @State private var compressFiles: [RemoteFile] = []
+    @State private var archiveName = ""
+    @State private var pendingCompress = false
+    /// 解压：待解压的归档文件（确认后解压到当前目录）。
+    @State private var extractFile: RemoteFile?
+    @State private var pendingExtract = false
 
     var body: some View {
         pageContent
@@ -329,6 +336,27 @@ private struct DirectoryPage: View {
                     Task { await model.rename(file, in: parent, to: renameText); renaming = nil; await load() }
                 }
             }
+        }
+        .alert(L10n.t("Compress"), isPresented: $pendingCompress) {
+            TextField(L10n.t("Archive Name"), text: $archiveName)
+            Button(L10n.t("Cancel"), role: .cancel) { compressFiles = []; archiveName = "" }
+            Button(L10n.t("Compress")) {
+                let files = compressFiles
+                let name = archiveName
+                Task { await model.compress(files, in: node.path, named: name); compressFiles = []; archiveName = ""; await load() }
+            }
+        } message: {
+            Text(L10n.t("Selected items will be compressed into a .tar.gz archive in this folder."))
+        }
+        .alert(L10n.t("Extract"), isPresented: $pendingExtract) {
+            Button(L10n.t("Cancel"), role: .cancel) { extractFile = nil }
+            Button(L10n.t("Extract")) {
+                if let file = extractFile {
+                    Task { await model.extract(file, into: node.path); extractFile = nil; await load() }
+                }
+            }
+        } message: {
+            Text(L10n.f("Extract \"%@\" into the current folder?", String(describing: (extractFile?.name ?? ""))))
         }
         .alert(L10n.t("Delete Selected Items?"), isPresented: $showDeleteConfirm) {
             Button(L10n.t("Delete"), role: .destructive) {
@@ -796,6 +824,12 @@ private struct DirectoryPage: View {
         }
         Button { infoFile = file } label: { Label(L10n.t("Get Info"), systemImage: "info.circle") }
         Button { renameTarget(file) } label: { Label(L10n.t("Rename"), systemImage: "pencil") }
+        // 归档文件提供解压；其余项提供压缩（单文件也会打成 .tar.gz）。
+        if FileKind.isArchive(file) {
+            Button { extractTarget(file) } label: { Label(L10n.t("Extract"), systemImage: "doc.zipper") }
+        } else {
+            Button { compressTarget([file]) } label: { Label(L10n.t("Compress"), systemImage: "doc.zipper") }
+        }
         Divider()
         Button(role: .destructive) { requestDelete([file]) } label: {
             Label(L10n.t("Delete"), systemImage: "trash")
@@ -814,6 +848,12 @@ private struct DirectoryPage: View {
             }
             batchIcon("arrow.right", title: L10n.t("Move")) { beginTransfer(.move, files: selectedFiles) }
             batchIcon("doc.on.doc", title: L10n.t("Copy")) { copySelected() }
+            // 归档项提供解压（仅单选归档时），其余提供压缩。
+            if selectedFiles.count == 1, let only = selectedFiles.first, FileKind.isArchive(only) {
+                batchIcon("doc.zipper", title: L10n.t("Extract")) { extractTarget(only) }
+            } else {
+                batchIcon("doc.zipper", title: L10n.t("Compress")) { compressTarget(selectedFiles) }
+            }
             batchIcon("trash", title: L10n.t("Delete"), role: .destructive) { requestDelete(selectedFiles) }
         }
         .padding(.horizontal, 10)
@@ -901,6 +941,21 @@ private struct DirectoryPage: View {
         renameText = file.name
     }
 
+    /// 压缩：默认归档名取当前目录名或首项名，进入输入弹窗确认。
+    private func compressTarget(_ files: [RemoteFile]) {
+        guard !files.isEmpty else { return }
+        compressFiles = files
+        let base = (node.path as NSString).lastPathComponent
+        archiveName = (base.isEmpty ? "archive" : base) + ".tar.gz"
+        pendingCompress = true
+    }
+
+    /// 解压：记录目标归档，进入确认弹窗。
+    private func extractTarget(_ file: RemoteFile) {
+        extractFile = file
+        pendingExtract = true
+    }
+
     private func requestDelete(_ files: [RemoteFile]) {
         guard !files.isEmpty else { return }
         deleting = files
@@ -972,7 +1027,8 @@ private struct FileRow: View {
     }
 
     private var meta: String {
-        let date = file.modified?.formatted(date: .abbreviated, time: .omitted) ?? ""
+        // 跟随 App 内语言（非系统 locale），且带时分秒。
+        let date = file.modified.map { L10n.dateTimeText($0) } ?? ""
         if file.isDirectory { return date.isEmpty ? L10n.t("Folder") : date }
         let size = FileBrowserModel.sizeText(file.size)
         return date.isEmpty ? size : L10n.f("%@ · %@", String(describing: (date)), String(describing: (size)))

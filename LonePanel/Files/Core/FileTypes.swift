@@ -113,9 +113,15 @@ enum FileKind {
     private static let textExts: Set<String> = [
         "txt", "md", "markdown", "log", "toml", "ini", "conf", "cfg", "csv", "env"
     ]
-    private static let archiveExts: Set<String> = [
-        "zip", "tar", "gz", "bz2", "xz", "7z", "rar", "tgz"
+    static let archiveExts: Set<String> = [
+        "zip", "tar", "gz", "bz2", "xz", "7z", "rar", "tgz", "tbz2", "txz"
     ]
+
+    /// 是否为可解压的归档文件（符号链接、目录不算）。
+    static func isArchive(_ file: RemoteFile) -> Bool {
+        if file.isDirectory || file.isSymlink { return false }
+        return archiveExts.contains((file.name as NSString).pathExtension.lowercased())
+    }
 
     /// 排序用的稳定次序（目录已在排序时单独优先，这里排其余类型）。
     var sortRank: Int {

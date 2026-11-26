@@ -120,12 +120,17 @@ struct LanguageSettingsView: View {
         } message: {
             Text(importError ?? "")
         }
-        .confirmationDialog(L10n.t("Delete Language Pack"), isPresented: Binding(
+        // 用 alert 而非 confirmationDialog：后者在 iPad 上是带箭头的 popover，
+        // 锚点常指向已滚动的按钮导致箭头错位。普通居中 alert 无箭头，位置稳定。
+        .alert(L10n.t("Delete Language Pack"), isPresented: Binding(
             get: { confirmRemoveID != nil }, set: { if !$0 { confirmRemoveID = nil } }
         )) {
+            Button(L10n.t("Cancel"), role: .cancel) { confirmRemoveID = nil }
             Button(L10n.t("Delete"), role: .destructive) {
                 if let id = confirmRemoveID { store.removePack(id: id) }
             }
+        } message: {
+            Text(L10n.t("This language pack will be removed from this device."))
         }
     }
 }

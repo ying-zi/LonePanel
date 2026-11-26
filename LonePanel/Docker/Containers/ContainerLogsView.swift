@@ -88,8 +88,9 @@ struct ContainerLogsView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        // ⋯ 与关闭按钮拆成两个独立 ToolbarItem，交由系统按统一胶囊排布，
+        // 间距与文件页/容器首页/终端页一致；不再手写 HStack(spacing:12)。
         ToolbarItem(placement: .topBarTrailing) {
-            HStack(spacing: 12) {
             Menu {
                 // 时间范围（1Panel 同款）
                 Section(L10n.t("Time range")) {
@@ -123,8 +124,9 @@ struct ContainerLogsView: View {
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
             DismissChevronButton()
-            }
         }
     }
 

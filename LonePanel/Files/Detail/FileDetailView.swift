@@ -63,7 +63,7 @@ struct FileInfoSheet: View {
                 LabeledContent(L10n.t("Size"), value: byteSize)
             }
             if let date = file.modified {
-                LabeledContent(L10n.t("Date Modified"), value: date.formatted(date: .abbreviated, time: .shortened))
+                LabeledContent(L10n.t("Date Modified"), value: L10n.dateTimeText(date))
             }
             LabeledContent(L10n.t("Permissions"), value: file.permissionText)
             LabeledContent(L10n.t("Owner"), value: ownerName)
