@@ -81,9 +81,6 @@ struct ContainerListView: View {
                 overviewBar
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
-                filterBar
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
             }
 
             Section {
@@ -169,46 +166,6 @@ struct ContainerListView: View {
             }
         }
         .buttonStyle(.plain)
-    }
-
-    /// 筛选按钮：每档后面括号显示数量。
-    private var filterBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(ContainerFilter.allCases, id: \.self) { item in
-                    Button {
-                        withAnimation { model.filter = item }
-                    } label: {
-                        HStack(spacing: 3) {
-                            Text(label(for: item))
-                            Text("(\(model.count(for: item)))")
-                                .font(.caption2)
-                                .opacity(0.75)
-                        }
-                        .font(.subheadline.weight(.medium))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(
-                            model.filter == item ? Color.accentColor : Color(.tertiarySystemBackground),
-                            in: Capsule()
-                        )
-                        .foregroundStyle(model.filter == item ? .white : .primary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-        }
-    }
-
-    private func label(for filter: ContainerFilter) -> String {
-        switch filter {
-        case .all: return "全部"
-        case .running: return "运行中"
-        case .paused: return "暂停中"
-        case .stopped: return "已停止"
-        }
     }
 
     private var emptyView: some View {

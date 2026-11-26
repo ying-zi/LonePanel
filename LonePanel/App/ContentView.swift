@@ -15,7 +15,11 @@ struct ContentView: View {
     // 悬浮终端按钮可拖动定位（避开右下角删除/搜索等控件），位置持久化；松手吸附左右边缘。
     @AppStorage("com.lone.lonepanel.terminal.fab.offsetX") private var fabOffsetX: Double = 0
     @AppStorage("com.lone.lonepanel.terminal.fab.offsetY") private var fabOffsetY: Double = 0
+    /// 拖动中的实时位移：纯内存态，绝不写 @AppStorage。
+    /// 之前每帧写 AppStorage（UserDefaults 同步落盘 + 全视图重建）是拖动剧烈闪烁抖动的根因。
+    @State private var fabLiveOffset: CGSize = .zero
     @State private var fabDragStart: CGSize = .zero
+    @State private var isFabDragging = false
 
     /// 当前可见的 Tab 模块（多模块形态下使用）。
     private var visibleTabs: [TabModule] {
@@ -44,6 +48,11 @@ struct ContentView: View {
         if terminal.userDisconnected { return .red }
         if terminal.isReady { return .accentColor }
         return .orange
+    }
+
+    /// FAB 实际渲染偏移：拖动中用内存态实时值，松手后用持久化值。
+    private var fabRenderOffset: CGSize {
+        isFabDragging ? fabLiveOffset : CGSize(width: fabOffsetX, height: fabOffsetY)
     }
 
     /// 悬浮终端底边距：多模块形态要避开底部 Tab 栏，单模块全屏没有 Tab 栏、贴底即可。
@@ -160,30 +169,50 @@ struct ContentView: View {
                     .offset(x: 18, y: -18)
             }
             .contentShape(Circle())
-            .onTapGesture { showTerminal = true }
             .gesture(
-                DragGesture(minimumDistance: 6)
+                DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        let x = Double(fabDragStart.width) + value.translation.width
-                        let y = Double(fabDragStart.height) + value.translation.height
-                        fabOffsetX = clamp(fabX: x)
-                        fabOffsetY = clamp(fabY: y)
+                        // 位移超过阈值才算拖动；小于阈值交给 onEnded 当点击处理。
+                        let moved = hypot(value.translation.width, value.translation.height)
+                        if !isFabDragging && moved > 6 {
+                            isFabDragging = true
+                            // 以当前持久位置为基准，避免每次手势都从旧值跳变。
+                            fabDragStart = CGSize(width: fabOffsetX, height: fabOffsetY)
+                        }
+                        if isFabDragging {
+                            let x = Double(fabDragStart.width) + value.translation.width
+                            let y = Double(fabDragStart.height) + value.translation.height
+                            // 只更新内存态：不落盘、不触发 AppStorage 写入，跟手零延迟。
+                            fabLiveOffset = CGSize(width: clamp(fabX: x), height: clamp(fabY: y))
+                        }
                     }
                     .onEnded { _ in
-                        // 松手吸附：越过屏幕中线则贴左，否则贴右；纵向钳制在安全区。
-                        withAnimation(.spring(response: 0.3)) {
-                            fabOffsetX = fabOffsetX < fabMidX ? fabMinX : 0
-                            fabOffsetY = clamp(fabY: fabOffsetY)
+                        if !isFabDragging {
+                            // 没有实质位移 → 视为点击，打开终端。
+                            showTerminal = true
+                            return
                         }
-                        fabDragStart = CGSize(width: fabOffsetX, height: fabOffsetY)
+                        let finalX = Double(fabLiveOffset.width)
+                        let finalY = Double(fabLiveOffset.height)
+                        // 松手一次性写入持久化位置：越过屏幕中线贴左，否则贴右。
+                        let snappedX = finalX < fabMidX ? fabMinX : 0
+                        withAnimation(.spring(response: 0.3)) {
+                            fabOffsetX = snappedX
+                            fabOffsetY = clamp(fabY: finalY)
+                            // 结束拖动，渲染源切回持久位置；spring 让吸附平滑，不再逐帧重建。
+                            isFabDragging = false
+                        }
+                        fabLiveOffset = .zero
+                        fabDragStart = CGSize(width: snappedX, height: clamp(fabY: finalY))
                     }
             )
-            .offset(x: fabOffsetX, y: fabOffsetY)
+            .offset(x: fabRenderOffset.width, y: fabRenderOffset.height)
             .padding(.trailing, 20)
             .padding(.bottom, fabBottomPadding)
-            .onAppear { fabDragStart = CGSize(width: fabOffsetX, height: fabOffsetY) }
             .accessibilityLabel("打开终端，长按可拖动位置")
             .transition(.scale.combined(with: .opacity))
+            // 注意：这两个 animation 不能挂到 offset 上。拖动中 offset 由 fabRenderOffset 驱动，
+            // 若带动画会逐帧追赶造成抖动；动画只在出现/隐藏与状态色变化时使用。
             .animation(.spring(response: 0.3), value: currentModuleShowsTerminal)
             .animation(.easeInOut, value: terminalStatusColor)
     }

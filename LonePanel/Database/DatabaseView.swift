@@ -1,124 +1,106 @@
 import SwiftUI
 
-/// 数据库模块主视图（对齐 1Panel）：主体是「容器内的数据库」——自动发现服务器上的数据库容器，
-/// 命令直接在容器内执行；「远程数据库」只是管理中的一项能力，收纳为独立分组。
+/// 数据库模块主视图：与 Docker 首页一致，顶部用分段控件切换「本地数据库 / 远程数据库」。
+/// 本地 = 容器内数据库（1Panel 式主管理对象，命令在容器内执行）；远程 = 一项扩展连接能力。
 /// 数据浏览 / 查询复用同一套底层命令，只是连接来源不同。
 struct DatabaseView: View {
-    @StateObject private var store = DatabaseConnectionStore.shared
+    enum Source: String, CaseIterable {
+        case local = "本地数据库"
+        case remote = "远程数据库"
+    }
 
-    /// 自动发现的容器数据库实例（内存态，不写入用户偏好）。
-    @State private var instances: [DatabaseConnection] = []
-    @State private var isDiscovering = false
-    @State private var discoverError: String?
-    @State private var showRemoteEditor = false
+    @State private var source: Source = .local
+    @StateObject private var store = DatabaseConnectionStore.shared
 
     var body: some View {
         NavigationStack {
-            List {
-                // 主管理对象：容器内的数据库
-                Section {
-                    if isDiscovering {
-                        HStack {
-                            ProgressView()
-                            Text("正在发现容器数据库...").foregroundStyle(.secondary)
-                        }
-                    } else if let discoverError {
-                        Label(discoverError, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange).font(.caption)
-                        Button("重试") { Task { await discover() } }
-                    } else if instances.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("未发现数据库容器")
-                                .font(.subheadline.weight(.semibold))
-                            Text("在服务器上用 Docker 运行 MySQL / MariaDB / PostgreSQL / MongoDB / Redis 后，这里会自动列出并直接管理容器内的数据库。")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 4)
-                    } else {
-                        ForEach(instances) { instance in
-                            NavigationLink {
-                                ContainerDatabaseDetailView(instance: instance, store: store)
-                            } label: {
-                                DatabaseInstanceRow(conn: instance)
-                            }
-                        }
-                    }
-                } header: {
-                    HStack {
-                        Label("容器数据库", systemImage: "shippingbox")
-                        Spacer()
-                        Text("\(instances.count)").foregroundStyle(.secondary)
-                    }
-                } footer: {
-                    Text("命令直接在容器内执行，无需端口映射；凭据从容器环境变量读取。")
-                }
-
-                // 扩展能力：远程数据库
-                Section {
-                    if store.connections.isEmpty {
-                        Text("尚未添加远程数据库").foregroundStyle(.secondary)
-                    } else {
-                        ForEach(store.connections) { conn in
-                            NavigationLink {
-                                ConnectionDetailView(conn: conn, store: store)
-                            } label: {
-                                ConnectionRow(conn: conn)
-                            }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) {
-                                    withAnimation { store.delete(conn) }
-                                } label: {
-                                    Label("删除", systemImage: "trash")
-                                }
-                            }
-                        }
-                    }
-                    Button {
-                        showRemoteEditor = true
-                    } label: {
-                        Label("添加远程数据库", systemImage: "plus.circle")
-                    }
-                } header: {
-                    HStack {
-                        Label("远程数据库", systemImage: "network")
-                        Spacer()
-                        Text("\(store.connections.count)").foregroundStyle(.secondary)
-                    }
-                } footer: {
-                    Text("远程数据库是数据库管理的一项能力：连接服务器之外的实例，配置存在本机、口令存钥匙串。")
-                }
-
-                // 工具入口
-                Section {
-                    NavigationLink {
-                        DatabaseBrowserView(store: store)
-                    } label: {
-                        Label("数据浏览与查询", systemImage: "tablecells")
-                    }
-                } header: {
-                    Text("工具")
+            Group {
+                switch source {
+                case .local:
+                    LocalDatabaseListView(store: store)
+                case .remote:
+                    RemoteDatabaseListView(store: store)
                 }
             }
             .navigationTitle("数据库")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { Task { await discover() } } label: {
-                        Image(systemName: "arrow.clockwise")
+                // 与 Docker 首页一致：标题位的分段切换。
+                ToolbarItem(placement: .principal) {
+                    Picker("数据库来源", selection: $source) {
+                        ForEach(Source.allCases, id: \.self) { item in
+                            Text(item.rawValue).tag(item)
+                        }
                     }
-                    .disabled(isDiscovering)
-                    .help("重新发现容器数据库")
+                    .pickerStyle(.segmented)
+                    .frame(width: 260)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     SettingsGearButton()
                 }
             }
-            .sheet(isPresented: $showRemoteEditor) {
-                ConnectionEditorView(conn: nil, store: store)
-            }
-            .refreshable { await discover() }
-            .task { await discover() }
         }
+    }
+}
+
+/// 本地数据库：自动发现容器内的数据库实例。
+struct LocalDatabaseListView: View {
+    @ObservedObject var store: DatabaseConnectionStore
+
+    @State private var instances: [DatabaseConnection] = []
+    @State private var isDiscovering = false
+    @State private var discoverError: String?
+
+    var body: some View {
+        List {
+            Section {
+                if isDiscovering {
+                    HStack {
+                        ProgressView()
+                        Text("正在发现容器数据库...").foregroundStyle(.secondary)
+                    }
+                } else if let discoverError {
+                    Label(discoverError, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange).font(.caption)
+                    Button("重试") { Task { await discover() } }
+                } else if instances.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("未发现数据库容器")
+                            .font(.subheadline.weight(.semibold))
+                        Text("在服务器上用 Docker 运行 MySQL / MariaDB / PostgreSQL / MongoDB / Redis 后，这里会自动列出并直接管理容器内的数据库。")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                } else {
+                    ForEach(instances) { instance in
+                        NavigationLink {
+                            ContainerDatabaseDetailView(instance: instance, store: store)
+                        } label: {
+                            DatabaseInstanceRow(conn: instance)
+                        }
+                    }
+                }
+            } header: {
+                HStack {
+                    Text("容器数据库")
+                    Spacer()
+                    Text("\(instances.count)").foregroundStyle(.secondary)
+                }
+            } footer: {
+                Text("命令直接在容器内执行，无需端口映射；凭据从容器环境变量读取。")
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { Task { await discover() } } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(isDiscovering)
+                .help("重新发现容器数据库")
+            }
+        }
+        .refreshable { await discover() }
+        .task { await discover() }
     }
 
     private func discover() async {
@@ -132,6 +114,59 @@ struct DatabaseView: View {
             discoverError = error.localizedDescription
         }
         isDiscovering = false
+    }
+}
+
+/// 远程数据库：管理数据库连接配置，是数据库管理中的一项能力。
+struct RemoteDatabaseListView: View {
+    @ObservedObject var store: DatabaseConnectionStore
+    @State private var showEditor = false
+
+    var body: some View {
+        List {
+            Section {
+                if store.connections.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("尚未添加远程数据库")
+                            .font(.subheadline.weight(.semibold))
+                        Text("远程数据库用于连接服务器之外的实例，作为本地容器数据库的补充能力。")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                } else {
+                    ForEach(store.connections) { conn in
+                        NavigationLink {
+                            ConnectionDetailView(conn: conn, store: store)
+                        } label: {
+                            ConnectionRow(conn: conn)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                withAnimation { store.delete(conn) }
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+                Button {
+                    showEditor = true
+                } label: {
+                    Label("添加远程数据库", systemImage: "plus.circle")
+                }
+            } header: {
+                HStack {
+                    Text("远程数据库连接")
+                    Spacer()
+                    Text("\(store.connections.count)").foregroundStyle(.secondary)
+                }
+            } footer: {
+                Text("配置存在本机、口令存钥匙串；所有命令仍通过当前 SSH 服务器执行。")
+            }
+        }
+        .sheet(isPresented: $showEditor) {
+            ConnectionEditorView(conn: nil, store: store)
+        }
     }
 }
 
@@ -386,6 +421,14 @@ struct ConnectionDetailView: View {
                 }
             } footer: {
                 Text("测试会通过 SSH 在服务器上执行一条轻量查询，验证客户端与数据库均可用。")
+            }
+
+            Section {
+                NavigationLink {
+                    DatabaseBrowserView(store: store, fixedConnection: conn)
+                } label: {
+                    Label("浏览数据与执行 SQL", systemImage: "tablecells")
+                }
             }
         }
         .navigationTitle(conn.name)
