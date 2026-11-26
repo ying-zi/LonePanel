@@ -276,7 +276,7 @@ struct ConnectionEditorView: View {
                 }
                 .onAppear { initialize() }
 
-                Section("连接参数") {
+                Section {
                     TextField("主机", text: $host)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                     TextField("端口", text: $portText).keyboardType(.numberPad)
@@ -285,6 +285,8 @@ struct ConnectionEditorView: View {
                     SecureField("密码 / 口令", text: $password)
                     TextField(isMongoOrRedis ? "认证库 / db 索引（可选）" : "默认数据库（可选）", text: $database)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
+                } header: {
+                    Text("连接参数")
                 } footer: {
                     Text(isMongoOrRedis
                          ? "MongoDB 填认证库（留空为 admin）；Redis 填 db 索引（如 0）。"
@@ -765,7 +767,7 @@ struct QueryView: View {
                     Button("完成") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    if result != nil {
+                    if let result {
                         Button {
                             UIPasteboard.general.string = flatResult(result)
                             copied = true
