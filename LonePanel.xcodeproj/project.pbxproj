@@ -70,6 +70,8 @@
 		D10000000000000000000057 /* DockerDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000057 /* DockerDiagnostics.swift */; };
 		D10000000000000000000058 /* DatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000058 /* DatabaseModels.swift */; };
 		D10000000000000000000059 /* DatabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000059 /* DatabaseService.swift */; };
+		D1000000000000000000005A /* ContainerCreateSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000000000000000000005A /* ContainerCreateSpec.swift */; };
+		D1000000000000000000005B /* ContainerCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000000000000000000005B /* ContainerCreateView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -134,6 +136,8 @@
 		C10000000000000000000057 /* DockerDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerDiagnostics.swift; sourceTree = "<group>"; };
 		C10000000000000000000058 /* DatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseModels.swift; sourceTree = "<group>"; };
 		C10000000000000000000059 /* DatabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseService.swift; sourceTree = "<group>"; };
+		C1000000000000000000005A /* ContainerCreateSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerCreateSpec.swift; sourceTree = "<group>"; };
+		C1000000000000000000005B /* ContainerCreateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerCreateView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -282,6 +286,7 @@
 				C10000000000000000000046 /* DockerService.swift */,
 				C10000000000000000000056 /* DockerSSHConnection.swift */,
 				C10000000000000000000057 /* DockerDiagnostics.swift */,
+				C1000000000000000000005A /* ContainerCreateSpec.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -295,6 +300,7 @@
 				C10000000000000000000050 /* ContainerListView.swift */,
 				C10000000000000000000051 /* ContainerDetailView.swift */,
 				C10000000000000000000052 /* ContainerLogsView.swift */,
+				C1000000000000000000005B /* ContainerCreateView.swift */,
 			);
 			path = Containers;
 			sourceTree = "<group>";
@@ -578,6 +584,8 @@
 				D10000000000000000000055 /* ComposeListView.swift in Sources */,
 				D10000000000000000000056 /* DockerSSHConnection.swift in Sources */,
 				D10000000000000000000057 /* DockerDiagnostics.swift in Sources */,
+				D1000000000000000000005A /* ContainerCreateSpec.swift in Sources */,
+				D1000000000000000000005B /* ContainerCreateView.swift in Sources */,
 				D10000000000000000000058 /* DatabaseModels.swift in Sources */,
 				D10000000000000000000059 /* DatabaseService.swift in Sources */,
 			);

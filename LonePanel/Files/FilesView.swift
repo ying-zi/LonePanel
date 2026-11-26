@@ -11,6 +11,10 @@ struct FilesView: View {
 // MARK: - 文件模块「调用态」：只干活的目录浏览器
 
 /// 供其它模块通过 ModuleCoordinator 唤起：定位到指定服务器目录、可逐层浏览、下拉即走。
+/// 两种模式：
+/// - 只读浏览（默认）：看完「完成」即走，如容器卷挂载点浏览；
+/// - 目录选择（target.pickDirectory）：可逐层进入，点「选择此目录」把当前路径回传给调用方，
+///   供容器挂载目录、网站备份、数据库备份等需要"从服务器挑一个目录"的场景复用。
 /// 与入口态的严格隔离：
 /// - 用独立的 FileBrowserModel 实例，绝不触碰 shared（不污染单例导航栈 / 默认目录）；
 /// - 不显示"设为默认访问目录"等任何写用户偏好的入口；
@@ -74,8 +78,24 @@ struct FileCallView: View {
             .navigationTitle(currentTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成") { dismiss() }
+                if target.pickDirectory {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("取消") { dismiss() }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            // 回传当前所在目录（栈尾或目标根），再关闭调用态。
+                            target.onPick?(currentPath)
+                            dismiss()
+                        } label: {
+                            Label("选择此目录", systemImage: "checkmark")
+                                .fontWeight(.semibold)
+                        }
+                    }
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("完成") { dismiss() }
+                    }
                 }
             }
         }

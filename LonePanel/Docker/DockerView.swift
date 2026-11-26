@@ -14,6 +14,7 @@ struct DockerView: View {
     @StateObject private var diagnostics = DockerDiagnostics.shared
     @State private var path = NavigationPath()
     @State private var showDiagnostics = false
+    @State private var showCreate = false
     @State private var copied = false
 
     var body: some View {
@@ -61,6 +62,16 @@ struct DockerView: View {
                     }
                 }
 
+                // 新建容器：只在容器页显示，置于工具栏最右（系统按 placement 顺序排布）。
+                ToolbarItem(placement: .topBarTrailing) {
+                    if section == .containers {
+                        Button { showCreate = true } label: {
+                            Image(systemName: "plus")
+                        }
+                        .help("新建容器")
+                    }
+                }
+
                 // 诊断按钮：查看最近 Docker 命令的退出码与原始输出，便于排查连接/权限问题。
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -80,6 +91,15 @@ struct DockerView: View {
             }
             .sheet(isPresented: $showDiagnostics) {
                 diagnosticsSheet
+            }
+            .sheet(isPresented: $showCreate) {
+                ContainerCreateView { newID in
+                    // 创建成功后刷新列表，并尽量定位到新容器（按 ID 前缀匹配）。
+                    await containerModel.refresh()
+                    if let container = containerModel.containers.first(where: { newID.hasPrefix($0.id) }) {
+                        path.append(container)
+                    }
+                }
             }
         }
     }

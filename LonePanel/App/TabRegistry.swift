@@ -131,23 +131,38 @@ enum TabRegistry {
 final class ModuleCoordinator: ObservableObject {
     static let shared = ModuleCoordinator()
 
-    /// 一次跨模块文件浏览请求。Identifiable 便于 .sheet(item:) 呈现。
+    /// 一次跨模块文件请求。Identifiable 便于 .sheet(item:) 呈现。
     struct FileOpenTarget: Identifiable {
         let id = UUID()
         /// 要打开的目录（服务器上绝对路径，如卷挂载的 Source）。
         let path: String
         /// 呈现标题（如容器名 + 挂载点）。
         let title: String
+        /// true = 目录选择模式：浏览并点「选择当前目录」回传路径（供容器挂载目录等场景）。
+        /// false = 只读浏览模式：看完下拉即走。
+        var pickDirectory = false
+        /// 目录选择模式的回传闭包：参数是用户选中的目录绝对路径。
+        /// 用闭包而非 @Binding，让调用方（可能是 sheet 内的表单）无需持有 Binding。
+        var onPick: ((String) -> Void)?
     }
 
     @Published var fileOpenTarget: FileOpenTarget?
 
-    /// 统一 API：请求"文件模块"打开某个服务器目录（调用态）。
+    /// 统一 API：请求"文件模块"打开某个服务器目录（调用态，只读浏览）。
     /// - Parameters:
     ///   - path: 服务器绝对路径
     ///   - title: 调用态标题
     func openFiles(at path: String, title: String) {
         // 即便文件 Tab 未启用，能力仍可用——这里不检查 ModuleVisibility。
         fileOpenTarget = FileOpenTarget(path: path, title: title)
+    }
+
+    /// 统一 API：请求"文件模块"打开目录选择器（调用态），用户选中的目录经 onPick 回传。
+    /// 与 openFiles 同样是调用态：独立会话、不污染单例导航栈与偏好。
+    func pickDirectory(at path: String, title: String, onPick: @escaping (String) -> Void) {
+        var target = FileOpenTarget(path: path, title: title)
+        target.pickDirectory = true
+        target.onPick = onPick
+        fileOpenTarget = target
     }
 }

@@ -124,6 +124,113 @@ final class DockerService {
         await mutate("docker kill \(id)", success: "容器已强制停止")
     }
 
+    // MARK: - 创建容器（对标 1Panel）
+
+    /// 拉取镜像。progress 由 docker 自己写到 stderr，这里只判定结果。
+    func pullImage(_ reference: String) async -> Result<Void, DockerError> {
+        let ref = reference.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !ref.isEmpty else { return .failure(.commandFailed(message: "镜像名不能为空")) }
+        // pull 可能较慢（大镜像），给 180 秒；超时不用 mutate 的默认 30 秒。
+        let result = await run("docker pull \(ShellQuote.quote(ref))", timeout: 180)
+        if result.exit == 0 { return .success(()) }
+        return .failure(.commandFailed(message: firstError(result, "拉取镜像失败")))
+    }
+
+    /// 拉取网络列表（名字），供创建表单选择。bridge/host/none 固定项由 UI 补，这里只取自定义网络。
+    func fetchNetworks() async -> [String] {
+        let result = await run("docker network ls --format '{{.Name}}'", timeout: 20)
+        guard result.exit == 0 else { return [] }
+        return result.out.split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// 按规格创建并启动容器（docker run -d），返回新容器 ID。
+    /// 命令构造纪律：所有外部输入经 ShellQuote.quote；端口/数值在 Spec 层已校验。
+    func createContainer(_ spec: ContainerCreateSpec) async -> Result<String, DockerError> {
+        if let error = spec.validate() {
+            return .failure(.commandFailed(message: error))
+        }
+        // 需要时先拉镜像；失败直接返回，不继续 run。
+        if spec.pullImage {
+            switch await pullImage(spec.image) {
+            case .failure(let e): return .failure(e)
+            case .success: break
+            }
+        }
+
+        let command = Self.buildRunCommand(spec)
+        let result = await run(command, timeout: 60)
+        guard result.exit == 0 else {
+            return .failure(.commandFailed(message: firstError(result, "创建容器失败")))
+        }
+        let id = result.out.trimmingCharacters(in: .whitespacesAndNewlines)
+        return .success(id)
+    }
+
+    /// 构造 `docker run -d ...` 命令。独立静态方法便于审查与复用（如命令预览）。
+    static func buildRunCommand(_ spec: ContainerCreateSpec) -> String {
+        var parts: [String] = ["docker", "run", "-d"]
+
+        parts += ["--name", ShellQuote.quote(spec.name.trimmingCharacters(in: .whitespacesAndNewlines))]
+
+        // 网络
+        let network = spec.network.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !network.isEmpty { parts += ["--network", ShellQuote.quote(network)] }
+
+        // 重启策略：on-failure 不带次数，交由用户填 "on-failure:5" 这种完整值。
+        let restart = spec.restartPolicy.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !restart.isEmpty, restart != "no" { parts += ["--restart", ShellQuote.quote(restart)] }
+
+        // 端口映射
+        for p in spec.ports where ContainerCreateSpec.validPort(p.hostPort) && ContainerCreateSpec.validPort(p.containerPort) {
+            let proto = p.proto == "udp" ? "/udp" : ""
+            parts += ["-p", ShellQuote.quote("\(p.hostPort):\(p.containerPort)\(proto)")]
+        }
+
+        // 目录挂载
+        for m in spec.mounts where m.hostPath.hasPrefix("/") && m.containerPath.hasPrefix("/") {
+            let mode = m.readOnly ? ":ro" : ":rw"
+            parts += ["-v", ShellQuote.quote("\(m.hostPath):\(m.containerPath)\(mode)")]
+        }
+
+        // 环境变量
+        for e in spec.env where ContainerCreateSpec.validEnvKey(e.key) {
+            parts += ["-e", ShellQuote.quote("\(e.key)=\(e.value)")]
+        }
+
+        // 资源限制
+        let memory = spec.memory.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !memory.isEmpty, ContainerCreateSpec.validMemory(memory) {
+            parts += ["--memory", ShellQuote.quote(memory)]
+        }
+        let cpus = spec.cpus.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cpus.isEmpty, Double(cpus) != nil {
+            parts += ["--cpus", ShellQuote.quote(cpus)]
+        }
+
+        // 高级
+        let hostname = spec.hostname.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !hostname.isEmpty { parts += ["--hostname", ShellQuote.quote(hostname)] }
+        if spec.privileged { parts.append("--privileged") }
+        let workdir = spec.workdir.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !workdir.isEmpty { parts += ["-w", ShellQuote.quote(workdir)] }
+        let entrypoint = spec.entrypoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !entrypoint.isEmpty { parts += ["--entrypoint", ShellQuote.quote(entrypoint)] }
+
+        // 镜像（末尾位置参数）
+        parts.append(ShellQuote.quote(spec.image.trimmingCharacters(in: .whitespacesAndNewlines)))
+
+        // 启动命令及参数：按空格切分，逐段转义，避免注入。
+        let command = spec.command.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !command.isEmpty {
+            parts += command.split(whereSeparator: { $0 == " " || $0 == "\n" })
+                .map { ShellQuote.quote(String($0)) }
+        }
+
+        return parts.joined(separator: " ")
+    }
+
     // MARK: - 镜像 / Compose 操作
 
     func removeImage(_ id: String) async -> Result<Void, DockerError> {
