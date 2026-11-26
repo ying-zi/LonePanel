@@ -68,6 +68,8 @@
 		D10000000000000000000055 /* ComposeListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000055 /* ComposeListView.swift */; };
 		D10000000000000000000056 /* DockerSSHConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000056 /* DockerSSHConnection.swift */; };
 		D10000000000000000000057 /* DockerDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000057 /* DockerDiagnostics.swift */; };
+		D10000000000000000000058 /* DatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000058 /* DatabaseModels.swift */; };
+		D10000000000000000000059 /* DatabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000059 /* DatabaseService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -130,6 +132,8 @@
 		C10000000000000000000055 /* ComposeListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeListView.swift; sourceTree = "<group>"; };
 		C10000000000000000000056 /* DockerSSHConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerSSHConnection.swift; sourceTree = "<group>"; };
 		C10000000000000000000057 /* DockerDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerDiagnostics.swift; sourceTree = "<group>"; };
+		C10000000000000000000058 /* DatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseModels.swift; sourceTree = "<group>"; };
+		C10000000000000000000059 /* DatabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -324,8 +328,18 @@
 			children = (
 				C10000000000000000000017 /* DatabaseTab.swift */,
 				C10000000000000000000018 /* DatabaseView.swift */,
+				B10000000000000000000011 /* Core */,
 			);
 			path = Database;
+			sourceTree = "<group>";
+		};
+		B10000000000000000000011 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000058 /* DatabaseModels.swift */,
+				C10000000000000000000059 /* DatabaseService.swift */,
+			);
+			path = Core;
 			sourceTree = "<group>";
 		};
 		B10000000000000000000004 /* Files */ = {
@@ -564,6 +578,8 @@
 				D10000000000000000000055 /* ComposeListView.swift in Sources */,
 				D10000000000000000000056 /* DockerSSHConnection.swift in Sources */,
 				D10000000000000000000057 /* DockerDiagnostics.swift in Sources */,
+				D10000000000000000000058 /* DatabaseModels.swift in Sources */,
+				D10000000000000000000059 /* DatabaseService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
