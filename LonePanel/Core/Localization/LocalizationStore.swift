@@ -199,8 +199,10 @@ final class LocalizationStore: ObservableObject {
         guard iCloudAvailable, let container = FileManager.default.url(forUbiquityContainerIdentifier: nil) else { return }
         let remote = container.appendingPathComponent(packsDirName, isDirectory: true)
         try? FileManager.default.createDirectory(at: remote, withIntermediateDirectories: true)
-        for pack in customPacks, let data = try? pack.encodedJSON() {
-            try? data.write(to: remote.appendingPathComponent("\(pack.id).json"), options: .atomic)
+        for pack in customPacks {
+            if let data = try? pack.encodedJSON() {
+                try? data.write(to: remote.appendingPathComponent("\(pack.id).json"), options: .atomic)
+            }
         }
     }
 }
