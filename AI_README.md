@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.76.3`，版本 1.76.3（详见第 9 节） |
+| 当前基线 | tag `t1.76.5`，版本 1.76.5（详见第 9 节） |
 
 ---
 
@@ -244,6 +244,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **t1.76.1** | **修复压缩失败（tar: xxx: Cannot stat: No such file or directory）：compress 里 -C 误切到父目录，但源项是相对当前目录的 basename，导致 tar 在父目录找不到文件。改为 -C 当前目录；产物用绝对路径写到当前目录，因明确列出 basename（非 "."）不会把归档自身打进去** |
 | **t1.76.2** | **①压缩支持格式选择：新增 ArchiveFormat(.tar.gz/.zip)，压缩参数表独立 sheet（CompressSheet，alert 里放 Picker 不可靠），model 按格式走 tar -czf 或 zip -r，自动去旧后缀按所选格式补；②自定义语言包删除后重启复活修复：removePack 只从内存数组删+persistCustomPacks（只写存活包、从不删文件），磁盘 JSON 和 iCloud 镜像都没删，重启 loadLocal 又读回。改为显式删除本地 + iCloud 的 <id>.json** |
 | **t1.76.3** | **①压缩后缀误解修复：compressTarget 默认名不再塞 .tar.gz（只填主名），CompressSheet 把格式从独立 segmented 改为紧贴名称框右侧的后缀下拉 Menu（网页款式，.borderlessButton，原生不冲突），并用 LabeledContent 实时预览最终完整文件名（finalName 去旧后缀+拼当前格式），选 zip 立即显示 .zip，消除误解；②Docker 顶部 tab「图像」改「镜像」：d["Image"] 由「图像」改「镜像」（影响 Docker tab/容器详情/数据库实例 3 处正确语境），文件详情页图片类型分流到新 key d["Picture"]=「图像」，避免误伤** |
+| **t1.76.5** | **设置页模块管理列表的模块名（Website/Docker/Database/Files）切中文不翻译：SettingsView.moduleToggleRow 里 Label(item.title) 直接用英文 key（TabRegistry.module.title 存英文 key，Tab 栏展示时走 L10n.t，但设置页漏了），改为 Label(L10n.t(item.title))。注：t1.76.4 因 GitHub Actions force-update tag 复用旧 ref 上下文导致 asset 上传错位，改用全新 tag 规避** |
 
 ---
 

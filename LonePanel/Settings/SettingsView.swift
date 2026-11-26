@@ -85,7 +85,7 @@ struct SettingsView: View {
                 _ = visibility.set(item.id, enabled: newValue)
             }
         )) {
-            Label(item.title, systemImage: item.symbol)
+            Label(L10n.t(item.title), systemImage: item.symbol)
         }
     }
 }
