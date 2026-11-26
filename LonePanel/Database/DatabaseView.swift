@@ -181,8 +181,11 @@ private struct ContainerDatabaseDetailView: View {
             Section("连接信息") {
                 LabeledContent("执行方式", value: "容器内执行")
                 LabeledContent("用户名", value: instance.username.isEmpty ? "（无认证）" : instance.username)
-                LabeledContent(instance.kind == .redis ? "db 索引" : "默认库",
-                               value: instance.database.isEmpty ? "（自动）" : instance.database)
+                LabeledContent {
+                    Text(instance.database.isEmpty ? "（自动）" : instance.database)
+                } label: {
+                    Text(instance.kind == .redis ? "db 索引" : "默认库")
+                }
             } footer: {
                 Text("命令直接在容器内运行，凭据从容器环境变量读取，不写入本机配置。")
             }

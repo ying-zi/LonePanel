@@ -146,7 +146,7 @@ struct DatabaseConnection: Identifiable, Codable, Equatable {
         containerID = try c.decodeIfPresent(String.self, forKey: .containerID)
         statusText = try c.decodeIfPresent(String.self, forKey: .statusText)
         imageName = try c.decodeIfPresent(String.self, forKey: .imageName)
-        inlinePassword = try c.decodeIfPresent(String.self, forKey: .inlinePassword)
+        // inlinePassword 不在 CodingKeys 中，故意不解码：容器口令只在内存存在。
     }
 
     func encode(to encoder: Encoder) throws {
