@@ -66,10 +66,14 @@ struct ContentView: View {
     }
 
     var body: some View {
-        // 关键：.id 只作用于内容区，绝不挂到外层带 .sheet 的链上。
-        // 否则切换语言（revision 变化）会让整条视图链换身份，正在显示的设置 sheet
-        // 会被重新 present——旧的还没释放、新的又要弹，直接 EXC_BAD_ACCESS 闪退。
-        contentArea
+        // 关键结构：把「会换身份的内容区」和「不该换身份的 sheet 宿主」分成两层。
+        // 用一个稳定的 ZStack 作为根容器承载所有 sheet；真正带 .id(revision) 的
+        // contentArea 作为它的子视图。换语言 revision 变化时，只有 contentArea 子树
+        // 被替换，根 ZStack（连着它的 .sheet）身份保持不变，正在显示的设置 sheet
+        // 不会被重新 present——这正是切换中文闪退的根因。
+        ZStack {
+            contentArea
+        }
         // 悬浮终端入口：开关开启 + 当前形态宿主模块允许时出现。
         // 单模块全屏（moduleFocus）里容器/网站/数据库同样要有悬浮终端——只留一个模块
         // 恰恰是最需要终端兜底的场景；纯终端形态（terminalFocus）本身就是终端，自动隐藏。

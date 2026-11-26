@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.69.0`，版本 1.69.0（详见第 9 节） |
+| 当前基线 | tag `t1.70.0`，版本 1.70.0（详见第 9 节） |
 
 ---
 
@@ -234,7 +234,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **t1.66** | **多语言：默认英文 + 内置中文包 + Telegram式JSON语言包导入导出 + iCloud优雅降级；源码全量英文化（显示点走L10n.t查表）；终端欢迎语只保留连接行** |
 | **t1.67** | **补齐多语言遗漏：alert 标题 / 带参确认弹窗 / 错误信息全部接入 L10n 查表；修复语言包导出（UIActivityViewController 改为宿主 present）** |
 | **t1.68** | **修复 t1.67 闪退（L10n.f 的 String(format:)+%@ 传 Swift String 崩溃，改为纯字符串替换）；设置页新增 iCloud 同步开关** |
-| **t1.69** | **修复切换中文闪退：.id(revision) 从含 sheet 的根视图链移到仅内容区（contentArea），避免换语言时正在显示的 sheet 被重新 present 崩溃；bump 改为 dispatch 到下一 runloop，避开视图更新事务内换身份** |
+| **t1.70** | **修复切换中文闪退：把 .id(revision) 的内层子树与承载 sheet 的根容器分成两层（稳定 ZStack 根 + contentArea 子视图），换语言只重建内容区、sheet 宿主身份不变；bump dispatch 到下一 runloop，避开视图更新事务内换身份** |
 
 ---
 
@@ -257,7 +257,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | 下载 IPA 超时 / RemoteDisconnected | 用 asset API（`/repos/{o}/{r}/releases/assets/{id}`）+ `Accept: application/octet-stream` + 分块读取 + urllib 重试 |
 | **t1.67 闪退（编译过但运行崩）** | `String(format:)` 用 `%@` 传 Swift `String` 会 EXC_BAD_ACCESS（须 NSString）。本地化带参文案改用 `L10n.f` 的**纯 `replacingOccurrences` 替换**（`%@` 顺序 / `%1$@` 指定位置），彻底不用 `String(format:)`。**以后任何带参本地化都别用 String(format:)**。 |
 | 选完目录返回后上层表单 sheet 被收起 | 调用方本身是 sheet 时，别用根视图的全局 `fileOpenTarget` 弹 sheet（祖先弹 sheet 会收起后代 sheet）；改用 `directoryPickTarget` + 本地 `.folderPicker(item:)` 形成正确嵌套 |
-| **切换中文就闪退** | `.id(localization.revision)` 挂在 body 根视图链上（该链还挂着设置/终端/调用态三个 `.sheet`）。换语言 revision+1 → 整条根链换身份 → 正在显示的 sheet 宿主被销毁重建 → 重新 present 崩溃。**正解：`.id(revision)` 只挂到内容区 `contentArea`，sheet 宿主留在稳定根链**；且 `revision` 自增用 `DispatchQueue.main.async` 推到下一 runloop，绝不在 Picker/Toggle 的 set（视图更新事务）内同步改身份。 |
+| **切换中文就闪退** | `.id(localization.revision)` 挂在 body 根链上（该链还挂着设置/终端/调用态三个 `.sheet`）。换语言 revision+1 → 整条根链换身份 → 正在显示的 sheet 宿主被销毁重建 → 重新 present 崩溃。**正解：引入稳定 ZStack 根容器承载全部 sheet，`.id(revision)` 只挂在它的子视图 `contentArea` 上**——注意计算属性会内联，仅把 .id 移进 `contentArea` 而不加稳定根容器是**无效**的（展开后结构不变）；且 `revision` 自增用 `DispatchQueue.main.async` 推到下一 runloop，绝不在 Picker/Toggle 的 set（视图更新事务）内同步改身份。 |
 
 ---
 
@@ -267,7 +267,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 2. **新增一个可插拔模块**：建 `<Name>/<Name>Tab.swift`（导出 `TabModule`）+ View；在 `TabRegistry.modules` 加一行；如需开关，`ModuleID` 加 case（`isCore=false`）；如需设置项，填 `settingsSection`。删模块反过来即可。
 3. **加悬浮终端的宿主模块**：在模块 TabModule 里设 `showsFloatingTerminal: true`。
 4. **改终端行为**：动 `TerminalSession` / `TerminalView` 前，先读 6.1 与踩坑表；终端是底座，任何"模块级终端开关"都不能加。
-5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前下一个是 t1.69.0）。
+5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前下一个是 t1.71.0）。
 
 ### 当前待办 / 方向（供参考）
 
@@ -277,4 +277,4 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 
 ---
 
-*最后更新：2026-11-26，基线 t1.69.0。文档随版本演进同步更新。*
+*最后更新：2026-11-26，基线 t1.70.0。文档随版本演进同步更新。*
