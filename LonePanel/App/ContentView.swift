@@ -108,14 +108,18 @@ struct ContentView: View {
                 .presentationDetents([.large])
         }
         .onAppear { ensureValidSelection() }
-        .onChange(of: visibility.enabled) { _, _ in
+        .onChange(of: visibility.enabled) { oldValue, newValue in
             ensureValidSelection()
-            // 模块数量变化只改变底下的根视图形态，不再干预设置卡片的呈现：
-            // - 终端兜底(0模块)开启第一个模块 → moduleFocus，卡片继续正常显示；
-            // - 多模块关到只剩一个 → moduleFocus，卡片同样保持。
-            // 唯一例外：关到 0 模块进终端兜底时，终端会自动聚焦输入框，若卡片仍盖着，
-            // 键盘会把卡片顶乱且用户还得手动下拉——此时主动收起。
-            if case .terminalFocus = visibility.rootMode, showSettings {
+            let oldCount = oldValue.subtracting([.settings]).count
+            let newCount = newValue.subtracting([.settings]).count
+            // 从单模块/终端兜底（<2）开启到第二个模块（≥2）：根形态进入多模块 TabView，
+            // 设置此时正是底部 Tab 之一。全屏 .large 卡片会盖住底部栏，让用户误以为
+            // 「Tab 没弹出来」——这里主动收起卡片，立即露出包括设置 Tab 在内的底部栏。
+            if oldCount < 2, newCount >= 2, showSettings {
+                showSettings = false
+            }
+            // 关到 0 模块进终端兜底：终端自动聚焦输入框，卡片盖着会被键盘顶乱，主动收起。
+            if newCount == 0, showSettings {
                 showSettings = false
             }
         }

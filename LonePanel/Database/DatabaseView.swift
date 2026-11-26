@@ -227,21 +227,253 @@ private struct ContainerDatabaseDetailView: View {
                 Text("命令直接在容器内运行，凭据从容器环境变量读取，不写入本机配置。")
             }
 
+            if instance.isRunning {
+                // 进详情直接列出并管理该实例下的数据库（对标 1Panel）。
+                DatabaseListSection(conn: instance)
+            } else {
+                Section {
+                    Label("容器未运行，无法读取数据库", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                } footer: {
+                    Text("请先在 Docker 模块启动该容器，再回来管理数据库。")
+                }
+            }
+
             Section {
                 NavigationLink {
                     DatabaseBrowserView(store: store, fixedConnection: instance)
                 } label: {
-                    Label("浏览数据与执行 SQL", systemImage: "tablecells")
+                    Label("数据浏览与执行 SQL", systemImage: "tablecells")
                 }
                 .disabled(!instance.isRunning)
-            } footer: {
-                if !instance.isRunning {
-                    Text("容器未运行，请先在 Docker 模块启动该容器。")
-                }
             }
         }
         .navigationTitle(instance.name)
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - 库列表管理（详情页直接列出并增删改）
+
+/// 详情页里的库列表：进入即加载现有数据库，支持新增 / 删除 / 重命名。
+/// 这是对标 1Panel 的核心能力——进详情直接看到库并管理，而不是先跳到"数据浏览"。
+private struct DatabaseListSection: View {
+    let conn: DatabaseConnection
+    @State private var databases: [DatabaseItem] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var showCreate = false
+    @State private var newName = ""
+    @State private var renaming: DatabaseItem?
+    @State private var renameText = ""
+    @State private var deleting: DatabaseItem?
+    @State private var actionMessage: String?
+    @State private var showActionResult = false
+
+    private var canCreate: Bool { conn.kind != .redis }
+    private var canRename: Bool { conn.kind != .redis }
+    private var canDelete: Bool { conn.kind != .redis }
+
+    var body: some View {
+        Section {
+            if isLoading {
+                HStack {
+                    ProgressView()
+                    Text("正在读取数据库...").foregroundStyle(.secondary)
+                }
+            } else if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange).font(.caption)
+                Button("重试") { Task { await load() } }
+            } else if databases.isEmpty {
+                Text("该实例下暂无可显示的数据库").foregroundStyle(.secondary)
+            } else {
+                ForEach(databases) { db in
+                    NavigationLink {
+                        DatabaseBrowserView(store: DatabaseConnectionStore.shared,
+                                            fixedConnection: conn,
+                                            initialDatabase: db.name)
+                    } label: {
+                        HStack {
+                            Image(systemName: "cylinder").foregroundStyle(.tint)
+                            Text(db.name)
+                            if let detail = db.detail {
+                                Spacer()
+                                Text(detail).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        if canDelete {
+                            Button(role: .destructive) { deleting = db } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
+                        if canRename {
+                            Button {
+                                renaming = db
+                                renameText = db.name
+                            } label: {
+                                Label("重命名", systemImage: "pencil")
+                            }
+                            .tint(.indigo)
+                        }
+                    }
+                }
+            }
+            if canCreate {
+                Button {
+                    newName = ""
+                    showCreate = true
+                } label: {
+                    Label("添加数据库", systemImage: "plus.circle")
+                }
+            }
+        } header: {
+            HStack {
+                Label(conn.kind == .redis ? "数据库索引 (db)" : "数据库", systemImage: "cylinder.split.1x2")
+                Spacer()
+                if canCreate {
+                    Button { Task { await load() } } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+            }
+        } footer: {
+            if canCreate {
+                Text("左滑数据库可重命名或删除；点进数据库可浏览表与数据。")
+            } else {
+                Text("Redis 使用固定 db 索引，可点进索引浏览 / 清空 Key。")
+            }
+        }
+        .task { await load() }
+        .sheet(isPresented: $showCreate) {
+            DatabaseNameEditor(title: "新建数据库",
+                               name: $newName,
+                               confirmTitle: "创建",
+                               conn: conn) { name in
+                await DatabaseService.shared.createDatabase(conn, name: name)
+            } onDone: { message in
+                present(message)
+                await load()
+            }
+        }
+        .sheet(item: $renaming) { db in
+            DatabaseNameEditor(title: "重命名数据库",
+                               name: $renameText,
+                               confirmTitle: "保存",
+                               conn: conn) { name in
+                await DatabaseService.shared.renameDatabase(conn, from: db.name, to: name)
+            } onDone: { message in
+                present(message)
+                await load()
+            }
+        }
+        .alert("删除数据库", isPresented: Binding(
+            get: { deleting != nil },
+            set: { if !$0 { deleting = nil } }
+        )) {
+            Button("取消", role: .cancel) { deleting = nil }
+            Button("删除", role: .destructive) {
+                if let db = deleting { Task { await remove(db) } }
+            }
+        } message: {
+            Text("确定删除数据库「\(deleting?.name ?? "")」？其中的表和数据会一并删除，此操作不可撤销。")
+        }
+        .alert("操作结果", isPresented: $showActionResult) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(actionMessage ?? "")
+        }
+    }
+
+    private func load() async {
+        isLoading = true
+        errorMessage = nil
+        let result = await DatabaseService.shared.listDatabases(conn)
+        switch result {
+        case .success(let items): databases = items
+        case .failure(let error): errorMessage = error.localizedDescription; databases = []
+        }
+        isLoading = false
+    }
+
+    private func remove(_ db: DatabaseItem) async {
+        let result = await DatabaseService.shared.dropDatabase(conn, name: db.name)
+        switch result {
+        case .success(let message): present(message); await load()
+        case .failure(let error): present(error.localizedDescription)
+        }
+    }
+
+    private func present(_ message: String) {
+        actionMessage = message
+        showActionResult = true
+    }
+}
+
+/// 库名输入编辑器（新建 / 重命名共用），内部完成校验与命令执行。
+private struct DatabaseNameEditor: View {
+    let title: String
+    @Binding var name: String
+    let confirmTitle: String
+    let conn: DatabaseConnection
+    let action: (String) async -> Result<String, DatabaseError>
+    let onDone: (String) async -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var isRunning = false
+    @State private var error: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("数据库名（字母、数字、下划线）", text: $name)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                } header: {
+                    Text("库名")
+                } footer: {
+                    Text("仅支持字母、数字、下划线，长度不超过 64 字符。\(conn.kind.title) 将在服务器端执行对应命令。")
+                }
+                if let error {
+                    Section {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red).font(.caption)
+                    }
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(confirmTitle) {
+                        Task { await submit() }
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(isRunning || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func submit() async {
+        isRunning = true
+        error = nil
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let result = await action(trimmed)
+        isRunning = false
+        switch result {
+        case .success(let message):
+            dismiss()
+            await onDone(message)
+        case .failure(let dbError):
+            error = dbError.localizedDescription
+        }
     }
 }
 
@@ -423,11 +655,14 @@ struct ConnectionDetailView: View {
                 Text("测试会通过 SSH 在服务器上执行一条轻量查询，验证客户端与数据库均可用。")
             }
 
+            // 进详情直接列出并管理该连接下的数据库（对标 1Panel）。
+            DatabaseListSection(conn: conn)
+
             Section {
                 NavigationLink {
                     DatabaseBrowserView(store: store, fixedConnection: conn)
                 } label: {
-                    Label("浏览数据与执行 SQL", systemImage: "tablecells")
+                    Label("数据浏览与执行 SQL", systemImage: "tablecells")
                 }
             }
         }
@@ -578,6 +813,8 @@ struct DatabaseBrowserView: View {
     @ObservedObject var store: DatabaseConnectionStore
     /// 容器实例直连：跳过连接选择，直接进入该实例的数据浏览。
     var fixedConnection: DatabaseConnection? = nil
+    /// 从库列表点进来时预设的库，进入后直接展开其表/集合/Key。
+    var initialDatabase: String? = nil
 
     @State private var selectedConnectionID: UUID?
     @State private var databases: [DatabaseItem] = []
@@ -705,7 +942,13 @@ struct DatabaseBrowserView: View {
         .onAppear {
             if fixedConnection != nil {
                 // 容器实例直连：无需选择连接，直接加载该实例的库列表。
-                Task { await loadDatabases() }
+                Task {
+                    await loadDatabases()
+                    if let initialDatabase {
+                        selectedDatabase = initialDatabase
+                        await loadTables(for: initialDatabase)
+                    }
+                }
             } else {
                 ensureSelection()
             }

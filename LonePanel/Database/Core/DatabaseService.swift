@@ -352,6 +352,139 @@ final class DatabaseService {
         return await runTable(command)
     }
 
+    // MARK: - 库管理（新增 / 删除 / 重命名）
+
+    /// 校验库名：仅字母、数字、下划线，长度 1…64，防止 SQL / shell 注入。
+    private func validDatabaseName(_ name: String) -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 64 else { return nil }
+        let allowed = trimmed.unicodeScalars.allSatisfy { scalar in
+            (scalar.value >= 48 && scalar.value <= 57) ||   // 0-9
+            (scalar.value >= 65 && scalar.value <= 90) ||   // A-Z
+            (scalar.value >= 97 && scalar.value <= 122) ||  // a-z
+            scalar.value == 95                              // _
+        }
+        return allowed ? trimmed : nil
+    }
+
+    /// 新建数据库。MongoDB 库随首个集合隐式创建；Redis 使用固定 db 索引，不支持新建。
+    func createDatabase(_ conn: DatabaseConnection, name rawName: String) async -> Result<String, DatabaseError> {
+        guard let name = validDatabaseName(rawName) else {
+            return .failure(.commandFailed(message: "库名只能包含字母、数字、下划线，且不超过 64 字符"))
+        }
+        let command: String
+        switch conn.kind {
+        case .mysql:
+            let sql = "CREATE DATABASE IF NOT EXISTS `\(name)`"
+            command = "\(mysqlBase(conn)) -e \(ShellQuote.quote(sql)) 2>&1"
+        case .postgresql:
+            let sql = "CREATE DATABASE \"\(name)\""
+            command = "\(psqlBase(conn, database: "postgres")) -c \(ShellQuote.quote(sql)) 2>&1"
+        case .mongodb:
+            let uri = mongoURI(conn, database: "admin")
+            let js = "db.getSiblingDB(\(jsString(name))).createCollection('_lonepanel_init'); 'ok'"
+            command = "\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1"
+        case .redis:
+            return .failure(.commandFailed(message: "Redis 使用固定 db 索引（0–15），无需也不能新建数据库"))
+        }
+        return await runWrite(command, success: "数据库 \(name) 已创建")
+    }
+
+    /// 删除数据库。Redis 不支持删除 db 索引（可进入该库用 FLUSHDB 清空数据）。
+    func dropDatabase(_ conn: DatabaseConnection, name rawName: String) async -> Result<String, DatabaseError> {
+        guard let name = validDatabaseName(rawName) else {
+            return .failure(.commandFailed(message: "库名不合法"))
+        }
+        let command: String
+        switch conn.kind {
+        case .mysql:
+            let sql = "DROP DATABASE IF EXISTS `\(name)`"
+            command = "\(mysqlBase(conn)) -e \(ShellQuote.quote(sql)) 2>&1"
+        case .postgresql:
+            let sql = "DROP DATABASE IF EXISTS \"\(name)\""
+            command = "\(psqlBase(conn, database: "postgres")) -c \(ShellQuote.quote(sql)) 2>&1"
+        case .mongodb:
+            let uri = mongoURI(conn, database: "admin")
+            let js = "db.getSiblingDB(\(jsString(name))).dropDatabase(); 'ok'"
+            command = "\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1"
+        case .redis:
+            return .failure(.commandFailed(message: "Redis 不支持删除 db 索引，可进入该库清空数据"))
+        }
+        return await runWrite(command, success: "数据库 \(name) 已删除")
+    }
+
+    /// 重命名数据库。PostgreSQL 用 ALTER；MySQL 建新库+逐表迁移+删旧库；MongoDB 逐集合迁移；Redis 不支持。
+    func renameDatabase(_ conn: DatabaseConnection, from rawOld: String, to rawNew: String) async -> Result<String, DatabaseError> {
+        guard let old = validDatabaseName(rawOld), let new = validDatabaseName(rawNew) else {
+            return .failure(.commandFailed(message: "库名只能包含字母、数字、下划线"))
+        }
+        guard old != new else {
+            return .failure(.commandFailed(message: "新旧库名相同，无需修改"))
+        }
+        switch conn.kind {
+        case .postgresql:
+            let sql = "ALTER DATABASE \"\(old)\" RENAME TO \"\(new)\""
+            let command = "\(psqlBase(conn, database: "postgres")) -c \(ShellQuote.quote(sql)) 2>&1"
+            return await runWrite(command, success: "已重命名为 \(new)")
+        case .mysql:
+            return await mysqlRenameDatabase(conn, from: old, to: new)
+        case .mongodb:
+            return await mongoRenameDatabase(conn, from: old, to: new)
+        case .redis:
+            return .failure(.commandFailed(message: "Redis 不支持重命名数据库"))
+        }
+    }
+
+    /// MySQL 无原生 RENAME DATABASE：建目标库 → 逐表 RENAME TABLE → 删源库。
+    private func mysqlRenameDatabase(_ conn: DatabaseConnection, from old: String, to new: String) async -> Result<String, DatabaseError> {
+        let createSQL = "CREATE DATABASE IF NOT EXISTS `\(new)`"
+        let created = await run("\(mysqlBase(conn)) -e \(ShellQuote.quote(createSQL)) 2>&1", timeout: listTimeout)
+        guard created.exit == 0, !looksLikeError(created.out) else {
+            return .failure(.commandFailed(message: readableError(created)))
+        }
+        let showSQL = "SHOW TABLES FROM `\(old)`"
+        let listed = await run("\(mysqlBase(conn)) -N -B -e \(ShellQuote.quote(showSQL)) 2>&1", timeout: listTimeout)
+        guard listed.exit == 0 else {
+            return .failure(.commandFailed(message: readableError(listed)))
+        }
+        let tables = parseLines(listed.out).map(\.name)
+        for table in tables {
+            let sql = "RENAME TABLE `\(old)`.`\(table)` TO `\(new)`.`\(table)`"
+            let moved = await run("\(mysqlBase(conn)) -e \(ShellQuote.quote(sql)) 2>&1", timeout: listTimeout)
+            guard moved.exit == 0, !looksLikeError(moved.out) else {
+                return .failure(.commandFailed(message: "迁移表 \(table) 失败：\(readableError(moved))"))
+            }
+        }
+        let dropSQL = "DROP DATABASE IF EXISTS `\(old)`"
+        let dropped = await run("\(mysqlBase(conn)) -e \(ShellQuote.quote(dropSQL)) 2>&1", timeout: listTimeout)
+        guard dropped.exit == 0 else {
+            return .failure(.commandFailed(message: readableError(dropped)))
+        }
+        return .success("已将 \(old) 重命名为 \(new)，迁移 \(tables.count) 张表")
+    }
+
+    /// MongoDB 无原生 renameDB：用 adminCommand 逐集合 renameCollection 到目标库。
+    private func mongoRenameDatabase(_ conn: DatabaseConnection, from old: String, to new: String) async -> Result<String, DatabaseError> {
+        let uri = mongoURI(conn, database: "admin")
+        let js = "db.getSiblingDB(\(jsString(old))).getCollectionNames().forEach(function(c){" +
+                 "db.adminCommand({renameCollection: \(jsString(old + "." + c)), to: \(jsString(new + "." + c))})}); 'ok'"
+        let command = "\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1"
+        return await runWrite(command, success: "已将 \(old) 重命名为 \(new)")
+    }
+
+    /// 写类命令的统一执行：exit=0 且输出无错误特征即视为成功。
+    private func runWrite(_ command: String, success: String) async -> Result<String, DatabaseError> {
+        let result = await run(command, timeout: queryTimeout)
+        guard result.exit == 0 else {
+            return .failure(.commandFailed(message: readableError(result)))
+        }
+        let out = result.out.trimmingCharacters(in: .whitespacesAndNewlines)
+        if looksLikeError(out) {
+            return .failure(.commandFailed(message: firstMeaningfulLine(out)))
+        }
+        return .success(success)
+    }
+
     // MARK: - Redis 单值读取
 
     /// 读取一个 Redis key 的值，按类型选择命令。
