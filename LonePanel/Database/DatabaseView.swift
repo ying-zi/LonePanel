@@ -607,7 +607,6 @@ private struct DatabaseListSection: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showCreate = false
-    @State private var newName = ""
     @State private var renaming: DatabaseItem?
     @State private var renameText = ""
     @State private var deleting: DatabaseItem?
@@ -667,7 +666,6 @@ private struct DatabaseListSection: View {
             }
             if canCreate {
                 Button {
-                    newName = ""
                     showCreate = true
                 } label: {
                     Label("添加数据库", systemImage: "plus.circle")
@@ -685,19 +683,14 @@ private struct DatabaseListSection: View {
             }
         } footer: {
             if canCreate {
-                Text("左滑数据库可重命名或删除；点进数据库可浏览表与数据。")
+                Text("添加数据库时会一并创建专属用户并授权该库；左滑可重命名或删除；点进可浏览表与数据。")
             } else {
                 Text("Redis 使用固定 db 索引，可点进索引浏览 / 清空 Key。")
             }
         }
         .task { await load() }
         .sheet(isPresented: $showCreate) {
-            DatabaseNameEditor(title: "新建数据库",
-                               name: $newName,
-                               confirmTitle: "创建",
-                               conn: conn) { name in
-                await DatabaseService.shared.createDatabase(conn, name: name)
-            } onDone: { message in
+            DatabaseCreateView(conn: conn) { message in
                 present(message)
                 await load()
             }
@@ -753,6 +746,97 @@ private struct DatabaseListSection: View {
     private func present(_ message: String) {
         actionMessage = message
         showActionResult = true
+    }
+}
+
+/// 新建数据库（一步到位）：填库名 + 专属用户名/密码，自动建库并把用户授权到该库。
+/// 对齐 1Panel 的建库体验——库建好即可用这个账号连接，无需再去用户管理手动绑定。
+private struct DatabaseCreateView: View {
+    let conn: DatabaseConnection
+    let onDone: (String) async -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var database = ""
+    @State private var username = ""
+    @State private var password = ""
+    @State private var grantAll = false
+    @State private var isRunning = false
+    @State private var error: String?
+
+    private var canSubmit: Bool {
+        !database.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("数据库名（字母、数字、下划线）", text: $database)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                } header: {
+                    Text("数据库")
+                } footer: {
+                    Text("仅支持字母、数字、下划线，长度不超过 64 字符。")
+                }
+                Section {
+                    TextField("用户名（留空则与库名相同）", text: $username)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    SecureField("密码", text: $password)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                } header: {
+                    Text("专属用户")
+                } footer: {
+                    Text("创建库的同时会建立这个账号，并只授权访问刚创建的库。密码仅下发给服务器，不保存在本机。")
+                }
+                Section {
+                    Picker("权限范围", selection: $grantAll) {
+                        Text("仅此数据库（推荐）").tag(false)
+                        Text("全部库（管理员）").tag(true)
+                    }
+                } header: {
+                    Text("授权")
+                } footer: {
+                    Text("默认只授权当前库，符合最小权限原则；需要跨库管理时再选管理员。")
+                }
+                if let error {
+                    Section {
+                        Label(error, systemImage: "xmark.circle.fill").foregroundStyle(.red).font(.caption)
+                    }
+                }
+            }
+            .navigationTitle("新建数据库")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("创建") { Task { await submit() } }
+                        .fontWeight(.semibold)
+                        .disabled(isRunning || !canSubmit)
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    private func submit() async {
+        isRunning = true
+        error = nil
+        let db = database.trimmingCharacters(in: .whitespacesAndNewlines)
+        let user = username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? db : username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let result = await DatabaseService.shared.createDatabaseWithUser(
+            conn, database: db, username: user,
+            password: password, grantAll: grantAll
+        )
+        isRunning = false
+        switch result {
+        case .success(let message):
+            dismiss()
+            await onDone(message)
+        case .failure(let dbError):
+            error = dbError.localizedDescription
+        }
     }
 }
 

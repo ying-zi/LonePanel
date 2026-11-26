@@ -425,6 +425,45 @@ final class DatabaseService {
         return await runWrite(command, success: "数据库 \(name) 已创建")
     }
 
+    /// 一步到位：建库 + 创建专属用户 + 授权该用户访问该库（对齐 1Panel 的建库体验）。
+    /// 建库成功但建用户失败时，明确告知库已创建、可到「用户管理」补建，避免出现"库建好了却没人能用"的黑洞。
+    /// grantAll=true 时建管理员用户（授权全部库），否则仅授权刚创建的这个库（最小权限）。
+    func createDatabaseWithUser(_ conn: DatabaseConnection,
+                                database rawDatabase: String,
+                                username rawUsername: String,
+                                password rawPassword: String,
+                                grantAll: Bool) async -> Result<String, DatabaseError> {
+        guard let dbName = validDatabaseName(rawDatabase) else {
+            return .failure(.commandFailed(message: "库名只能包含字母、数字、下划线，且不超过 64 字符"))
+        }
+        guard let user = validUserName(rawUsername) else {
+            return .failure(.commandFailed(message: "用户名只能包含字母、数字、下划线、点、中划线，长度 1–64"))
+        }
+        let pass = rawPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !pass.isEmpty else {
+            return .failure(.commandFailed(message: "密码不能为空"))
+        }
+
+        // 1) 建库
+        let dbResult = await createDatabase(conn, name: dbName)
+        guard case .success = dbResult else { return dbResult }
+
+        // 2) 建专属用户并授权。用户绑定在库上：非管理员只授权这一库。
+        let userResult = await createUser(
+            conn, username: user, password: pass,
+            database: grantAll ? "" : dbName, isAdmin: grantAll
+        )
+        switch userResult {
+        case .success:
+            let scope = grantAll ? "全部库（管理员）" : "仅 \(dbName)"
+            return .success("数据库 \(dbName) 已创建；专属用户 \(user) 已创建并授权（\(scope)）")
+        case .failure(let error):
+            return .failure(.commandFailed(
+                message: "数据库 \(dbName) 已创建，但专属用户 \(user) 创建失败：\(error.localizedDescription)。可到「实例管理 → 用户管理」手动创建并授权该库。"
+            ))
+        }
+    }
+
     /// 删除数据库。Redis 不支持删除 db 索引（可进入该库用 FLUSHDB 清空数据）。
     func dropDatabase(_ conn: DatabaseConnection, name rawName: String) async -> Result<String, DatabaseError> {
         guard let name = validDatabaseName(rawName) else {
