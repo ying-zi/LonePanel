@@ -65,7 +65,14 @@ enum DatabaseKind: String, Codable, CaseIterable, Identifiable {
 
 // MARK: - 连接配置
 
+/// 实例来源：容器内数据库（1Panel 式主管理对象）/ 远程数据库（管理中的一项能力）。
+enum DatabaseSource: String, Codable {
+    case container
+    case remote
+}
+
 /// 一条数据库连接配置。密码不落在这里，只存钥匙串索引键。
+/// 同时承载两类实例：容器数据库（由 Docker 容器发现，凭据从环境变量读取）+ 远程连接（用户手填）。
 struct DatabaseConnection: Identifiable, Codable, Equatable {
     let id: UUID
     var name: String
@@ -78,6 +85,22 @@ struct DatabaseConnection: Identifiable, Codable, Equatable {
     /// 钥匙串索引键（密码/URI 口令存这里）。
     var credentialKey: String
 
+    /// 实例来源，默认远程以兼容历史持久化数据。
+    var source: DatabaseSource = .remote
+    /// 容器内实例：目标容器 ID/名称，命令统一走 `docker exec`。
+    var containerID: String?
+    /// 容器内实例：容器运行状态描述（运行中 / 已暂停 / 已停止）。
+    var statusText: String?
+    /// 容器内实例：镜像名，用于展示与类型识别。
+    var imageName: String?
+    /// 容器内实例：从环境变量读到的口令，仅内存态，不写入本地存储/钥匙串。
+    var inlinePassword: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, kind, host, port, username, database, credentialKey
+        case source, containerID, statusText, imageName
+    }
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -86,7 +109,12 @@ struct DatabaseConnection: Identifiable, Codable, Equatable {
         port: Int? = nil,
         username: String = "",
         database: String = "",
-        credentialKey: String? = nil
+        credentialKey: String? = nil,
+        source: DatabaseSource = .remote,
+        containerID: String? = nil,
+        statusText: String? = nil,
+        imageName: String? = nil,
+        inlinePassword: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -96,11 +124,60 @@ struct DatabaseConnection: Identifiable, Codable, Equatable {
         self.username = username
         self.database = database
         self.credentialKey = credentialKey ?? "db.credential.\(id.uuidString)"
+        self.source = source
+        self.containerID = containerID
+        self.statusText = statusText
+        self.imageName = imageName
+        self.inlinePassword = inlinePassword
+    }
+
+    /// 兼容旧数据的解码：新增字段缺失时用默认值（远程 / 无容器）。
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        kind = try c.decode(DatabaseKind.self, forKey: .kind)
+        host = try c.decode(String.self, forKey: .host)
+        port = try c.decode(Int.self, forKey: .port)
+        username = try c.decode(String.self, forKey: .username)
+        database = try c.decode(String.self, forKey: .database)
+        credentialKey = try c.decode(String.self, forKey: .credentialKey)
+        source = try c.decodeIfPresent(DatabaseSource.self, forKey: .source) ?? .remote
+        containerID = try c.decodeIfPresent(String.self, forKey: .containerID)
+        statusText = try c.decodeIfPresent(String.self, forKey: .statusText)
+        imageName = try c.decodeIfPresent(String.self, forKey: .imageName)
+        inlinePassword = try c.decodeIfPresent(String.self, forKey: .inlinePassword)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(kind, forKey: .kind)
+        try c.encode(host, forKey: .host)
+        try c.encode(port, forKey: .port)
+        try c.encode(username, forKey: .username)
+        try c.encode(database, forKey: .database)
+        try c.encode(credentialKey, forKey: .credentialKey)
+        try c.encode(source, forKey: .source)
+        try c.encodeIfPresent(containerID, forKey: .containerID)
+        try c.encodeIfPresent(statusText, forKey: .statusText)
+        try c.encodeIfPresent(imageName, forKey: .imageName)
+        // inlinePassword 故意不编码：容器口令只存在于内存。
     }
 
     /// 展示用连接地址。
     var endpoint: String {
         "\(host):\(port)"
+    }
+
+    /// 是否为容器内数据库实例。
+    var isContainer: Bool { source == .container && containerID != nil }
+
+    /// 容器内实例是否处于可查询状态。
+    var isRunning: Bool {
+        guard let statusText else { return true }
+        return !statusText.contains("已停止") && !statusText.contains("已暂停")
     }
 }
 
@@ -165,7 +242,9 @@ final class DatabaseConnectionStore: ObservableObject {
     }
 
     func password(for connection: DatabaseConnection) -> String {
-        (try? KeychainStore.load(connection.credentialKey)) ?? ""
+        // 容器实例的口令来自容器环境变量，仅内存态，不写钥匙串。
+        if let inline = connection.inlinePassword { return inline }
+        return (try? KeychainStore.load(connection.credentialKey)) ?? ""
     }
 }
 

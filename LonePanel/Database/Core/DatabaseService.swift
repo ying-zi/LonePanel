@@ -112,6 +112,113 @@ final class DatabaseService {
     private let listTimeout = 30
     private let queryTimeout = 45
 
+    /// docker ps -a --format '{{json .}}' 的轻量行，只取识别与连接所需字段。
+    private struct ContainerRow: Decodable {
+        let ID: String
+        let Names: String
+        let Image: String
+        let Status: String
+    }
+
+    // MARK: - 容器内数据库发现（1Panel 式主管理对象）
+
+    /// 自动发现服务器 Docker 里的数据库容器，构造可直接查询的容器实例连接。
+    /// 凭据从容器环境变量读出（仅内存态），命令统一走 `docker exec`，不依赖端口映射：
+    /// 这正是「数据库管理 = 管理容器里的数据库」的落点，远程连接只是其中一种来源。
+    func discoverContainerDatabases() async -> Result<[DatabaseConnection], DatabaseError> {
+        let listed = await run("docker ps -a --format '{{json .}}'", timeout: listTimeout)
+        guard listed.exit == 0 else {
+            return .failure(.commandFailed(message: readableError(listed)))
+        }
+        let rows = decodeLines(ContainerRow.self, listed.out)
+        var instances: [DatabaseConnection] = []
+        for row in rows {
+            guard let kind = Self.kindFromImage(row.Image) else { continue }
+            let cid = row.ID
+            let envResult = await run(
+                "docker inspect \(ShellQuote.quote(cid)) --format '{{range .Config.Env}}{{println .}}{{end}}'",
+                timeout: 20
+            )
+            let env = Self.parseEnv(envResult.out)
+            let (user, password, database) = Self.credentials(for: kind, env: env)
+            let name = row.Names.split(separator: ",").first.map(String.init) ?? cid
+            let instance = DatabaseConnection(
+                name: name,
+                kind: kind,
+                host: "127.0.0.1",
+                port: kind.defaultPort,
+                username: user,
+                database: database,
+                source: .container,
+                containerID: cid,
+                statusText: Self.containerStatus(row.Status),
+                imageName: row.Image,
+                inlinePassword: password
+            )
+            instances.append(instance)
+        }
+        return .success(instances.sorted { lhs, rhs in
+            if lhs.isRunning != rhs.isRunning { return lhs.isRunning }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        })
+    }
+
+    /// 依据镜像名识别数据库类型，覆盖官方镜像与常见自定义命名。
+    private static func kindFromImage(_ image: String) -> DatabaseKind? {
+        let s = image.lowercased()
+        if s.contains("mariadb") || s.contains("mysql") { return .mysql }
+        if s.contains("postgres") { return .postgresql }
+        if s.contains("mongo") { return .mongodb }
+        if s.contains("redis") { return .redis }
+        return nil
+    }
+
+    /// 解析 docker inspect 输出的环境变量（KEY=VALUE 逐行）。
+    private static func parseEnv(_ text: String) -> [String: String] {
+        var env: [String: String] = [:]
+        for line in text.split(separator: "\n") {
+            let pair = line.split(separator: "=", maxSplits: 1).map(String.init)
+            guard pair.count == 2 else { continue }
+            env[pair[0]] = pair[1]
+        }
+        return env
+    }
+
+    /// 各官方镜像的用户 / 口令 / 库环境变量名不同，这里统一归一。
+    private static func credentials(for kind: DatabaseKind, env: [String: String]) -> (String, String, String) {
+        switch kind {
+        case .mysql:
+            let user = env["MYSQL_USER"] ?? "root"
+            let password = env["MYSQL_PASSWORD"] ?? env["MYSQL_ROOT_PASSWORD"] ?? ""
+            return (user, password, env["MYSQL_DATABASE"] ?? "")
+        case .postgresql:
+            return (env["POSTGRES_USER"] ?? "postgres",
+                    env["POSTGRES_PASSWORD"] ?? "",
+                    env["POSTGRES_DB"] ?? "postgres")
+        case .mongodb:
+            return (env["MONGO_INITDB_ROOT_USERNAME"] ?? "",
+                    env["MONGO_INITDB_ROOT_PASSWORD"] ?? "",
+                    "admin")
+        case .redis:
+            return ("", env["REDIS_PASSWORD"] ?? "", "0")
+        }
+    }
+
+    private static func containerStatus(_ status: String) -> String {
+        let s = status.lowercased()
+        if s.contains("paused") { return "已暂停" }
+        if s.hasPrefix("up") { return "运行中" }
+        return "已停止"
+    }
+
+    /// 逐行 JSON 解码，与 Docker 模块同款格式，但不依赖其模型类型。
+    private func decodeLines<T: Decodable>(_ type: T.Type, _ text: String) -> [T] {
+        text.split(separator: "\n").compactMap { line in
+            guard let data = String(line).data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(type, from: data)
+        }
+    }
+
     // MARK: - 可用性探测
 
     func checkAvailability(for kind: DatabaseKind) async -> DatabaseAvailability {
@@ -307,6 +414,14 @@ final class DatabaseService {
 
     private func mysqlBase(_ conn: DatabaseConnection) -> String {
         let password = store.password(for: conn)
+        // 容器内实例：docker exec 注入口令，容器内部本地连接，无需端口映射。
+        if let cid = conn.containerID {
+            var exec = "docker exec"
+            if !password.isEmpty { exec += " -e MYSQL_PWD=\(ShellQuote.quote(password))" }
+            var cmd = "\(exec) \(ShellQuote.quote(cid)) mysql -u \(ShellQuote.quote(conn.username))"
+            if !conn.database.isEmpty { cmd += " -D \(ShellQuote.quote(conn.database))" }
+            return cmd
+        }
         var parts: [String] = []
         if !password.isEmpty { parts.append("MYSQL_PWD=\(ShellQuote.quote(password))") }
         var cmd = parts.joined(separator: " ")
@@ -317,6 +432,11 @@ final class DatabaseService {
 
     private func psqlBase(_ conn: DatabaseConnection, database: String) -> String {
         let password = store.password(for: conn)
+        if let cid = conn.containerID {
+            var exec = "docker exec"
+            if !password.isEmpty { exec += " -e PGPASSWORD=\(ShellQuote.quote(password))" }
+            return "\(exec) \(ShellQuote.quote(cid)) psql -U \(ShellQuote.quote(conn.username)) -d \(ShellQuote.quote(database))"
+        }
         var parts: [String] = []
         if !password.isEmpty { parts.append("PGPASSWORD=\(ShellQuote.quote(password))") }
         var cmd = parts.joined(separator: " ")
@@ -326,6 +446,13 @@ final class DatabaseService {
 
     private func redisBase(_ conn: DatabaseConnection) -> String {
         let password = store.password(for: conn)
+        if let cid = conn.containerID {
+            var exec = "docker exec"
+            if !password.isEmpty { exec += " -e REDISCLI_AUTH=\(ShellQuote.quote(password))" }
+            var cmd = "\(exec) \(ShellQuote.quote(cid)) redis-cli"
+            if let dbIndex = Int(conn.database) { cmd += " -n \(dbIndex)" }
+            return cmd
+        }
         var cmd = "REDISCLI_AUTH=\(ShellQuote.quote(password)) redis-cli -h \(ShellQuote.quote(conn.host)) -p \(conn.port)"
         if !conn.database.isEmpty, let dbIndex = Int(conn.database) {
             cmd += " -n \(dbIndex)"
@@ -334,6 +461,10 @@ final class DatabaseService {
     }
 
     private func mongoClient(_ conn: DatabaseConnection) -> String {
+        // 容器内实例：在容器里跑 mongosh，连接参数由 mongoURI 提供。
+        if let cid = conn.containerID {
+            return "docker exec \(ShellQuote.quote(cid)) mongosh"
+        }
         // 优先 mongosh，回退 mongo（探测阶段已确认可用者）。
         return DatabaseKind.mongodb.clientCommand
     }

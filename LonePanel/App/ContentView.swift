@@ -81,6 +81,17 @@ struct ContentView: View {
                 .presentationDragIndicator(.hidden)
                 .interactiveDismissDisabled(true)
         }
+        // 设置卡片：宿主固定为根视图，不随 rootMode 切换而重建。
+        // 关键：终端兜底(0模块)下从设置里开启第一个模块时，rootMode 由 terminalFocus
+        // 变为 moduleFocus，若 sheet 挂在 focusView 内部会随分支重建被重新 present，
+        // 卡片 detents/圆角错乱。挂到根视图后宿主身份稳定，卡片始终是可下拉样式。
+        .sheet(isPresented: $showSettings) {
+            // 设置页自身不需要设置入口；清除注入，避免它 push 的终端也显示齿轮。
+            SettingsView()
+                .environment(\.openSettings, nil)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
         // 跨模块调用态：文件能力由其它模块（如容器卷）经 ModuleCoordinator 唤起。
         // 呈现独立的调用态浏览器，不注入设置入口、不触碰单例导航栈与用户偏好。
         .sheet(item: $coordinator.fileOpenTarget) { target in
@@ -90,8 +101,11 @@ struct ContentView: View {
         .onAppear { ensureValidSelection() }
         .onChange(of: visibility.enabled) { _, _ in
             ensureValidSelection()
-            // 在设置卡片里关掉最后一个模块 → 进入终端兜底。终端全屏视图会自动聚焦输入框，
-            // 若设置 sheet 仍盖在上面，键盘会把卡片顶乱且用户还得手动下拉。这里主动收起。
+            // 模块数量变化只改变底下的根视图形态，不再干预设置卡片的呈现：
+            // - 终端兜底(0模块)开启第一个模块 → moduleFocus，卡片继续正常显示；
+            // - 多模块关到只剩一个 → moduleFocus，卡片同样保持。
+            // 唯一例外：关到 0 模块进终端兜底时，终端会自动聚焦输入框，若卡片仍盖着，
+            // 键盘会把卡片顶乱且用户还得手动下拉——此时主动收起。
             if case .terminalFocus = visibility.rootMode, showSettings {
                 showSettings = false
             }
@@ -119,15 +133,9 @@ struct ContentView: View {
         content()
             // 入口态：注入设置动作，模块会把齿轮放进「自己的」导航栏 trailing。
             // 调用态不经过这里，openSettings 为 nil，齿轮自动隐藏——只干活、不暴露入口。
+            // 设置 sheet 不挂在这里：本视图随 rootMode 切换被整体重建，挂这里会让卡片重新 present 而错乱；
+            // sheet 已上移到 body 根视图，宿主身份稳定。
             .environment(\.openSettings, openSettingsAction)
-            .sheet(isPresented: $showSettings) {
-                // 设置页自身不需要设置入口；清除注入，避免它 push 的终端也显示齿轮。
-                // 全高卡片：设置分多段（通用/终端/模块管理），medium 会截断，用 large 完整呈现。
-                SettingsView()
-                    .environment(\.openSettings, nil)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-            }
     }
 
     /// 入口态注入的设置动作：捕获的是 @State 存储，视图重建后仍指向同一状态。
