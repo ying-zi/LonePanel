@@ -949,7 +949,10 @@ private struct DirectoryPage: View {
         guard !files.isEmpty else { return }
         compressFiles = files
         let base = (node.path as NSString).lastPathComponent
-        archiveName = (base.isEmpty ? "archive" : base) + ".tar.gz"
+        // 名称框只填主名；后缀由下方格式下拉决定，避免「选了 zip 名字却还是 .tar.gz」的误解。
+        archiveName = base.isEmpty ? "archive" : base
+        // 每次进入按当前格式重置后缀（默认 tar.gz），与名称框主名分离。
+        archiveFormat = .tarGz
         pendingCompress = true
     }
 
@@ -1201,8 +1204,8 @@ private struct NativeSpinner: UIViewRepresentable {
     func updateUIView(_ uiView: UIActivityIndicatorView, context: Context) {}
 }
 
-/// 压缩参数表：输入归档名 + 选择 .tar.gz / .zip 格式。
-/// 用独立 sheet（而非 alert）承载 Picker，SwiftUI alert 里放 Picker 渲染不可靠。
+/// 压缩参数表：输入主名 + 后缀下拉（网页款式），实时预览最终完整文件名。
+/// 用独立 sheet（而非 alert）承载，SwiftUI alert 里放 Picker/Menu 渲染不可靠。
 private struct CompressSheet: View {
     @Binding var name: String
     @Binding var format: FileBrowserModel.ArchiveFormat
@@ -1210,23 +1213,61 @@ private struct CompressSheet: View {
     let onCompress: () -> Void
     @Environment(\.dismiss) private var dismiss
 
+    /// 由 name 去掉用户可能手填的后缀 + 当前格式后缀，拼出最终真实文件名。
+    private var finalName: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        var base = trimmed
+        for suffix in [".tar.gz", ".tgz", ".zip"] {
+            if base.hasSuffix(suffix) { base = String(base.dropLast(suffix.count)); break }
+        }
+        if base.isEmpty { base = "archive" }
+        return base + format.displayName
+    }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section(L10n.t("Archive Name")) {
-                    TextField(L10n.t("Archive Name"), text: $name)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                }
-                Section(L10n.t("Format")) {
-                    Picker(L10n.t("Format"), selection: $format) {
-                        ForEach(FileBrowserModel.ArchiveFormat.allCases) { f in
-                            Text(f.displayName).tag(f)
+                    // 名称框 + 后缀下拉拼成一行：网页那种「输入框后面跟后缀选择」的款式，
+                    // Menu 用原生样式弹出，与 iOS 系统风格一致，不会冲突。
+                    HStack(spacing: 8) {
+                        TextField(L10n.t("Archive Name"), text: $name)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                        Menu {
+                            ForEach(FileBrowserModel.ArchiveFormat.allCases) { f in
+                                Button {
+                                    format = f
+                                } label: {
+                                    if f == format {
+                                        Label(f.displayName, systemImage: "checkmark")
+                                    } else {
+                                        Text(f.displayName)
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Text(format.displayName)
+                                    .foregroundStyle(.tint)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tint)
+                            }
+                            .contentShape(Rectangle())
                         }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
                     }
-                    .pickerStyle(.segmented)
                 }
                 Section {
+                    // 实时预览：切换后缀或改名时立即更新，彻底消除「选了 zip 却是 .tar.gz」的误解。
+                    LabeledContent(L10n.t("File Name")) {
+                        Text(finalName)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
                     Text(L10n.f("Compress %@ selected items into this folder.", String(describing: itemCount)))
                         .font(.footnote)
                         .foregroundStyle(.secondary)

@@ -123,7 +123,7 @@ struct FileInfoSheet: View {
     private var kindLabel: String {
         switch FileKind(file: file) {
         case .directory: return L10n.t("Folder")
-        case .image: return L10n.t("Image")
+        case .image: return L10n.t("Picture")
         case .text: return L10n.t("Plain Text")
         case .code: return L10n.t("Source Code")
         case .archive: return L10n.t("Archive")
