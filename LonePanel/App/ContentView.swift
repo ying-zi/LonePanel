@@ -88,7 +88,14 @@ struct ContentView: View {
                 .presentationDetents([.large])
         }
         .onAppear { ensureValidSelection() }
-        .onChange(of: visibility.enabled) { _, _ in ensureValidSelection() }
+        .onChange(of: visibility.enabled) { _, _ in
+            ensureValidSelection()
+            // 在设置卡片里关掉最后一个模块 → 进入终端兜底。终端全屏视图会自动聚焦输入框，
+            // 若设置 sheet 仍盖在上面，键盘会把卡片顶乱且用户还得手动下拉。这里主动收起。
+            if case .terminalFocus = visibility.rootMode, showSettings {
+                showSettings = false
+            }
+        }
     }
 
     // MARK: - 多模块 Tab 视图
@@ -115,8 +122,11 @@ struct ContentView: View {
             .environment(\.openSettings, openSettingsAction)
             .sheet(isPresented: $showSettings) {
                 // 设置页自身不需要设置入口；清除注入，避免它 push 的终端也显示齿轮。
+                // 全高卡片：设置分多段（通用/终端/模块管理），medium 会截断，用 large 完整呈现。
                 SettingsView()
                     .environment(\.openSettings, nil)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
             }
     }
 

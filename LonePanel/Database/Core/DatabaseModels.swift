@@ -198,9 +198,9 @@ struct QueryResult: Identifiable {
 // MARK: - 数据库错误
 
 enum DatabaseError: LocalizedError {
-    case notConnected(String)
-    case commandFailed(String)
-    case parseFailed(String)
+    case notConnected(message: String)
+    case commandFailed(message: String)
+    case parseFailed(message: String)
 
     var errorDescription: String? {
         switch self {
