@@ -346,3 +346,63 @@ struct DatabaseItem: Identifiable, Hashable {
         self.detail = detail
     }
 }
+
+// MARK: - Redis 配置与持久化
+
+/// Redis 持久化模式（对标 1Panel Redis 管理的持久化切换）。
+/// - rdb:  仅 RDB 快照（save 规则开启、appendonly no）
+/// - aof:  RDB + AOF（appendonly yes，数据更安全）
+/// - none: 关闭持久化（save "" 且 appendonly no，纯内存，重启丢数据）
+enum RedisPersistenceMode: String, CaseIterable, Identifiable {
+    case rdb
+    case aof
+    case none
+
+    var id: String { rawValue }
+
+    /// 展示名（走本地化）。
+    var title: String {
+        switch self {
+        case .rdb:  return L10n.t("RDB snapshot")
+        case .aof:  return L10n.t("AOF log")
+        case .none: return L10n.t("No persistence")
+        }
+    }
+
+    /// 简短说明。
+    var detail: String {
+        switch self {
+        case .rdb:  return L10n.t("Periodic snapshots; compact but may lose data between saves.")
+        case .aof:  return L10n.t("Append-only log; safer, less data loss on restart.")
+        case .none: return L10n.t("In-memory only; all data is lost on restart.")
+        }
+    }
+}
+
+/// Redis 配置项（CONFIG GET 的一个 key/value 对）。
+/// 敏感项（requirepass / masterauth）在读取层就过滤，绝不进入模型与界面。
+struct RedisConfigItem: Identifiable, Hashable {
+    let id: String   // 配置 key
+    let key: String
+    let value: String
+}
+
+/// Redis 服务器状态摘要（来自 INFO）。
+struct RedisServerInfo: Hashable {
+    var version: String = "—"
+    var mode: String = "—"
+    var connectedClients: String = "—"
+    var usedMemory: String = "—"
+    var uptimeDays: String = "—"
+    var totalKeys: String = "—"
+    var persistence: String = "—"
+}
+
+/// Redis 配置页一次性快照：关键配置 + 状态摘要 + 推断的持久化模式 + 是否设密码。
+/// 密码只以「是否已设置」标记呈现，绝不携带明文。
+struct RedisConfigSnapshot: Hashable {
+    var items: [RedisConfigItem] = []
+    var info = RedisServerInfo()
+    var mode: RedisPersistenceMode = .rdb
+    var passwordSet = false
+}

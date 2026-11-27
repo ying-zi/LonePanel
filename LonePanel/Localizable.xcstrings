@@ -2580,6 +2580,436 @@
           }
         }
       }
+    },
+    "RDB 快照": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RDB snapshot"
+          }
+        }
+      }
+    },
+    "AOF 日志": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AOF log"
+          }
+        }
+      }
+    },
+    "不持久化": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No persistence"
+          }
+        }
+      }
+    },
+    "定期快照；占用小，但两次保存之间可能丢失数据。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Periodic snapshots; compact but may lose data between saves."
+          }
+        }
+      }
+    },
+    "追加日志；更安全，重启时数据丢失更少。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Append-only log; safer, less data loss on restart."
+          }
+        }
+      }
+    },
+    "仅内存；重启后所有数据丢失。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In-memory only; all data is lost on restart."
+          }
+        }
+      }
+    },
+    "仅 Redis 支持配置管理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only Redis supports configuration management"
+          }
+        }
+      }
+    },
+    "最大内存": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Max memory"
+          }
+        }
+      }
+    },
+    "淘汰策略": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eviction policy"
+          }
+        }
+      }
+    },
+    "AOF 已开启": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AOF enabled"
+          }
+        }
+      }
+    },
+    "AOF 刷盘策略": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AOF fsync"
+          }
+        }
+      }
+    },
+    "RDB 规则": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RDB rules"
+          }
+        }
+      }
+    },
+    "RDB 文件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RDB file"
+          }
+        }
+      }
+    },
+    "数据目录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Data directory"
+          }
+        }
+      }
+    },
+    "最大客户端数": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Max clients"
+          }
+        }
+      }
+    },
+    "客户端超时": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Client timeout"
+          }
+        }
+      }
+    },
+    "AOF 开": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AOF on"
+          }
+        }
+      }
+    },
+    "AOF 关": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AOF off"
+          }
+        }
+      }
+    },
+    "上次 RDB 保存": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last RDB save"
+          }
+        }
+      }
+    },
+    "已切换为 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switched to %@"
+          }
+        }
+      }
+    },
+    "已开始保存": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save started"
+          }
+        }
+      }
+    },
+    "配置与持久化": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Config & persistence"
+          }
+        }
+      }
+    },
+    "模式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mode"
+          }
+        }
+      }
+    },
+    "已连接客户端": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connected clients"
+          }
+        }
+      }
+    },
+    "已用内存": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Used memory"
+          }
+        }
+      }
+    },
+    "运行时长（天）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uptime (days)"
+          }
+        }
+      }
+    },
+    "Key 总数": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Total keys"
+          }
+        }
+      }
+    },
+    "持久化": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Persistence"
+          }
+        }
+      }
+    },
+    "已设置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set"
+          }
+        }
+      }
+    },
+    "未设置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not set"
+          }
+        }
+      }
+    },
+    "服务器状态": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server status"
+          }
+        }
+      }
+    },
+    "持久化模式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Persistence mode"
+          }
+        }
+      }
+    },
+    "配置项": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuration"
+          }
+        }
+      }
+    },
+    "密码等敏感值不会显示。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sensitive values such as passwords are never shown."
+          }
+        }
+      }
+    },
+    "刷新": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh"
+          }
+        }
+      }
+    },
+    "立即保存 RDB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save RDB now"
+          }
+        }
+      }
+    },
+    "立即重写 AOF": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rewrite AOF now"
+          }
+        }
+      }
+    },
+    "切换持久化模式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change persistence mode"
+          }
+        }
+      }
+    },
+    "确认": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm"
+          }
+        }
+      }
+    },
+    "正在加载配置...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading configuration..."
+          }
+        }
+      }
+    },
+    "当前模式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current mode"
+          }
+        }
+      }
+    },
+    "切换模式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch mode"
+          }
+        }
+      }
+    },
+    "将持久化模式切换为 %@？这会修改 Redis 运行时配置并重写配置文件，不会删除数据。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch persistence to %@? This changes Redis runtime config and rewrites its config file. Data is not deleted."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

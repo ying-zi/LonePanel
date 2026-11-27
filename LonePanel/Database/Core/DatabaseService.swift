@@ -642,12 +642,169 @@ final class DatabaseService {
         case .redis:
             let base = redisBase(conn, overridePassword: true)
             let set = await run("\(base) CONFIG SET requirepass \(ShellQuote.quote(trimmed)) 2>&1", timeout: queryTimeout)
-            guard set.exit == 0, set.out.uppercased().contains(L10n.t("OK")) else {
+            // redis-cli 的 CONFIG SET 成功时返回英文 "OK"（协议固定，非本地化文案）。
+            // 旧代码用 L10n.t("OK") 判断，中文包下变成「确定」，导致永远判失败——改为固定英文。
+            guard set.exit == 0, set.out.uppercased().contains("OK"), !looksLikeError(set.out) else {
                 return .failure(.commandFailed(message: firstMeaningfulLine(set.out)))
             }
             _ = await run("\(base) CONFIG REWRITE 2>&1", timeout: queryTimeout)
             return commitPassword(conn, trimmed, message: L10n.t("requirepass updated"))
         }
+    }
+
+    // MARK: - Redis 配置与持久化
+
+    /// 读取 Redis 配置与状态：CONFIG GET 关键项 + INFO。
+    /// 安全：CONFIG GET 用固定白名单逐项读取，绝不含 requirepass/masterauth 明文；
+    /// requirepass 只探测是否设置（非空即视为已设置），不返回其值。
+    func fetchRedisConfig(_ conn: DatabaseConnection) async -> Result<RedisConfigSnapshot, DatabaseError> {
+        guard conn.kind == .redis else {
+            return .failure(.commandFailed(message: L10n.t("Only Redis supports configuration management")))
+        }
+        let base = redisBase(conn)
+
+        // 配置白名单：key 是 redis 配置项名，展示名走本地化。
+        let keys: [(config: String, label: String)] = [
+            ("maxmemory", "Max memory"),
+            ("maxmemory-policy", "Eviction policy"),
+            ("appendonly", "AOF enabled"),
+            ("appendfsync", "AOF fsync"),
+            ("save", "RDB rules"),
+            ("dbfilename", "RDB file"),
+            ("dir", "Data directory"),
+            ("maxclients", "Max clients"),
+            ("timeout", "Client timeout"),
+        ]
+        var configMap: [String: String] = [:]
+        for item in keys {
+            let res = await run("\(base) CONFIG GET \(ShellQuote.quote(item.config)) 2>&1", timeout: listTimeout)
+            if res.exit == 0, let value = parseRedisConfigGet(res.out, key: item.config) {
+                configMap[item.config] = value
+            }
+        }
+
+        var snapshot = RedisConfigSnapshot()
+        snapshot.items = keys.compactMap { item in
+            guard let value = configMap[item.config] else { return nil }
+            return RedisConfigItem(id: item.config, key: L10n.t(item.label), value: value)
+        }
+
+        // 是否设置密码：只读回「(empty)」与否，不保留明文。
+        let passRes = await run("\(base) CONFIG GET requirepass 2>&1", timeout: listTimeout)
+        if let passValue = parseRedisConfigGet(passRes.out, key: "requirepass") {
+            snapshot.passwordSet = !passValue.isEmpty && passValue != "(empty)"
+        }
+
+        // INFO 状态。
+        let infoRes = await run("\(base) INFO ALL 2>&1", timeout: listTimeout)
+        if infoRes.exit == 0 {
+            snapshot.info = parseRedisInfo(infoRes.out)
+        }
+
+        // 推断持久化模式：appendonly yes → aof；否则看 save 是否为空。
+        if configMap["appendonly"]?.lowercased() == "yes" {
+            snapshot.mode = .aof
+        } else if let save = configMap["save"], !save.isEmpty, save != "(empty)" {
+            snapshot.mode = .rdb
+        } else {
+            snapshot.mode = .none
+        }
+        return .success(snapshot)
+    }
+
+    /// 切换 Redis 持久化模式。RDB/AOF 的开关键均用固定字面量，不接受外部输入。
+    func setRedisPersistence(_ conn: DatabaseConnection, mode: RedisPersistenceMode) async -> Result<String, DatabaseError> {
+        guard conn.kind == .redis else {
+            return .failure(.commandFailed(message: L10n.t("Only Redis supports configuration management")))
+        }
+        let base = redisBase(conn)
+
+        // 依次下发的命令；每条都必须返回 OK。
+        var commands: [String]
+        switch mode {
+        case .aof:
+            commands = ["CONFIG SET appendonly yes"]
+        case .rdb:
+            commands = ["CONFIG SET appendonly no", "CONFIG SET save \"3600 1 300 100 60 10000\""]
+        case .none:
+            commands = ["CONFIG SET appendonly no", "CONFIG SET save \"\""]
+        }
+
+        for command in commands {
+            let res = await run("\(base) \(command) 2>&1", timeout: queryTimeout)
+            guard res.exit == 0, res.out.uppercased().contains("OK"), !looksLikeError(res.out) else {
+                return .failure(.commandFailed(message: firstMeaningfulLine(res.out)))
+            }
+        }
+        // 尽力持久化配置本身；CONFIG REWRITE 在某些只读/受限实例会失败，不影响本次切换结果。
+        _ = await run("\(base) CONFIG REWRITE 2>&1", timeout: queryTimeout)
+        return .success(L10n.f("Switched to %@", mode.title))
+    }
+
+    /// 手动触发持久化保存。BGSAVE / BGREWRITEAOF 为异步，返回任务是否成功启动。
+    enum RedisSaveAction: String {
+        case bgSave = "BGSAVE"
+        case bgRewriteAOF = "BGREWRITEAOF"
+    }
+
+    func runRedisSave(_ conn: DatabaseConnection, action: RedisSaveAction) async -> Result<String, DatabaseError> {
+        guard conn.kind == .redis else {
+            return .failure(.commandFailed(message: L10n.t("Only Redis supports configuration management")))
+        }
+        let base = redisBase(conn)
+        let res = await run("\(base) \(action.rawValue) 2>&1", timeout: queryTimeout)
+        let out = res.out.isEmpty ? res.err : res.out
+        guard res.exit == 0, !looksLikeError(out) else {
+            return .failure(.commandFailed(message: firstMeaningfulLine(out)))
+        }
+        return .success(firstMeaningfulLine(out).isEmpty ? L10n.t("Save started") : firstMeaningfulLine(out))
+    }
+
+    /// 解析 CONFIG GET 的单项值：输出为两行一组（key 行 + value 行）。
+    private func parseRedisConfigGet(_ text: String, key: String) -> String? {
+        let lines = text.split(separator: "\n").map {
+            String($0).trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
+        guard let idx = lines.firstIndex(where: { $0.lowercased() == key.lowercased() }),
+              idx + 1 < lines.count else { return nil }
+        return lines[idx + 1]
+    }
+
+    /// 解析 INFO ALL：跳过 # 注释与空行，按 key:value 提取。
+    private func parseRedisInfo(_ text: String) -> RedisServerInfo {
+        var map: [String: String] = [:]
+        for line in text.split(separator: "\n") {
+            let s = String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            if s.isEmpty || s.hasPrefix("#") { continue }
+            guard let colon = s.firstIndex(of: ":") else { continue }
+            let k = String(s[..<colon])
+            let v = String(s[s.index(after: colon)...])
+            map[k] = v
+        }
+        var info = RedisServerInfo()
+        info.version = map["redis_version"] ?? "—"
+        info.mode = map["redis_mode"] ?? "—"
+        info.connectedClients = map["connected_clients"] ?? "—"
+        info.usedMemory = map["used_memory_human"] ?? "—"
+        info.uptimeDays = map["uptime_in_days"] ?? "—"
+
+        // 持久化状态摘要：AOF 是否开启 + 最近一次 RDB 保存。
+        let aof = (map["aof_enabled"] == "1") ? L10n.t("AOF on") : L10n.t("AOF off")
+        if let lastSave = map["rdb_last_save_time"], let ts = Double(lastSave), ts > 0 {
+            let d = Date(timeIntervalSince1970: ts)
+            info.persistence = "\(aof) · \(L10n.t("Last RDB save")): \(L10n.dateTimeText(d))"
+        } else {
+            info.persistence = aof
+        }
+
+        // key 总数：累加 keyspace 段里各 db 的 keys 数。
+        var total = 0
+        for (k, v) in map where k.hasPrefix("db") && k.dropFirst().allSatisfy({ $0.isNumber }) {
+            let keys = v.split(separator: ",").first?.split(separator: "=").last.map(String.init) ?? "0"
+            total += Int(keys) ?? 0
+        }
+        info.totalKeys = "\(total)"
+        return info
     }
 
     /// 列出用户。detail 放角色 / host 等附加信息。

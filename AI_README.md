@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.83.0`，版本 1.83.0（详见第 8.5 节） |
+| 当前基线 | tag `t1.84.0`，版本 1.84.0（详见第 8.5 节） |
 
 ---
 
@@ -283,6 +283,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **t1.82.0** | **阶段 1 S1-05b 编排模板 + 顶部布局规则固化。① DockerService 新增 saveComposeFile(directory/projectName/yaml)：yml 走 base64 编码写入（避免 heredoc 注入），目录/项目名校验+quote，写 `<dir>/docker-compose.<name>.yml`；deployCompose(path/project)：`docker compose -f <path> -p <project> up -d`，成功广播 containersChanged。② DockerModels 新增 ComposeTemplate（5 个内置模板：nginx/redis/mysql/postgres/minio，精简 yml）。③ 新建 ComposeTemplateView（Compose 组，pbxproj 四处登记）：模板列表→编辑页（项目名/yml/选目录/部署），本页是 sheet 故用本地 .folderPicker 选服务器目录；部署两步（先写文件再 up）。④ ComposeListView 订阅 containerChanges 部署后自动刷新。⑤ **顶部操作逻辑固化（用户明确的统一规则）：左边=分类/筛选/返回，右边=所有操作+搜索**。据此把 t1.81.0 塞进左上角汉堡的「新建容器/视图切换/诊断」全部移回右上角；左上汉堡只剩分区切换（分类）。补中文译文 16 key，无重复 key。** ⚠️ 后续修正 t1.82.1：用户明确要求「右上角与文件模块完全一致」——文件模块右上角只有 ⋯ 更多菜单 + 设置齿轮（搜索由系统 .searchable 提供），所有操作都收在 ⋯ 里、不额外平铺图标。故把 t1.82.0 平铺的加号（新建容器）/视图切换/编排模板入口全部收进 ⋯ 菜单，主视图右上角仅剩 ⋯ + 设置两项 ToolbarItem。以后新增顶部操作一律进 ⋯，不再平铺。 |
 | **t1.82.2** | **设置页底部新增版本信息 + 顶部修正落地。①SettingsView 的 List 末尾加「版本」Section：运行时从 Bundle 的 `CFBundleShortVersionString` + `CFBundleVersion` 读取，显示 `1.82.2 (95)`，可选中复制；CI 由 tag 注入这两个字段，故每次发版自动同步、无需手改代码（用户要求「设置页底部显示版本，每次推送自动更新」）。②AppVersion 辅助类型定义在 SettingsView.swift 同文件末尾（不新增 Swift 文件、不动 pbxproj）。③补中文译文 `Version footer`。含 t1.82.1 的顶部对齐修正（右上角与文件模块完全一致）。** |
 | **t1.83.0** | **阶段 1 S1-05c 仓库 Registry——阶段 1 收官。** ①DockerService 新增 registryLogin（docker login -u/-p，server/user/password 校验 + ShellQuote.quote，密码禁空白避免打码残留）、registryLogout（docker logout）、listRegistryLogins（读 ~/.docker/config.json 的 auths 键）、validRegistryServer、insecureRegistryGuide（返回纯文本指引，绝不自动改 daemon.json/重启 Docker）。②**安全关键**：DockerDiagnostics.record 对 command/out/err 统一打码——正则匹配 `--password`/`-p` 后密码替换为 `******`，`-p` 仅在含 login 时打码避免误伤 `docker run -p` 端口映射；密码绝不明文进诊断面板或复制报告（技术债 D-05 落点）。③新建 RegistryView（Views 组，pbxproj 四处登记）：已登录仓库列表（可退出）+ 登录表单（密码可见切换）+ HTTP 不安全仓库手动配置指引 alert，作为 sheet 从 DockerView 更多菜单「仓库」入口进入。④**设计取舍**：SSH execute 不支持 stdin，故未用 --password-stdin，改用 -p + 诊断层打码；HTTP 仓库重启会中断容器，只给指引不自动执行。补中文译文 17 key，无重复 key。** |
+| **t1.84.0** | **修复编排页右上角工具栏不统一。** 用户实测：切到编排页右上角结构与其他分区不一致——根因是 ComposeListView 是 Docker 五分区中唯一没有 `.searchable` 的页面。修复：ComposeListView 补 `@State searchText` + 按项目名过滤的 `filtered` + `.searchable(text:prompt:)` + `.searchToolbarBehavior(.minimize)`，空态区分「无项目/无匹配项目」；与容器/镜像/网络/卷四分区完全对齐。新增 2 个本地化 key（Search Compose projects / No matching Compose projects），zhHans + xcstrings 同步，无重复 key。** ⚠️ 教训：Docker 每个分区子视图都必须成对写 `.searchable` + `.searchToolbarBehavior(.minimize)`，漏一个就会在切换时右上角工具栏结构不一致——新增分区务必对照已有四分区检查。 |
 
 ---
 

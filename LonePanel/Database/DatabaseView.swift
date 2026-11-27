@@ -274,6 +274,13 @@ private struct InstanceAdminSection: View {
             Button { showPassword = true } label: {
                 Label(conn.kind == .redis ? L10n.t("Reset requirepass") : L10n.t("Reset admin password"), systemImage: "key")
             }
+            if conn.kind == .redis {
+                NavigationLink {
+                    RedisConfigView(conn: conn)
+                } label: {
+                    Label(L10n.t("Config & persistence"), systemImage: "slider.horizontal.3")
+                }
+            }
         } header: {
             Label(L10n.t("Instance management"), systemImage: "wrench.and.screwdriver")
         } footer: {
@@ -1709,5 +1716,196 @@ struct QueryView: View {
         for row in result.rows { lines.append(row.joined(separator: "\t")) }
         if lines.isEmpty { lines.append(result.message) }
         return lines.joined(separator: "\n")
+    }
+}
+
+// MARK: - Redis 配置与持久化（对标 1Panel Redis 管理）
+
+/// Redis 配置页：只读展示关键配置 + 服务器状态，切换持久化模式，手动触发保存。
+/// 遵循统一规范：刷新/手动保存收进 ⋯ 更多菜单，错误 alert + 成功 toast，破坏性切换二次确认。
+struct RedisConfigView: View {
+    let conn: DatabaseConnection
+
+    @State private var snapshot: RedisConfigSnapshot?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var actionMessage: String?
+    @State private var showActionResult = false
+    @State private var pendingMode: RedisPersistenceMode?
+    @State private var busy = false
+
+    private let service = DatabaseService.shared
+
+    var body: some View {
+        List {
+            if let error = errorMessage {
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange).font(.caption)
+                    Button(L10n.t("Retry")) { Task { await load() } }
+                }
+            }
+
+            if let snapshot {
+                // 状态摘要
+                Section {
+                    LabeledContent(L10n.t("Version"), value: snapshot.info.version)
+                    LabeledContent(L10n.t("Mode"), value: snapshot.info.mode)
+                    LabeledContent(L10n.t("Connected clients"), value: snapshot.info.connectedClients)
+                    LabeledContent(L10n.t("Used memory"), value: snapshot.info.usedMemory)
+                    LabeledContent(L10n.t("Uptime (days)"), value: snapshot.info.uptimeDays)
+                    LabeledContent(L10n.t("Total keys"), value: snapshot.info.totalKeys)
+                    LabeledContent(L10n.t("Persistence"), value: snapshot.info.persistence)
+                    LabeledContent(L10n.t("Password"), value: snapshot.passwordSet
+                                   ? L10n.t("Set") : L10n.t("Not set"))
+                } header: {
+                    Text(L10n.t("Server status"))
+                }
+
+                // 持久化模式切换：当前模式 + 更多菜单里选择新模式（触发二次确认）。
+                Section {
+                    HStack {
+                        Label(L10n.t("Current mode"), systemImage: "externaldrive.connected.to.line.below")
+                        Spacer()
+                        Text(snapshot.mode.title).foregroundStyle(.secondary)
+                    }
+                    Menu {
+                        ForEach(RedisPersistenceMode.allCases) { mode in
+                            Button {
+                                if mode != snapshot.mode { pendingMode = mode }
+                            } label: {
+                                if mode == snapshot.mode {
+                                    Label(mode.title, systemImage: "checkmark")
+                                } else {
+                                    Label(mode.title, systemImage: "arrow.triangle.turn.up.right.diamond")
+                                }
+                            }
+                        }
+                    } label: {
+                        Label(L10n.t("Switch mode"), systemImage: "arrow.left.arrow.right")
+                            .foregroundStyle(.tint)
+                    }
+                    .disabled(busy)
+                } header: {
+                    Text(L10n.t("Persistence"))
+                } footer: {
+                    Text(snapshot.mode.detail)
+                }
+
+                // 关键配置（只读）
+                Section {
+                    ForEach(snapshot.items) { item in
+                        LabeledContent(item.key, value: item.value)
+                    }
+                } header: {
+                    Text(L10n.t("Configuration"))
+                } footer: {
+                    Text(L10n.t("Sensitive values such as passwords are never shown."))
+                }
+            } else if isLoading {
+                Section {
+                    HStack {
+                        ProgressView()
+                        Text(L10n.t("Loading configuration...")).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .navigationTitle(L10n.t("Config & persistence"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        Task { await load() }
+                    } label: {
+                        Label(L10n.t("Refresh"), systemImage: "arrow.clockwise")
+                    }
+                    Divider()
+                    Button {
+                        Task { await save(.bgSave) }
+                    } label: {
+                        Label(L10n.t("Save RDB now"), systemImage: "square.and.arrow.down")
+                    }
+                    .disabled(busy)
+                    Button {
+                        Task { await save(.bgRewriteAOF) }
+                    } label: {
+                        Label(L10n.t("Rewrite AOF now"), systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .disabled(busy)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.title3)
+                }
+                .disabled(busy)
+            }
+        }
+        .overlay {
+            if busy {
+                ProgressView()
+                    .padding(20)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            }
+        }
+        .confirmationDialog(L10n.t("Change persistence mode"), isPresented: Binding(
+            get: { pendingMode != nil },
+            set: { if !$0 { pendingMode = nil } }
+        )) {
+            Button(L10n.t("Confirm"), role: .destructive) {
+                if let mode = pendingMode { Task { await applyMode(mode) } }
+                pendingMode = nil
+            }
+            Button(L10n.t("Cancel"), role: .cancel) { pendingMode = nil }
+        } message: {
+            if let mode = pendingMode {
+                Text(L10n.f("Switch persistence to %@? This changes Redis runtime config and rewrites its config file. Data is not deleted.", mode.title))
+            }
+        }
+        .alert(L10n.t("Operation result"), isPresented: $showActionResult) {
+            Button(L10n.t("OK"), role: .cancel) {}
+        } message: {
+            Text(actionMessage ?? "")
+        }
+        .task { await load() }
+    }
+
+    private func load() async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        let result = await service.fetchRedisConfig(conn)
+        switch result {
+        case .success(let value): snapshot = value
+        case .failure(let e): errorMessage = e.localizedDescription; snapshot = nil
+        }
+    }
+
+    private func applyMode(_ mode: RedisPersistenceMode) async {
+        busy = true
+        defer { busy = false }
+        let result = await service.setRedisPersistence(conn, mode: mode)
+        switch result {
+        case .success(let message):
+            present(message)
+            await load()
+        case .failure(let e):
+            present(e.localizedDescription)
+        }
+    }
+
+    private func save(_ action: DatabaseService.RedisSaveAction) async {
+        busy = true
+        defer { busy = false }
+        let result = await service.runRedisSave(conn, action: action)
+        switch result {
+        case .success(let message): present(message)
+        case .failure(let e): present(e.localizedDescription)
+        }
+    }
+
+    private func present(_ message: String) {
+        actionMessage = message
+        showActionResult = true
     }
 }
