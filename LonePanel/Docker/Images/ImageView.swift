@@ -86,6 +86,13 @@ struct ImageView: View {
         .searchToolbarBehavior(.minimize)
         .refreshable { await load() }
         .task { await load() }
+        // 切服事件：清空旧服务器镜像并重载。
+        .onReceive(AppEventBus.shared.serverChanges()) { _ in
+            Task {
+                images = []
+                await load()
+            }
+        }
         .alert(L10n.t("Remove Image"), isPresented: Binding(
             get: { confirmRemove != nil },
             set: { if !$0 { confirmRemove = nil } }

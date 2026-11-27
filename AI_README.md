@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.77.0`，版本 1.77.0（详见第 8.5 节） |
+| 当前基线 | tag `t1.78.0`，版本 1.78.0（详见第 8.5 节） |
 
 ---
 
@@ -93,9 +93,16 @@ ModuleCall
 └─ .containerDetail(ContainerOpenTarget) → ContainerCallView（容器详情，t1.77 新增）
 ```
 
-- `@Published var activeCall: ModuleCall?` 是唯一出口；`ContentView` 只挂一个 `.sheet(item: $coordinator.activeCall)`，按 case 分派调用态视图。
+- `@Published var activeCall: ModuleCall?` 是唯一出口；`ContentView` 只挂一个 `.sheet(item: $coordinator.activeCall) { call in call.callView... }`。
+- **视图分派内聚（t1.78）：**`ModuleCall.callView`（`@ViewBuilder`）把 case→视图映射收在类型自身，`ContentView` 分派永远是一行 `call.callView`，**App 核心零改动**。刻意不用运行时字符串注册表——那会丢失 Swift enum 的编译期穷举检查（漏注册=空白视图），稳定性优先下不可接受。
 - `fileOpenTarget` 保留为**计算属性**（读写映射到 `.files` case），旧调用方零改动兼容。
-- **新增能力标准三步**：① 在 `ModuleCoordinator` 加 `XxxOpenTarget` + `openXxx(...)` API（不检查模块开关=关入口不关能力）；② 在 `ModuleCall` 加一个 case；③ 在 `ContentView` 分派分支挂对应 `XxxCallView`。调用方永远只依赖 `ModuleCoordinator` 类型，不引用目标模块的视图/模型。
+- **新增能力标准两步**：① 在 `ModuleCoordinator` 加 `XxxOpenTarget` + `openXxx(...)` API（不检查模块开关=关入口不关能力）；② 在 `ModuleCall` 加一个 case + `callView` 里加一个分支。调用方永远只依赖 `ModuleCoordinator` 类型，不引用目标模块的视图/模型，`ContentView` 不动。
+
+**事件钩子 `AppEventBus`（t1.78 新增，与能力钩子配套的第二类系统级原语）**：
+- `Core/Session/AppEventBus.swift`，`enum AppEvent` 类型化事件（`.serverChanged(epoch:)` / `.containersChanged`），新增事件只加 case，编译期穷举。
+- `emit(_:)` 统一切主线程投递；订阅用 `.onReceive(AppEventBus.shared.serverChanges())` / `.containerChanges()`。
+- **切服刷新闭环**：`ServerSession.refresh()` 在 epoch 递增时广播 `.serverChanged`，容器/镜像/Compose/容器调用态四个视图订阅后清空旧数据并重载——修复"切服后容器模块不自动刷新"（对应阶段 0 遗留 P1）。新模块只要"按当前服务器加载数据"，订阅 `serverChanges()` 一行即可自动跟随切服，不再各自观察 `currentServer`。
+- **变更广播**：`DockerService.mutate()` 成功时广播 `.containersChanged`，为网站联动（如反代关联容器状态变化后刷新）预留订阅点。
 
 **已落地的调用态**：
 - `openFiles(at:title:)` / `pickDirectory(...)` / `directoryPickTarget(...)` → `FileCallView`：容器卷挂载点浏览、新建容器选目录。
@@ -120,6 +127,7 @@ ModuleCall
 - **权限探测** `detectPrivilege`：`id -u`==0 → `.root`；否则 `sudo -n true` 成功 → `.sudo`；否则 `.none`。结果按 `shared.privilege.<serverID>` 缓存到 UserDefaults。业务命令经 `run()` 自动加 `sudo -n` 前缀。
 - 服务器上下文：`ServerSession`（根 Core）暴露 `defaultServer` / `currentServer`，具体 provider 由 `SettingsServerSession.install()` 注入。临时切换只影响当前进程，不落盘。
 - **连接代次 `ServerSession.connectionEpoch`（t1.77 新增，跨模块联动地基）**：`currentServer` 每次实质变化（临时切换/改默认/删服/编辑当前服），`refresh()` 都递增 epoch。四条连接（Shared/Docker/Database/FileBrowser）各自记 `connectedEpoch`，`ensureConnected` 复用前必须 `connectedEpoch == connectionEpoch`，否则强制重建；`TerminalSession` 记 `shellEpoch`，`ensureAlive` 短路前比对，变了就关旧 shell 并 force 重连。**这解决了"切服后终端/调用态仍操作旧服务器"的硬伤**——网站反代→容器详情等联动正确性的前提。新增连接层/联动模块务必沿用 epoch 校验。
+- **事件钩子 `AppEventBus`（t1.78）**：epoch 只解决"连接重建"，但视图层的"何时重新拉数据"需要事件驱动。`ServerSession.refresh()` 在 epoch 递增时同步广播 `.serverChanged(epoch:)`，所有按当前服务器加载的视图订阅 `serverChanges()` 即自动重载（容器/镜像/Compose/容器调用态已接入）。两条机制分工：**epoch 保证连接正确，事件保证数据及时**；新模块两者都要用。详见 4.4。
 
 ### 5.2 命令通道
 
@@ -263,6 +271,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **t1.76.3** | **①压缩后缀误解修复：compressTarget 默认名不再塞 .tar.gz（只填主名），CompressSheet 把格式从独立 segmented 改为紧贴名称框右侧的后缀下拉 Menu（网页款式，.borderlessButton，原生不冲突），并用 LabeledContent 实时预览最终完整文件名（finalName 去旧后缀+拼当前格式），选 zip 立即显示 .zip，消除误解；②Docker 顶部 tab「图像」改「镜像」：d["Image"] 由「图像」改「镜像」（影响 Docker tab/容器详情/数据库实例 3 处正确语境），文件详情页图片类型分流到新 key d["Picture"]=「图像」，避免误伤** |
 | **t1.76.5** | **设置页模块管理列表的模块名（Website/Docker/Database/Files）切中文不翻译：SettingsView.moduleToggleRow 里 Label(item.title) 直接用英文 key（TabRegistry.module.title 存英文 key，Tab 栏展示时走 L10n.t，但设置页漏了），改为 Label(L10n.t(item.title))。注：t1.76.4 因 GitHub Actions force-update tag 复用旧 ref 上下文导致 asset 上传错位，改用全新 tag 规避** |
 | **t1.77.0** | **阶段 0 稳定性清理 + 跨模块联动地基。P0：①Redis 命令 quote——原始命令逐 token quote（新增 quoteRedisArgs），ACL SETUSER 的 `>pass`/`~*`/`&*`/`+@all` 逐个整体 quote（旧代码 `>` 被 shell 当重定向、口令写进文件，功能完全不可用）；②SFTP 移动软链数据丢失——copyItem 返回"是否保真复制"，含软链时返回 false，move 回退绝不删源、抛错交给上层 shell mv。P1：③连接代次 ServerSession.connectionEpoch——切服/删服/编辑后四条连接+终端统一失效重建，解决"切服仍操作旧服务器"（跨模块联动地基）；④FileCache 覆盖写自删——同 key 同扩展名新旧路径相同，删除旧路径时跳过；⑤SSHSession.close 幂等+异步 shutdown——消除 deinit 二次关闭与 event loop 线程同步死锁；⑥Docker/Database 错误反馈全线补齐——容器详情/列表/Compose/镜像/日志操作失败都出 alert，mutate 失败不再误报成功，parseLogs 不再把错误当日志，loadTables 失败不再吞成空；⑦数据库成功消息本地化。地基：ModuleCoordinator 升级为通用 ModuleCall 路由总线，新增 openContainerDetail + ContainerCallView（网站反代→容器详情接口），fileOpenTarget 计算属性兼容旧代码** |
+| **t1.78.0** | **阶段 0.5 钩子地基完善 + 切服容器刷新修复。①事件钩子 AppEventBus（Core/Session）：类型化 enum AppEvent（serverChanged/containersChanged）+ emit 统一主线程投递 + serverChanges()/containerChanges() 便捷订阅；②ServerSession.refresh 在 epoch 递增时广播 serverChanged，容器/镜像/Compose/容器调用态四视图订阅后清空旧数据重载——修复用户实测「切服后容器模块不自动刷新」，新模块按当前服务器加载数据只需订阅一行；③DockerService.mutate 成功广播 containersChanged，为网站反代联动预留订阅点；④能力总线的视图分派内聚到 ModuleCall.callView，ContentView 分派简化为一行、App 核心零改动，刻意保留 enum 编译期穷举检查（不用运行时注册表避免漏注册空白视图）。** |
 
 ---
 

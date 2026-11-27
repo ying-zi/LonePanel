@@ -44,6 +44,9 @@ final class ServerSession: ObservableObject {
         if currentServer != newCurrent {
             currentServer = newCurrent
             connectionEpoch &+= 1
+            // 广播切服事件：所有按当前服务器加载数据的视图（容器/镜像/Compose/网站等）
+            // 统一订阅此事件重载，无需各自观察 currentServer，也避免新模块遗漏。
+            AppEventBus.shared.emit(.serverChanged(epoch: connectionEpoch))
         }
     }
 

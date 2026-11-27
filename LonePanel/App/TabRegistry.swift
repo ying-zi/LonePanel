@@ -169,6 +169,20 @@ final class ModuleCoordinator: ObservableObject {
             case .containerDetail(let t): return t.id
             }
         }
+
+        /// 能力的呈现视图内聚在类型自身：新增能力只改本文件（加 case + 加一个分支），
+        /// ContentView 的分派永远是零改动的一行 `call.callView`。
+        /// 用 enum switch 而非运行时字符串注册表，保留编译期穷举检查——漏加 case 直接编译失败，
+        /// 不会出现"注册遗漏导致空白视图"，符合稳定性优先。
+        @ViewBuilder
+        var callView: some View {
+            switch self {
+            case .files(let target):
+                FileCallView(target: target)
+            case .containerDetail(let target):
+                ContainerCallView(target: target)
+            }
+        }
     }
 
     /// 统一的跨模块调用出口。ContentView 只挂这一个 sheet，按 case 分派调用态视图。

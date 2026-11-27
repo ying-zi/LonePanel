@@ -376,7 +376,11 @@ final class DockerService {
 
     private func mutate(_ command: String, success: String) async -> Result<Void, DockerError> {
         let result = await run(command, timeout: 30)
-        if result.exit == 0 { return .success(()) }
+        if result.exit == 0 {
+            // 所有容器/镜像/Compose 变更都经此；一处广播，供网站联动等模块订阅刷新。
+            AppEventBus.shared.emit(.containersChanged)
+            return .success(())
+        }
         // 失败路径绝不能用 success 文案兜底：stderr/stdout 皆空时 firstError 会返回 success，
         // 造成"操作失败却提示已启动/已删除"。改用明确的失败文案。
         return .failure(.commandFailed(message: firstError(result, L10n.t("Operation failed. Docker returned no error details."))))

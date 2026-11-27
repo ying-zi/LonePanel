@@ -15,6 +15,7 @@
 		D10000000000000000000006 /* ModulePlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000006 /* ModulePlaceholder.swift */; };
 		D10000000000000000000007 /* ServerConnectionInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000007 /* ServerConnectionInfo.swift */; };
 		D10000000000000000000008 /* ServerSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000008 /* ServerSession.swift */; };
+		D1000000000000000000005D /* AppEventBus.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000000000000000000005D /* AppEventBus.swift */; };
 		D10000000000000000000009 /* SSHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000009 /* SSHClient.swift */; };
 		D10000000000000000000010 /* SSHSubsystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000010 /* SSHSubsystem.swift */; };
 		D10000000000000000000011 /* PrivateKeyParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000011 /* PrivateKeyParser.swift */; };
@@ -89,6 +90,7 @@
 		C10000000000000000000006 /* ModulePlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModulePlaceholder.swift; sourceTree = "<group>"; };
 		C10000000000000000000007 /* ServerConnectionInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConnectionInfo.swift; sourceTree = "<group>"; };
 		C10000000000000000000008 /* ServerSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSession.swift; sourceTree = "<group>"; };
+		C1000000000000000000005D /* AppEventBus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEventBus.swift; sourceTree = "<group>"; };
 		C10000000000000000000009 /* SSHClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHClient.swift; sourceTree = "<group>"; };
 		C10000000000000000000010 /* SSHSubsystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHSubsystem.swift; sourceTree = "<group>"; };
 		C10000000000000000000011 /* PrivateKeyParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateKeyParser.swift; sourceTree = "<group>"; };
@@ -256,6 +258,7 @@
 			children = (
 				C10000000000000000000007 /* ServerConnectionInfo.swift */,
 				C10000000000000000000008 /* ServerSession.swift */,
+				C1000000000000000000005D /* AppEventBus.swift */,
 				C10000000000000000000041 /* SharedSSHConnection.swift */,
 			);
 			path = Session;
@@ -562,6 +565,7 @@
 				D10000000000000000000006 /* ModulePlaceholder.swift in Sources */,
 				D10000000000000000000007 /* ServerConnectionInfo.swift in Sources */,
 				D10000000000000000000008 /* ServerSession.swift in Sources */,
+				D1000000000000000000005D /* AppEventBus.swift in Sources */,
 				D10000000000000000000009 /* SSHClient.swift in Sources */,
 				D10000000000000000000010 /* SSHSubsystem.swift in Sources */,
 				D10000000000000000000011 /* PrivateKeyParser.swift in Sources */,

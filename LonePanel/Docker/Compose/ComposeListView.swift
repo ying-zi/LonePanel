@@ -79,6 +79,13 @@ struct ComposeListView: View {
         }
         .refreshable { await load() }
         .task { await load() }
+        // 切服事件：清空旧服务器 Compose 项目并重载。
+        .onReceive(AppEventBus.shared.serverChanges()) { _ in
+            Task {
+                projects = []
+                await load()
+            }
+        }
         .alert(alertTitle, isPresented: Binding(
             get: { pendingAction != nil },
             set: { if !$0 { pendingAction = nil } }

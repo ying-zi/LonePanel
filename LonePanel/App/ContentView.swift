@@ -117,19 +117,12 @@ struct ContentView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
-        // 跨模块调用态：所有能力互调都经 ModuleCoordinator.activeCall 这个统一通道，
-        // 这里按 case 分派到各模块的调用态视图（只干活、不注入设置入口、不碰单例导航栈）。
-        // 新增能力只需在 ModuleCall 加一个 case + 下面加一个分支，调用方永远只依赖总线类型。
+        // 跨模块调用态：所有能力互调都经 ModuleCoordinator.activeCall 统一通道。
+        // 视图分派内聚在 ModuleCall.callView——新增能力只需改 ModuleCall 一处，
+        // 本文件（App 核心）永远零改动。只干活、不注入设置入口、不碰单例导航栈。
         .sheet(item: $coordinator.activeCall) { call in
-            Group {
-                switch call {
-                case .files(let target):
-                    FileCallView(target: target)
-                case .containerDetail(let target):
-                    ContainerCallView(target: target)
-                }
-            }
-            .presentationDetents([.large])
+            call.callView
+                .presentationDetents([.large])
         }
         .onAppear { ensureValidSelection() }
         .onChange(of: visibility.enabled) { oldValue, newValue in

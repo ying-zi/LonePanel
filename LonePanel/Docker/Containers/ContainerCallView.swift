@@ -53,6 +53,11 @@ struct ContainerCallView: View {
                 }
             }
             .task { await load() }
+            // 调用态也绑定当前服务器：切服后重新定位容器，避免展示旧机器残留。
+            .onReceive(AppEventBus.shared.serverChanges()) { _ in
+                loadedContainer = nil
+                Task { await load() }
+            }
         }
     }
 

@@ -53,6 +53,15 @@ final class ContainerListModel: ObservableObject {
         }
     }
 
+    /// 服务器切换后重载：丢弃旧服务器的可见数据，避免短暂展示上一台机器的容器，
+    /// 然后重新探测可用性并拉取当前服务器数据。由 AppEventBus.serverChanged 事件触发。
+    func reloadForServerChange() async {
+        containers = []
+        errorMessage = nil
+        availability = nil
+        await load()
+    }
+
     /// 强制重新探测（设置里 Docker 权限变化后用）。
     func recheck() async {
         availability = nil

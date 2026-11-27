@@ -31,6 +31,10 @@ struct ContainerListView: View {
         .searchToolbarBehavior(.minimize)
         .refreshable { await model.refresh() }
         .task { await model.load() }
+        // 切服事件：丢弃旧服务器数据并重载当前服务器容器（连接层 epoch 校验同步生效）。
+        .onReceive(AppEventBus.shared.serverChanges()) { _ in
+            Task { await model.reloadForServerChange() }
+        }
         .sheet(item: $moreContainer) { container in
             containerMoreSheet(container)
                 .presentationDetents([.medium])
