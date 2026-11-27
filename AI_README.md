@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.84.0`，版本 1.84.0（详见第 8.5 节） |
+| 当前基线 | tag `t1.85.0`，版本 1.85.0（详见第 8.5 节） |
 
 ---
 
@@ -284,6 +284,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **t1.82.2** | **设置页底部新增版本信息 + 顶部修正落地。①SettingsView 的 List 末尾加「版本」Section：运行时从 Bundle 的 `CFBundleShortVersionString` + `CFBundleVersion` 读取，显示 `1.82.2 (95)`，可选中复制；CI 由 tag 注入这两个字段，故每次发版自动同步、无需手改代码（用户要求「设置页底部显示版本，每次推送自动更新」）。②AppVersion 辅助类型定义在 SettingsView.swift 同文件末尾（不新增 Swift 文件、不动 pbxproj）。③补中文译文 `Version footer`。含 t1.82.1 的顶部对齐修正（右上角与文件模块完全一致）。** |
 | **t1.83.0** | **阶段 1 S1-05c 仓库 Registry——阶段 1 收官。** ①DockerService 新增 registryLogin（docker login -u/-p，server/user/password 校验 + ShellQuote.quote，密码禁空白避免打码残留）、registryLogout（docker logout）、listRegistryLogins（读 ~/.docker/config.json 的 auths 键）、validRegistryServer、insecureRegistryGuide（返回纯文本指引，绝不自动改 daemon.json/重启 Docker）。②**安全关键**：DockerDiagnostics.record 对 command/out/err 统一打码——正则匹配 `--password`/`-p` 后密码替换为 `******`，`-p` 仅在含 login 时打码避免误伤 `docker run -p` 端口映射；密码绝不明文进诊断面板或复制报告（技术债 D-05 落点）。③新建 RegistryView（Views 组，pbxproj 四处登记）：已登录仓库列表（可退出）+ 登录表单（密码可见切换）+ HTTP 不安全仓库手动配置指引 alert，作为 sheet 从 DockerView 更多菜单「仓库」入口进入。④**设计取舍**：SSH execute 不支持 stdin，故未用 --password-stdin，改用 -p + 诊断层打码；HTTP 仓库重启会中断容器，只给指引不自动执行。补中文译文 17 key，无重复 key。** |
 | **t1.84.0** | **修复编排页右上角工具栏不统一。** 用户实测：切到编排页右上角结构与其他分区不一致——根因是 ComposeListView 是 Docker 五分区中唯一没有 `.searchable` 的页面。修复：ComposeListView 补 `@State searchText` + 按项目名过滤的 `filtered` + `.searchable(text:prompt:)` + `.searchToolbarBehavior(.minimize)`，空态区分「无项目/无匹配项目」；与容器/镜像/网络/卷四分区完全对齐。新增 2 个本地化 key（Search Compose projects / No matching Compose projects），zhHans + xcstrings 同步，无重复 key。** ⚠️ 教训：Docker 每个分区子视图都必须成对写 `.searchable` + `.searchToolbarBehavior(.minimize)`，漏一个就会在切换时右上角工具栏结构不一致——新增分区务必对照已有四分区检查。 |
+| **t1.85.0** | **阶段 2 S2-01 Redis 配置与持久化完整化。** ①**修复中文环境改密码必失败 bug**：resetAdminPassword 的 Redis 分支用 `L10n.t("OK")` 判断 CONFIG SET 返回，中文包返回「确定」而 redis-cli 返回固定英文 `OK`，导致中文下永远判失败——改为固定英文 "OK" 匹配（协议返回非本地化文案，不能用 L10n）。② DatabaseService 新增三方法：`fetchRedisConfig`（CONFIG GET 固定白名单逐项读 + INFO ALL 状态解析 + 推断持久化模式；requirepass 只探测是否设置、绝不返回明文）、`setRedisPersistence`（RDB/AOF/none 切换，命令用固定字面量不接受外部输入，成功后尽力 CONFIG REWRITE）、`runRedisSave`（BGSAVE/BGREWRITEAOF 异步保存）。③ 新建 RedisConfigView（**放 DatabaseView.swift 同文件免改 pbxproj**）：状态摘要 + 持久化模式 Menu 切换（⋯ 收起、二次确认）+ 只读关键配置 + 顶部 ⋯ 放刷新/立即保存，InstanceAdminSection 加入口（仅 Redis 显示）。④ 新模型 RedisPersistenceMode/RedisConfigItem/RedisServerInfo/RedisConfigSnapshot 放 DatabaseModels.swift。新增中文译文 42 key，无重复 key。** ⚠️ 经验：redis-cli 协议返回（OK/PONG/ERROR）是固定英文，禁止用 L10n.t 匹配——本地化只用于展示文案，不用于解析机器输出。 |
 
 ---
 
@@ -302,7 +303,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | 设置卡片从终端兜底进单模块时错乱 | set sheet 挂在随 rootMode 重建的 `focusView` 内；上移到 body 根视图 |
 | FAB 拖动剧烈闪烁 | 逐帧写 `@AppStorage`；改内存态实时位移，松手一次性落盘 |
 | `sudo: command: command not found` | 探测 Docker 用 `docker version`，别用 `sudo docker` |
-| git push TLS/认证失败 | 用 GitHub Git Database API（见 8.2） |
+| git push TLS/认证失败 | 用 GitHub Git Database API（见 8.2）；**若报 `GnuTLS recv error (-110): The TLS connection was non-properly terminated`（commit 已推、tag 推送反复中断），正解：本地 `git config http.version HTTP/1.1` + `http.lowSpeedLimit 1000` + `http.lowSpeedTime 20` + `http.postBuffer 524288000`，实测一次即通**（t1.85.0）。推送后务必用 API 校验远程 HEAD/ref 是否真的更新，别信 push 命令的退出码 |
 | 下载 IPA 超时 / RemoteDisconnected | 用 asset API（`/repos/{o}/{r}/releases/assets/{id}`）+ `Accept: application/octet-stream` + 分块读取 + urllib 重试 |
 | **t1.67 闪退（编译过但运行崩）** | `String(format:)` 用 `%@` 传 Swift `String` 会 EXC_BAD_ACCESS（须 NSString）。本地化带参文案改用 `L10n.f` 的**纯 `replacingOccurrences` 替换**（`%@` 顺序 / `%1$@` 指定位置），彻底不用 `String(format:)`。**以后任何带参本地化都别用 String(format:)**。 |
 | 选完目录返回后上层表单 sheet 被收起 | 调用方本身是 sheet 时，别用根视图的全局 `fileOpenTarget` 弹 sheet（祖先弹 sheet 会收起后代 sheet）；改用 `directoryPickTarget` + 本地 `.folderPicker(item:)` 形成正确嵌套 |

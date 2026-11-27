@@ -1,4 +1,11 @@
 import SwiftUI
+import UIKit
+
+/// 模板图标兜底：个别 SF Symbol 在特定 iOS 版本上可能渲染为空白。
+/// 用 UIImage(systemName:) 探测，失效时回退到通用图标，避免出现「文字顶到最左、图标位空白」。
+private func composeTemplateSymbol(_ name: String) -> String {
+    UIImage(systemName: name) != nil ? name : "square.grid.2x2"
+}
 
 /// 编排模板（对标 1Panel「编排模板」）：选内置模板 → 编辑 yml → 选服务器目录 → 部署。
 /// 本视图本身是 sheet，内部用 NavigationStack 承载「模板列表 → 编辑页」两级；
@@ -27,7 +34,7 @@ struct ComposeTemplateView: View {
                             path.append(template)
                         } label: {
                             HStack(spacing: 12) {
-                                Image(systemName: template.symbol)
+                                Image(systemName: composeTemplateSymbol(template.symbol))
                                     .font(.title3)
                                     .foregroundStyle(.tint)
                                     .frame(width: 28)

@@ -778,6 +778,10 @@ enum BuiltinPacks {
         d["Current mode"] = "当前模式"
         d["Switch mode"] = "切换模式"
         d["Switch persistence to %@? This changes Redis runtime config and rewrites its config file. Data is not deleted."] = "将持久化模式切换为 %@？这会修改 Redis 运行时配置并重写配置文件，不会删除数据。"
+        d["Loading structure..."] = "正在加载结构..."
+        d["Data"] = "数据"
+        d["Structure"] = "结构"
+        d["Key metadata"] = "Key 元信息"
         return d
     }()
 }

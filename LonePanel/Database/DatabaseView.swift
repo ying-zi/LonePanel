@@ -1369,13 +1369,25 @@ struct DatabaseBrowserView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showQuery = true
+                Menu {
+                    Button {
+                        showQuery = true
+                    } label: {
+                        Label(L10n.t("Run SQL / command"), systemImage: "terminal")
+                    }
+                    .disabled(selectedConnection == nil)
+                    if selectedConnection != nil {
+                        Divider()
+                        Button {
+                            Task { await loadDatabases() }
+                        } label: {
+                            Label(L10n.t("Refresh"), systemImage: "arrow.clockwise")
+                        }
+                    }
                 } label: {
-                    Image(systemName: "terminal")
+                    Image(systemName: "ellipsis")
+                        .font(.title3)
                 }
-                .disabled(selectedConnection == nil)
-                .help(L10n.t("Run SQL / command"))
             }
         }
         .sheet(isPresented: $showQuery) {
@@ -1467,27 +1479,41 @@ struct DataBrowserView: View {
     let database: String
     let table: String
 
-    @State private var result: QueryResult?
+    /// 当前查看内容：数据预览 / 表结构。切换时各自的加载结果都缓存，避免来回重复查询。
+    private enum Content: String { case data, structure }
+
+    @State private var content: Content = .data
+    @State private var dataResult: QueryResult?
+    @State private var structureResult: QueryResult?
+    @State private var dataError: String?
+    @State private var structureError: String?
     @State private var isLoading = true
-    @State private var error: String?
     @State private var showQuery = false
+
+    private var currentResult: QueryResult? {
+        content == .data ? dataResult : structureResult
+    }
+    private var currentError: String? {
+        content == .data ? dataError : structureError
+    }
 
     var body: some View {
         Group {
             if isLoading {
                 VStack(spacing: 12) {
                     ProgressView()
-                    Text(L10n.t("Loading data...")).foregroundStyle(.secondary)
+                    Text(content == .data ? L10n.t("Loading data...") : L10n.t("Loading structure..."))
+                        .foregroundStyle(.secondary)
                 }
-            } else if let error {
+            } else if let error = currentError {
                 ContentUnavailableView {
                     Label(L10n.t("Load failed"), systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(error)
                 } actions: {
-                    Button(L10n.t("Retry")) { Task { await load() } }
+                    Button(L10n.t("Retry")) { Task { await load(force: true) } }
                 }
-            } else if let result {
+            } else if let result = currentResult {
                 QueryResultView(result: result)
             }
         }
@@ -1495,18 +1521,41 @@ struct DataBrowserView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showQuery = true
+                Menu {
+                    // 数据 / 结构切换
+                    Button {
+                        switchContent(.data)
+                    } label: {
+                        Label(L10n.t("Data"), systemImage: "tablecells")
+                        if content == .data { Image(systemName: "checkmark") }
+                    }
+                    Button {
+                        switchContent(.structure)
+                    } label: {
+                        Label(L10n.t("Structure"), systemImage: "list.bullet.rectangle")
+                        if content == .structure { Image(systemName: "checkmark") }
+                    }
+                    Divider()
+                    Button {
+                        Task { await load(force: true) }
+                    } label: {
+                        Label(L10n.t("Refresh"), systemImage: "arrow.clockwise")
+                    }
+                    Button {
+                        showQuery = true
+                    } label: {
+                        Label(L10n.t("Custom query"), systemImage: "magnifyingglass")
+                    }
                 } label: {
-                    Image(systemName: "magnifyingglass")
+                    Image(systemName: "ellipsis")
+                        .font(.title3)
                 }
-                .help(L10n.t("Custom query"))
             }
         }
         .sheet(isPresented: $showQuery) {
             QueryView(conn: conn, database: database, initialStatement: initialSQL)
         }
-        .task { await load() }
+        .task { await load(force: false) }
     }
 
     private var initialSQL: String {
@@ -1518,15 +1567,36 @@ struct DataBrowserView: View {
         }
     }
 
-    private func load() async {
-        isLoading = true
-        error = nil
-        let res = await DatabaseService.shared.previewData(conn, database: database, table: table)
-        switch res {
-        case .success(let queryResult): result = queryResult
-        case .failure(let dbError): error = dbError.localizedDescription; result = nil
+    /// 切换内容：已有缓存直接显示；否则按需加载。
+    private func switchContent(_ target: Content) {
+        guard content != target else { return }
+        content = target
+        let cached = target == .data ? dataResult : structureResult
+        if cached == nil {
+            Task { await load(force: false) }
         }
-        isLoading = false
+    }
+
+    /// 加载当前内容。force=true 时强制重新拉取（刷新 / 重试）。
+    private func load(force: Bool) async {
+        let hasCache = content == .data ? dataResult != nil : structureResult != nil
+        if !force && hasCache { return }
+        isLoading = true
+        if content == .data { dataError = nil } else { structureError = nil }
+        defer { isLoading = false }
+        if content == .data {
+            let res = await DatabaseService.shared.previewData(conn, database: database, table: table)
+            switch res {
+            case .success(let value): dataResult = value
+            case .failure(let e): dataError = e.localizedDescription
+            }
+        } else {
+            let res = await DatabaseService.shared.fetchTableSchema(conn, database: database, table: table)
+            switch res {
+            case .success(let value): structureResult = value
+            case .failure(let e): structureError = e.localizedDescription
+            }
+        }
     }
 }
 

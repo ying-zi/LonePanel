@@ -397,7 +397,7 @@ struct ComposeTemplate: Identifiable, Hashable {
         ComposeTemplate(
             id: "redis", name: "Redis",
             detail: "In-memory cache · port 6379",
-            symbol: "zap",
+            symbol: "bolt.fill",
             yaml: """
             services:
               redis:

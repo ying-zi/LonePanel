@@ -369,6 +369,51 @@ final class DatabaseService {
         return await runTable(command)
     }
 
+    /// 读取表 / 集合 / Key 的结构，复用 QueryResult 表格渲染。
+    /// - MySQL: DESCRIBE（Field/Type/Null/Key/Default/Extra）
+    /// - PostgreSQL: information_schema.columns（列/类型/可空/默认值）
+    /// - MongoDB: 采样首条文档推断字段名与类型
+    /// - Redis: key 的 TYPE / TTL / ENCODING / MEMORY USAGE 元信息
+    /// 所有外部输入经 escape / sqlString / jsString + ShellQuote，命令走带 epoch 校验的 run()。
+    func fetchTableSchema(_ conn: DatabaseConnection, database: String, table: String) async -> Result<QueryResult, DatabaseError> {
+        switch conn.kind {
+        case .mysql:
+            let sql = "DESCRIBE `\(escapeSQLIdentifier(database))`.`\(escapeSQLIdentifier(table))`"
+            return await runTable("\(mysqlBase(conn)) -B -e \(ShellQuote.quote(sql)) 2>&1")
+
+        case .postgresql:
+            let sql = "SELECT column_name AS \"Column\", data_type AS \"Type\", is_nullable AS \"Nullable\", COALESCE(column_default, '') AS \"Default\" FROM information_schema.columns WHERE table_schema = 'public' AND table_name = \(sqlString(table)) ORDER BY ordinal_position"
+            return await runTable("\(psqlBase(conn, database: database)) -c \(ShellQuote.quote(sql)) 2>&1")
+
+        case .mongodb:
+            let uri = mongoURI(conn, database: database)
+            let js = "var d=db.getCollection(\(jsString(table))).find().limit(1).toArray()[0]; JSON.stringify(d?Object.keys(d).map(function(k){return {Field:k,Type:typeof d[k]}}):[])"
+            return await runMongoJSON("\(mongoClient(conn)) \(ShellQuote.quote(uri)) --quiet --eval \(ShellQuote.quote(js)) 2>&1")
+
+        case .redis:
+            let q = ShellQuote.quote(table)
+            let typeOut = await run("\(redisBase(conn)) TYPE \(q) 2>&1", timeout: listTimeout)
+            guard typeOut.exit == 0 else {
+                return .failure(.commandFailed(message: readableError(typeOut)))
+            }
+            let type = typeOut.out.trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "key: ", with: "")
+            func meta(_ command: String) async -> String {
+                let r = await run("\(redisBase(conn)) \(command) \(q) 2>&1", timeout: listTimeout)
+                let v = r.out.trimmingCharacters(in: .whitespacesAndNewlines)
+                return r.exit == 0 && !v.isEmpty ? v : "—"
+            }
+            let ttl = await meta("TTL")
+            let enc = await meta("OBJECT ENCODING")
+            let mem = await meta("MEMORY USAGE")
+            return .success(QueryResult(
+                columns: ["Property", "Value"],
+                rows: [["Type", type], ["TTL (seconds)", ttl], ["Encoding", enc], ["Memory (bytes)", mem]],
+                message: L10n.t("Key metadata"), isWriteOperation: false
+            ))
+        }
+    }
+
     // MARK: - 执行自定义命令 / SQL
 
     /// 执行用户输入的 SQL（MySQL/PostgreSQL）或原始命令（MongoDB eval / Redis 命令）。
