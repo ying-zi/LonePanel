@@ -1,11 +1,20 @@
 import SwiftUI
 
-/// 新建容器表单（对标 1Panel）：分段填写基本信息、端口、挂载、环境变量、高级选项，
-/// 底部实时预览最终 docker run 命令。所有命令由 DockerService.buildRunCommand 统一构造。
+/// 新建容器（对标 1Panel）：两种模式——
+/// - 表单：分段填写基本信息/端口/挂载/环境变量/高级选项，底部实时预览 docker run，逐字段 quote；
+/// - 命令行：直接粘贴一条完整 docker run 命令，原样执行（由用户对命令原文负责）。
 struct ContainerCreateView: View {
+    /// 创建模式：表单逐字段构造，命令行原样执行。
+    private enum CreateMode: String {
+        case form
+        case commandLine
+    }
+
     let onCreated: (String) async -> Void
     @Environment(\.dismiss) private var dismiss
 
+    @State private var mode: CreateMode = .form
+    @State private var rawCommand = ""
     @State private var spec = ContainerCreateSpec()
     @State private var images: [DockerImage] = []
     @State private var networks: [String] = ["bridge", "host", "none"]
@@ -21,12 +30,24 @@ struct ContainerCreateView: View {
     var body: some View {
         NavigationStack {
             Form {
-                basicSection
-                portsSection
-                mountsSection
-                envSection
-                advancedSection
-                previewSection
+                // 模式切换：表单 / 命令行。放在最顶部，切换即换整套输入区。
+                Picker(L10n.t("Creation mode"), selection: $mode) {
+                    Text(L10n.t("Form")).tag(CreateMode.form)
+                    Text(L10n.t("Command line")).tag(CreateMode.commandLine)
+                }
+                .pickerStyle(.segmented)
+
+                if mode == .form {
+                    basicSection
+                    portsSection
+                    mountsSection
+                    envSection
+                    advancedSection
+                    previewSection
+                } else {
+                    commandLineSection
+                }
+
                 if let error {
                     Section {
                         Label(error, systemImage: "xmark.circle.fill")
@@ -43,7 +64,7 @@ struct ContainerCreateView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.t("Create")) { Task { await submit() } }
                         .fontWeight(.semibold)
-                        .disabled(isRunning || spec.validate() != nil)
+                        .disabled(isRunning || !canSubmit)
                 }
             }
             .sheet(isPresented: $showImagePicker) {
@@ -263,13 +284,51 @@ struct ContainerCreateView: View {
         }
     }
 
+    // MARK: - 命令行模式
+
+    private var commandLineSection: some View {
+        Section {
+            TextEditor(text: $rawCommand)
+                .font(.caption.monospaced())
+                .frame(minHeight: 160)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .overlay(alignment: .topLeading) {
+                    if rawCommand.isEmpty {
+                        Text(L10n.t("Paste a docker run command, e.g. docker run -d --name web -p 80:80 nginx:latest"))
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.tertiary)
+                            .padding(.top, 8)
+                            .padding(.leading, 4)
+                            .allowsHitTesting(false)
+                    }
+                }
+        } header: {
+            Text(L10n.t("docker run command"))
+        } footer: {
+            Text(L10n.t("The command runs on the server as-is. Only a single docker run command is allowed; you are responsible for its content."))
+        }
+    }
+
+    /// 提交按钮是否可用：随模式切换校验条件。
+    private var canSubmit: Bool {
+        switch mode {
+        case .form: return spec.validate() == nil
+        case .commandLine: return !rawCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
     // MARK: - 提交
 
     private func submit() async {
-        guard spec.validate() == nil else { return }
+        guard canSubmit else { return }
         isRunning = true
         error = nil
-        let result = await service.createContainer(spec)
+        let result: Result<String, DockerError>
+        switch mode {
+        case .form: result = await service.createContainer(spec)
+        case .commandLine: result = await service.createContainerFromCommand(rawCommand)
+        }
         isRunning = false
         switch result {
         case .success(let id):

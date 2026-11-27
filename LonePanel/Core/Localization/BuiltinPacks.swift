@@ -686,6 +686,18 @@ enum BuiltinPacks {
         d["Volume name"] = "存储卷名称"
         d["Volume removed: %@"] = "存储卷已删除：%@"
         d["Volumes persist data independently of containers. Volumes in use by containers cannot be removed."] = "存储卷独立于容器持久保存数据。正在被容器使用的卷无法删除。"
+        // S1-05a 命令行创建容器 + Docker 汉堡菜单
+        d["Command cannot be empty"] = "命令不能为空"
+        d["Only a single docker run command is allowed"] = "只允许执行单条 docker run 命令，不支持多条语句或命令拼接"
+        d["Command must start with docker run"] = "命令必须以 docker run 开头"
+        d["Failed to create container from command"] = "通过命令创建容器失败"
+        d["Docker returned no container id"] = "Docker 未返回容器 ID"
+        d["Creation mode"] = "创建方式"
+        d["Form"] = "表单填写"
+        d["Command line"] = "命令行"
+        d["docker run command"] = "docker run 命令"
+        d["Paste a docker run command, e.g. docker run -d --name web -p 80:80 nginx:latest"] = "粘贴 docker run 命令，例如 docker run -d --name web -p 80:80 nginx:latest"
+        d["The command runs on the server as-is. Only a single docker run command is allowed; you are responsible for its content."] = "命令将原样在服务器上执行。仅允许单条 docker run 命令，请自行确认命令内容。"
         return d
     }()
 }

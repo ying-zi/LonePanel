@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Docker 模块主视图：顶部分段切换 容器 / 镜像 / Compose。
-/// 右上角统一为「搜索 + 更多」，与文件模块一致：搜索由容器列表的 .searchable 提供，
-/// 新建容器 / 视图切换 / 诊断收进「更多」，避免多个按钮挤宽导航栏。详情页走 NavigationStack 推入。
+/// Docker 模块主视图：容器 / 镜像 / 编排 / 网络 / 存储卷 五个分区。
+/// 顶部菜单（分区切换 + 新建容器 + 视图切换 + 诊断）全部收敛到左上角汉堡图标，
+/// 避免 5 段 Picker 横排挤不下；标题栏中间暂时预留，后续再安排。
+/// 搜索由各列表的 .searchable 提供；设置齿轮（入口态才出现）保留右上角。详情页走 NavigationStack 推入。
 struct DockerView: View {
     enum Section: String, CaseIterable {
         case containers = "Container"
@@ -44,55 +45,62 @@ struct DockerView: View {
             .navigationTitle(L10n.t("Docker"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                // 标题位置的分段控件：容器 / 镜像 / Compose
-                ToolbarItem(placement: .principal) {
-                    Picker(L10n.t("Section"), selection: $section) {
-                        ForEach(Section.allCases, id: \.self) { item in
-                            Text(L10n.t(item.rawValue)).tag(item)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    // 5 段（容器/镜像/编排/网络/存储卷）：给足宽度避免文字被截断，
-                    // 同时用 maxWidth 限制不超过可用宽度，窄屏由系统压缩。
-                    .frame(maxWidth: 360)
-                }
-
-                // 更多操作：与文件模块统一，右上角只保留系统搜索放大镜 + 本「更多」菜单。
-                // 视图切换 / 新建容器 / 诊断全部收进这里，避免多个按钮挤宽导航栏。
-                ToolbarItem(placement: .topBarTrailing) {
+                // 左上角汉堡：分区切换 + 本模块所有操作收敛于此，横排不再挤。
+                // 用 Menu 的 section 分隔，选中分区打勾，符合 iOS 原生习惯。
+                ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        if section == .containers {
-                            Button {
-                                showCreate = true
-                            } label: {
-                                Label(L10n.t("New container"), systemImage: "plus")
-                            }
-                            Button {
-                                withAnimation {
-                                    containerModel.viewMode = (containerModel.viewMode == .cards) ? .list : .cards
+                        // 分区切换：五个 Section，当前项打勾。
+                        SwiftUI.Section {
+                            ForEach(Section.allCases, id: \.self) { item in
+                                Button {
+                                    withAnimation { section = item }
+                                } label: {
+                                    // 当前分区显示对勾，其余显示各自图标；两者都是 String，无类型歧义。
+                                    Label(L10n.t(item.rawValue),
+                                          systemImage: section == item ? "checkmark" : sectionSymbol(item))
                                 }
-                            } label: {
-                                Label(containerModel.viewMode == .cards ? L10n.t("List View") : L10n.t("Card view"),
-                                      systemImage: containerModel.viewMode == .cards ? "list.bullet" : "square.grid.2x2")
                             }
-                            Divider()
+                        } header: {
+                            Text(L10n.t("Section"))
                         }
+
+                        // 容器分区专属操作：新建 / 视图切换。
+                        if section == .containers {
+                            SwiftUI.Section {
+                                Button {
+                                    showCreate = true
+                                } label: {
+                                    Label(L10n.t("New container"), systemImage: "plus")
+                                }
+                                Button {
+                                    withAnimation {
+                                        containerModel.viewMode = (containerModel.viewMode == .cards) ? .list : .cards
+                                    }
+                                } label: {
+                                    Label(containerModel.viewMode == .cards ? L10n.t("List View") : L10n.t("Card view"),
+                                          systemImage: containerModel.viewMode == .cards ? "list.bullet" : "square.grid.2x2")
+                                }
+                            } header: {
+                                Text(L10n.t("Container"))
+                            }
+                        }
+
                         // 诊断：查看最近 Docker 命令的退出码与原始输出，排查连接/权限问题。
-                        Button {
-                            showDiagnostics = true
-                            copied = false
-                        } label: {
-                            Label(L10n.t("Diagnostics"), systemImage: "ladybug")
+                        SwiftUI.Section {
+                            Button {
+                                showDiagnostics = true
+                                copied = false
+                            } label: {
+                                Label(L10n.t("Diagnostics"), systemImage: "ladybug")
+                            }
                         }
                     } label: {
-                        // 与文件模块一致：系统文件 App 的更多按钮是裸三点，不套圆圈。
-                        Image(systemName: "ellipsis")
+                        Image(systemName: "line.3.horizontal")
                             .font(.title3)
                     }
                 }
 
-                // 设置入口：并入本模块导航栏 trailing，由系统与「更多」统一排布。
-                // 入口态（单模块全屏）才出现；多模块形态与调用态下自动隐藏。
+                // 设置入口：保留右上角（入口态才出现，有形态判断）；与汉堡分列两侧不冲突。
                 ToolbarItem(placement: .topBarTrailing) {
                     SettingsGearButton()
                 }
@@ -109,6 +117,17 @@ struct DockerView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// 汉堡菜单里各分区的图标。独立于本地化，纯系统符号名。
+    private func sectionSymbol(_ item: Section) -> String {
+        switch item {
+        case .containers: return "cube.fill"
+        case .images: return "photo.stack"
+        case .compose: return "square.stack.3d.up"
+        case .networks: return "network"
+        case .volumes: return "externaldrive"
         }
     }
 

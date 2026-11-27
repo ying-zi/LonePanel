@@ -257,6 +257,43 @@ final class DockerService {
         return .success(id)
     }
 
+    /// 命令行创建容器（对标 1Panel「命令行创建」）：用户粘贴一条完整 docker run 命令，原样执行。
+    /// 安全纪律：
+    /// - 只允许单条命令，禁止换行/分号/管道/反引号/`$()` 等拼接，避免借「创建容器」之名执行任意脚本。
+    /// - 必须以 `docker run` 开头（允许前导 sudo），杜绝 docker exec/system prune 等越权命令。
+    /// - 命令本身由用户逐字提供并二次确认，不再做 ShellQuote（否则整条命令会被当作单个参数）；
+    ///   这也正是「表单创建」与「命令行创建」的区别：前者逐字段 quote，后者由用户对原文负责。
+    /// - 仍走 run()（带 epoch 校验 + 重连重试），不绕过连接层。
+    func createContainerFromCommand(_ raw: String) async -> Result<String, DockerError> {
+        let command = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !command.isEmpty else {
+            return .failure(.commandFailed(message: L10n.t("Command cannot be empty")))
+        }
+        // 禁止换行与 shell 元字符拼接：单条命令才允许，防止一次粘贴执行多条语句。
+        let dangerous = ["\n", "\r", ";", "|", "`", "$(", "&&", "||", ">", "<"]
+        for token in dangerous where command.contains(token) {
+            return .failure(.commandFailed(message: L10n.t("Only a single docker run command is allowed")))
+        }
+        // 剥离前导 sudo（连接层已按权限自动包装），只校验剩余部分。
+        var body = command
+        if body.lowercased().hasPrefix("sudo ") {
+            body = String(body.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard body.lowercased().hasPrefix("docker run ") || body.lowercased() == "docker run" else {
+            return .failure(.commandFailed(message: L10n.t("Command must start with docker run")))
+        }
+        let result = await run(command, timeout: 90)
+        guard result.exit == 0 else {
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to create container from command"))))
+        }
+        let id = result.out.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty else {
+            return .failure(.commandFailed(message: L10n.t("Docker returned no container id")))
+        }
+        AppEventBus.shared.emit(.containersChanged)
+        return .success(id)
+    }
+
     /// 构造 `docker run -d ...` 命令。独立静态方法便于审查与复用（如命令预览）。
     static func buildRunCommand(_ spec: ContainerCreateSpec) -> String {
         var parts: [String] = ["docker", "run", "-d"]
