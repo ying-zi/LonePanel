@@ -237,6 +237,66 @@ final class DockerService {
         await mutate("docker rmi \(id)", success: L10n.t("Image removed"))
     }
 
+    // MARK: - 镜像管理增强（对标 1Panel：拉取 / 打标签 / 导入 / 导出）
+
+    /// 给镜像打标签：docker tag <source> <repo>:<tag>。
+    /// 引用与镜像 ID 均经 ShellQuote.quote，防止注入。
+    func tagImage(sourceID: String, repository: String, tag: String) async -> Result<Void, DockerError> {
+        let repo = repository.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tg = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !repo.isEmpty else {
+            return .failure(.commandFailed(message: L10n.t("Repository cannot be empty")))
+        }
+        let reference = tg.isEmpty ? repo : "\(repo):\(tg)"
+        guard Self.validImageReference(reference) else {
+            return .failure(.commandFailed(message: L10n.t("Invalid image name or tag")))
+        }
+        let command = "docker tag \(ShellQuote.quote(sourceID)) \(ShellQuote.quote(reference))"
+        return await mutate(command, success: L10n.f("Tagged as %@", reference))
+    }
+
+    /// 导出镜像到服务器目录：docker save -o <dir>/<file> <image>。
+    /// 返回实际写入的服务器路径供 UI 展示。大镜像耗时，给 300 秒。
+    func exportImage(imageID: String, directory: String, filename: String) async -> Result<String, DockerError> {
+        let dir = directory.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !dir.isEmpty, dir.hasPrefix("/") else {
+            return .failure(.commandFailed(message: L10n.t("Please choose a destination directory")))
+        }
+        var name = filename.trimmingCharacters(in: .whitespacesAndNewlines)
+        if name.isEmpty { name = "image.tar" }
+        if !name.hasSuffix(".tar") && !name.hasSuffix(".tar.gz") { name += ".tar" }
+        // 文件名不允许含路径分隔符，避免逃出所选目录。
+        name = name.replacingOccurrences(of: "/", with: "_")
+        let fullPath = "\(dir.hasSuffix("/") ? dir : dir + "/")\(name)"
+        let command = "docker save -o \(ShellQuote.quote(fullPath)) \(ShellQuote.quote(imageID))"
+        let result = await run(command, timeout: 300)
+        if result.exit == 0 { return .success(fullPath) }
+        return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to export image"))))
+    }
+
+    /// 从服务器上的 tar 文件导入镜像：docker load -i <path>。
+    func importImage(tarPath: String) async -> Result<Void, DockerError> {
+        let path = tarPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty, path.hasPrefix("/") else {
+            return .failure(.commandFailed(message: L10n.t("Please enter a valid file path")))
+        }
+        let command = "docker load -i \(ShellQuote.quote(path))"
+        let result = await run(command, timeout: 300)
+        if result.exit == 0 {
+            AppEventBus.shared.emit(.containersChanged)
+            return .success(())
+        }
+        return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to import image"))))
+    }
+
+    /// 镜像名/tag 的宽松校验：只允许字母数字与 . _ - / : ，且不含空格。
+    /// ShellQuote 已防注入，这里主要给用户即时格式反馈。
+    static func validImageReference(_ ref: String) -> Bool {
+        guard !ref.isEmpty, ref.count <= 512 else { return false }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-/:")
+        return ref.unicodeScalars.allSatisfy { allowed.contains($0) }
+    }
+
     func composeAction(_ name: String, configFile: String, action: ComposeAction) async -> Result<Void, DockerError> {
         let fileArg = configFile.isEmpty ? "" : " -f \(ShellQuote.quote(configFile))"
         let command: String

@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.78.1`，版本 1.78.1（详见第 8.5 节） |
+| 当前基线 | tag `t1.79.0`，版本 1.79.0（详见第 8.5 节） |
 
 ---
 
@@ -277,6 +277,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **t1.77.0** | **阶段 0 稳定性清理 + 跨模块联动地基。P0：①Redis 命令 quote——原始命令逐 token quote（新增 quoteRedisArgs），ACL SETUSER 的 `>pass`/`~*`/`&*`/`+@all` 逐个整体 quote（旧代码 `>` 被 shell 当重定向、口令写进文件，功能完全不可用）；②SFTP 移动软链数据丢失——copyItem 返回"是否保真复制"，含软链时返回 false，move 回退绝不删源、抛错交给上层 shell mv。P1：③连接代次 ServerSession.connectionEpoch——切服/删服/编辑后四条连接+终端统一失效重建，解决"切服仍操作旧服务器"（跨模块联动地基）；④FileCache 覆盖写自删——同 key 同扩展名新旧路径相同，删除旧路径时跳过；⑤SSHSession.close 幂等+异步 shutdown——消除 deinit 二次关闭与 event loop 线程同步死锁；⑥Docker/Database 错误反馈全线补齐——容器详情/列表/Compose/镜像/日志操作失败都出 alert，mutate 失败不再误报成功，parseLogs 不再把错误当日志，loadTables 失败不再吞成空；⑦数据库成功消息本地化。地基：ModuleCoordinator 升级为通用 ModuleCall 路由总线，新增 openContainerDetail + ContainerCallView（网站反代→容器详情接口），fileOpenTarget 计算属性兼容旧代码** |
 | **t1.78.0** | **阶段 0.5 钩子地基完善 + 切服容器刷新修复。①事件钩子 AppEventBus（Core/Session）：类型化 enum AppEvent（serverChanged/containersChanged）+ emit 统一主线程投递 + serverChanges()/containerChanges() 便捷订阅；②ServerSession.refresh 在 epoch 递增时广播 serverChanged，容器/镜像/Compose/容器调用态四视图订阅后清空旧数据重载——修复用户实测「切服后容器模块不自动刷新」，新模块按当前服务器加载数据只需订阅一行；③DockerService.mutate 成功广播 containersChanged，为网站反代联动预留订阅点；④能力总线的视图分派内聚到 ModuleCall.callView，ContentView 分派简化为一行、App 核心零改动，刻意保留 enum 编译期穷举检查（不用运行时注册表避免漏注册空白视图）。** |
 | **t1.78.1** | **文件调用态能力分级 + 目录返回修复。①修复目录选择模式进入子目录后无法返回上一级：FileCallView 加 goBack()，`pathStack` 出栈，左上角顶层显示取消/子层显示返回（select/browse 两档都有）；②FileOpenTarget 新增 FileCallCapability(.select/.browse/.manage) 能力等级——调用方声明能力、文件模块按级呈现（钩子暴露能力的落点）；③容器卷挂载点改用 manageFiles → FileManageCallView，复用入口态完整 FileBrowserView（新建/编辑/删除/上传/压缩/粘贴 + 系统原生返回），因卷是宿主机真实目录须允许操作；④FileBrowserView 加 init(model:callClose:) 注入点 + callClose 关闭按钮透传 DirectoryPage；⑤FileBrowserModel 加 isCallInstance(禁写全局偏好)/callRootPath(指定挂载点栈底)。** |
+| **t1.79.0** | **阶段 1 镜像管理增强（对标 1Panel）。镜像页从「只有列表 + 删除」补齐四能力：①拉取镜像（复用已有 DockerService.pullImage，输入完整引用，180s 超时，进度态）；②打标签（新增 tagImage→docker tag，仓库名/tag 格式校验 + ShellQuote.quote）；③导出镜像（新增 exportImage→docker save -o，复用 `directoryPickTarget`+本地 `.folderPicker` 选服务器目录，文件名自动补全 .tar/.tar.gz，文件名去路径分隔符防逃逸）；④导入镜像（新增 importImage→docker load -i，选目录+文件名拼服务器绝对路径）。UI：行尾多个按钮收敛为单一「更多」菜单（打标签/导出/删除），全局拉取/导入放顶部 Section；四类操作统一一个 `ImageAction` sheet 出口；导入成功广播 containersChanged。ImageView 额外订阅 containerChanges 同步别处变更。所有失败给人话提示、成功短 toast，中文译文补齐，无重复 key。** |
 
 ---
 
