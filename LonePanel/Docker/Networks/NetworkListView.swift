@@ -133,7 +133,9 @@ struct NetworkListView: View {
         HStack(spacing: 12) {
             Image(systemName: "network")
                 .font(.title3)
-                .foregroundStyle(network.isSystem ? .secondary : .tint)
+                // 三元分支须显式 Color 类型：.secondary 是 HierarchicalShapeStyle、
+                // .tint 是 TintShapeStyle，直接写 .secondary : .tint 会因类型不一致编译失败。
+                .foregroundStyle(network.isSystem ? Color.secondary : Color.accentColor)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(network.name)
