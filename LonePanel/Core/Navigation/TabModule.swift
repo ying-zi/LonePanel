@@ -100,9 +100,8 @@ struct SettingsGearButton: View {
 }
 
 /// 统一的「收起 / 关闭」按钮：右上角向下小箭头（chevron.down）。
-/// 全 App 所有 sheet / 弹出卡片共用，替代过去位置、样式各异的文字 Done 按钮，
-/// 既统一交互又少一项文案翻译。可与其他 trailing 按钮放进同一个 ToolbarItem 的 HStack，
-/// 由系统连成一枚胶囊（与文件页 / 容器页右上角一致）。
+/// 语义是「把面板收起来」——诊断、日志、终端、文件调用态等纯关闭场景用这个。
+/// 注意与 `DoneCheckmarkButton` 区分：那是「操作已完成/确认」用勾，别混用。
 struct DismissChevronButton: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -113,5 +112,25 @@ struct DismissChevronButton: View {
         }
         .help(L10n.t("Close"))
         .accessibilityLabel(L10n.t("Close"))
+    }
+}
+
+/// 统一的「操作已完成 / 确认」按钮：右上角勾（checkmark）。
+/// 语义是「这件事做完了」——调用态详情看完、多选完成、输入完成等，与文件多选态右上角的勾同源同款。
+/// 样式刻意与文件多选完成勾一致（size 17 bold / .primary / 32×32），保证全 App 通用图形统一。
+/// 用图形代替文字 Done：能图形化表达就别用文案。与 `DismissChevronButton`（收起/关闭）分工明确，勿混用。
+struct DoneCheckmarkButton: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Button { dismiss() } label: {
+            Image(systemName: "checkmark")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(.primary)
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .help(L10n.t("Done"))
+        .accessibilityLabel(L10n.t("Done"))
     }
 }

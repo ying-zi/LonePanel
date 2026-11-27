@@ -48,7 +48,8 @@ struct ContainerCallView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    DismissChevronButton()
+                    // 调用态详情看完点「操作已完成」：用勾，与全 App 完成语义一致。
+                    DoneCheckmarkButton()
                 }
             }
             .task { await load() }

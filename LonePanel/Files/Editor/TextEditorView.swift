@@ -36,12 +36,14 @@ struct TextEditorView: View {
                             ToolbarItem(placement: .keyboard) {
                                 HStack {
                                     Spacer()
-                                    // 与全 App 统一：收起用 chevron.down，不用文字 Done 按钮。
+                                    // 完成输入语义用勾（与全 App「操作已完成」一致），不用向下箭头/文字 Done。
+                                    // 行为仍是收起键盘光标，不 dismiss 整个编辑器。
                                     Button { editorFocused = false } label: {
-                                        Image(systemName: "chevron.down")
-                                            .font(.system(size: 16, weight: .semibold))
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 17, weight: .bold))
+                                            .foregroundStyle(.primary)
                                     }
-                                    .accessibilityLabel(L10n.t("Close"))
+                                    .accessibilityLabel(L10n.t("Done"))
                                 }
                             }
                         }
