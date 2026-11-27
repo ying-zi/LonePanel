@@ -86,6 +86,10 @@ struct ComposeListView: View {
                 await load()
             }
         }
+        // 编排部署/容器变更事件：重载项目列表（模板部署成功会广播 containersChanged）。
+        .onReceive(AppEventBus.shared.containerChanges()) { _ in
+            Task { await load() }
+        }
         .alert(alertTitle, isPresented: Binding(
             get: { pendingAction != nil },
             set: { if !$0 { pendingAction = nil } }

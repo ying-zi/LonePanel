@@ -698,6 +698,23 @@ enum BuiltinPacks {
         d["docker run command"] = "docker run 命令"
         d["Paste a docker run command, e.g. docker run -d --name web -p 80:80 nginx:latest"] = "粘贴 docker run 命令，例如 docker run -d --name web -p 80:80 nginx:latest"
         d["The command runs on the server as-is. Only a single docker run command is allowed; you are responsible for its content."] = "命令将原样在服务器上执行。仅允许单条 docker run 命令，请自行确认命令内容。"
+        // S1-05b 编排模板
+        d["Compose templates"] = "编排模板"
+        d["Built-in templates"] = "内置模板"
+        d["Choose a template to start. You can edit the compose content before deploying."] = "选择一个模板开始，部署前可编辑编排内容。"
+        d["Project"] = "项目"
+        d["Project name"] = "项目名称"
+        d["Used as the compose project name (-p) and the saved file name."] = "用作编排项目名（-p）及保存的文件名。"
+        d["Deploy directory"] = "部署目录"
+        d["Choose deploy directory"] = "选择部署目录"
+        d["The compose file will be saved to this directory on the server."] = "编排文件将保存到服务器上的此目录。"
+        d["Compose content (docker-compose.yml)"] = "编排内容（docker-compose.yml）"
+        d["Invalid project name"] = "项目名称无效"
+        d["Compose content cannot be empty"] = "编排内容不能为空"
+        d["Invalid compose file or project name"] = "编排文件或项目名称无效"
+        d["Failed to save compose file"] = "保存编排文件失败"
+        d["Failed to deploy compose"] = "部署编排失败"
+        d["Save and deploy"] = "保存并部署"
         return d
     }()
 }

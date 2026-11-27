@@ -438,6 +438,52 @@ final class DockerService {
         case up, down, restart
     }
 
+    // MARK: - 编排模板（对标 1Panel：模板 → 写 yml → 部署）
+
+    /// 把编排 yml 写到服务器指定目录的 <项目名>.yml 文件。
+    /// 内容走 base64：yml 里含引号、`$`、换行等，直接拼 heredoc 有注入与转义风险；
+    /// base64 只含 A-Za-z0-9+/=，经 quote 后绝对安全，服务端 `base64 -d` 还原。
+    /// 目录与文件名都做校验 + quote，防止逃出所选目录。
+    func saveComposeFile(directory: String, projectName: String, yaml: String) async -> Result<String, DockerError> {
+        let dir = directory.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !dir.isEmpty, dir.hasPrefix("/") else {
+            return .failure(.commandFailed(message: L10n.t("Please choose a destination directory")))
+        }
+        let name = projectName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard Self.validResourceName(name) else {
+            return .failure(.commandFailed(message: L10n.t("Invalid project name")))
+        }
+        guard !yaml.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .failure(.commandFailed(message: L10n.t("Compose content cannot be empty")))
+        }
+        let base64 = Data(yaml.utf8).base64EncodedString()
+        let fullPath = "\(dir.hasSuffix("/") ? dir : dir + "/")docker-compose.\(name).yml"
+        // 先确保目录存在，再写文件；两条命令用 && 串联，任一步失败即止。
+        let command = "mkdir -p \(ShellQuote.quote(dir)) && printf '%s' \(ShellQuote.quote(base64)) | base64 -d > \(ShellQuote.quote(fullPath))"
+        let result = await run(command, timeout: 30)
+        guard result.exit == 0 else {
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to save compose file"))))
+        }
+        return .success(fullPath)
+    }
+
+    /// 部署编排：docker compose -f <path> -p <project> up -d。
+    /// 成功广播 containersChanged（会新建容器），供其它模块订阅刷新。
+    func deployCompose(path: String, project: String) async -> Result<Void, DockerError> {
+        let p = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = project.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !p.isEmpty, p.hasPrefix("/"), Self.validResourceName(name) else {
+            return .failure(.commandFailed(message: L10n.t("Invalid compose file or project name")))
+        }
+        let command = "docker compose -f \(ShellQuote.quote(p)) -p \(ShellQuote.quote(name)) up -d"
+        let result = await run(command, timeout: 180)
+        guard result.exit == 0 else {
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to deploy compose"))))
+        }
+        AppEventBus.shared.emit(.containersChanged)
+        return .success(())
+    }
+
     // MARK: - 详情
 
     /// 读取容器 inspect 的原始 JSON 文本，详情页按需解析端口/挂载/网络/环境变量。

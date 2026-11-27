@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// Docker 模块主视图：容器 / 镜像 / 编排 / 网络 / 存储卷 五个分区。
-/// 顶部菜单（分区切换 + 新建容器 + 视图切换 + 诊断）全部收敛到左上角汉堡图标，
-/// 避免 5 段 Picker 横排挤不下；标题栏中间暂时预留，后续再安排。
-/// 搜索由各列表的 .searchable 提供；设置齿轮（入口态才出现）保留右上角。详情页走 NavigationStack 推入。
+/// 统一顶部操作逻辑：左边只放「分类」（左上角汉堡做分区切换），右边放「所有操作 + 搜索」——
+/// 加号（新建容器）与系统搜索放大镜由 iOS 自动排成一枚胶囊，视图切换/诊断收进 ⋯ 更多菜单，
+/// 设置齿轮（入口态才出现）恒在最右。标题栏中间暂时预留，后续再安排。详情页走 NavigationStack 推入。
 struct DockerView: View {
     enum Section: String, CaseIterable {
         case containers = "Container"
@@ -19,6 +19,7 @@ struct DockerView: View {
     @State private var path = NavigationPath()
     @State private var showDiagnostics = false
     @State private var showCreate = false
+    @State private var showTemplate = false
     @State private var copied = false
 
     var body: some View {
@@ -45,53 +46,16 @@ struct DockerView: View {
             .navigationTitle(L10n.t("Docker"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                // 左上角汉堡：分区切换 + 本模块所有操作收敛于此，横排不再挤。
-                // 用 Menu 的 section 分隔，选中分区打勾，符合 iOS 原生习惯。
+                // 左上：只放「分类」——五个分区切换，当前项打勾。操作一律不进左边。
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        // 分区切换：五个 Section，当前项打勾。
-                        SwiftUI.Section {
-                            ForEach(Section.allCases, id: \.self) { item in
-                                Button {
-                                    withAnimation { section = item }
-                                } label: {
-                                    // 当前分区显示对勾，其余显示各自图标；两者都是 String，无类型歧义。
-                                    Label(L10n.t(item.rawValue),
-                                          systemImage: section == item ? "checkmark" : sectionSymbol(item))
-                                }
-                            }
-                        } header: {
-                            Text(L10n.t("Section"))
-                        }
-
-                        // 容器分区专属操作：新建 / 视图切换。
-                        if section == .containers {
-                            SwiftUI.Section {
-                                Button {
-                                    showCreate = true
-                                } label: {
-                                    Label(L10n.t("New container"), systemImage: "plus")
-                                }
-                                Button {
-                                    withAnimation {
-                                        containerModel.viewMode = (containerModel.viewMode == .cards) ? .list : .cards
-                                    }
-                                } label: {
-                                    Label(containerModel.viewMode == .cards ? L10n.t("List View") : L10n.t("Card view"),
-                                          systemImage: containerModel.viewMode == .cards ? "list.bullet" : "square.grid.2x2")
-                                }
-                            } header: {
-                                Text(L10n.t("Container"))
-                            }
-                        }
-
-                        // 诊断：查看最近 Docker 命令的退出码与原始输出，排查连接/权限问题。
-                        SwiftUI.Section {
+                        ForEach(Section.allCases, id: \.self) { item in
                             Button {
-                                showDiagnostics = true
-                                copied = false
+                                withAnimation { section = item }
                             } label: {
-                                Label(L10n.t("Diagnostics"), systemImage: "ladybug")
+                                // 当前分区显示对勾，其余显示各自图标；两者都是 String，无类型歧义。
+                                Label(L10n.t(item.rawValue),
+                                      systemImage: section == item ? "checkmark" : sectionSymbol(item))
                             }
                         }
                     } label: {
@@ -100,7 +64,62 @@ struct DockerView: View {
                     }
                 }
 
-                // 设置入口：保留右上角（入口态才出现，有形态判断）；与汉堡分列两侧不冲突。
+                // 右上：「操作」区。加号与系统搜索放大镜由 iOS 自动排成一枚玻璃胶囊。
+                // 仅在容器分区显示新建/视图切换；其余分区本身的操作各在自己的列表页里。
+                if section == .containers {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showCreate = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 17, weight: .semibold))
+                        }
+                        .help(L10n.t("New container"))
+                        .accessibilityLabel(L10n.t("New container"))
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            withAnimation {
+                                containerModel.viewMode = (containerModel.viewMode == .cards) ? .list : .cards
+                            }
+                        } label: {
+                            Image(systemName: containerModel.viewMode == .cards ? "list.bullet" : "square.grid.2x2")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .help(containerModel.viewMode == .cards ? L10n.t("List View") : L10n.t("Card view"))
+                    }
+                }
+
+                // 编排分区：从模板创建（右边操作区）。
+                if section == .compose {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showTemplate = true
+                        } label: {
+                            Image(systemName: "doc.badge.plus")
+                                .font(.system(size: 17, weight: .semibold))
+                        }
+                        .help(L10n.t("Compose templates"))
+                        .accessibilityLabel(L10n.t("Compose templates"))
+                    }
+                }
+
+                // 诊断也归到右边操作区（⋯ 更多）。
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            showDiagnostics = true
+                            copied = false
+                        } label: {
+                            Label(L10n.t("Diagnostics"), systemImage: "ladybug")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.title3)
+                    }
+                }
+
+                // 设置入口：恒在最右（入口态才出现，有形态判断）。
                 ToolbarItem(placement: .topBarTrailing) {
                     SettingsGearButton()
                 }
@@ -115,6 +134,12 @@ struct DockerView: View {
                     if let container = containerModel.containers.first(where: { newID.hasPrefix($0.id) }) {
                         path.append(container)
                     }
+                }
+            }
+            .sheet(isPresented: $showTemplate) {
+                ComposeTemplateView {
+                    // 部署成功已广播 containersChanged，ComposeListView 订阅后自行刷新。
+                    await containerModel.refresh()
                 }
             }
         }

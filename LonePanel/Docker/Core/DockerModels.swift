@@ -367,6 +367,101 @@ struct DockerInspectInfo {
     }
 }
 
+// MARK: - 编排模板
+
+/// 内置编排模板：对标 1Panel「编排模板」，选模板→改 yml→部署。
+/// yml 采用 docker compose v2 语法；仅内置最小可用配置，用户可在 UI 里编辑。
+struct ComposeTemplate: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let detail: String
+    let symbol: String
+    let yaml: String
+
+    /// 内置模板集合。内容保持精简，够跑起来即可，详细配置交给用户编辑。
+    static let builtins: [ComposeTemplate] = [
+        ComposeTemplate(
+            id: "nginx", name: "Nginx",
+            detail: "Web server · port 80",
+            symbol: "globe",
+            yaml: """
+            services:
+              nginx:
+                image: nginx:latest
+                container_name: nginx
+                ports:
+                  - "80:80"
+                restart: unless-stopped
+            """
+        ),
+        ComposeTemplate(
+            id: "redis", name: "Redis",
+            detail: "In-memory cache · port 6379",
+            symbol: "zap",
+            yaml: """
+            services:
+              redis:
+                image: redis:7-alpine
+                container_name: redis
+                ports:
+                  - "6379:6379"
+                restart: unless-stopped
+            """
+        ),
+        ComposeTemplate(
+            id: "mysql", name: "MySQL",
+            detail: "Database · port 3306",
+            symbol: "cylinder.split.1x2",
+            yaml: """
+            services:
+              mysql:
+                image: mysql:8.0
+                container_name: mysql
+                ports:
+                  - "3306:3306"
+                environment:
+                  MYSQL_ROOT_PASSWORD: change_me
+                restart: unless-stopped
+            """
+        ),
+        ComposeTemplate(
+            id: "postgres", name: "PostgreSQL",
+            detail: "Database · port 5432",
+            symbol: "cylinder.split.1x2",
+            yaml: """
+            services:
+              postgres:
+                image: postgres:16-alpine
+                container_name: postgres
+                ports:
+                  - "5432:5432"
+                environment:
+                  POSTGRES_PASSWORD: change_me
+                restart: unless-stopped
+            """
+        ),
+        ComposeTemplate(
+            id: "minio", name: "MinIO",
+            detail: "Object storage · ports 9000/9001",
+            symbol: "externaldrive.connected.to.line.below",
+            yaml: """
+            services:
+              minio:
+                image: minio/minio:latest
+                container_name: minio
+                ports:
+                  - "9000:9000"
+                  - "9001:9001"
+                environment:
+                  MINIO_ROOT_USER: minioadmin
+                  MINIO_ROOT_PASSWORD: change_me
+                command: server /data --console-address ":9001"
+                restart: unless-stopped
+            """
+        ),
+    ]
+}
+
 // MARK: - 容器进程
 
 /// `docker top <id>` 的进程条目，对应详情页「进程」列表。
