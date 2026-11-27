@@ -163,7 +163,8 @@ final class DockerService {
 
     /// 创建网络：docker network create [--driver d] [--subnet s] [--gateway g] [--internal] [--ipv6] name。
     /// 所有外部输入经 ShellQuote.quote；名称做字符集校验即时反馈。
-    func createNetwork(name: String, driver: String, subnet: String, gateway: String, internal: Bool, ipv6: Bool) async -> Result<Void, DockerError> {
+    /// 注：参数名用 isInternal 而非 internal——后者是 Swift 保留关键字，会编译失败。
+    func createNetwork(name: String, driver: String, subnet: String, gateway: String, isInternal: Bool, ipv6: Bool) async -> Result<Void, DockerError> {
         let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard Self.validResourceName(n) else {
             return .failure(.commandFailed(message: L10n.t("Invalid network name")))
@@ -175,7 +176,7 @@ final class DockerService {
         if !s.isEmpty { parts += ["--subnet", ShellQuote.quote(s)] }
         let g = gateway.trimmingCharacters(in: .whitespacesAndNewlines)
         if !g.isEmpty { parts += ["--gateway", ShellQuote.quote(g)] }
-        if internal { parts.append("--internal") }
+        if isInternal { parts.append("--internal") }
         if ipv6 { parts.append("--ipv6") }
         parts.append(ShellQuote.quote(n))
         return await mutate(parts.joined(separator: " "), success: L10n.f("Network created: %@", n))

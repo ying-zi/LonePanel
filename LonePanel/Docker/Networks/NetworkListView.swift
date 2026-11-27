@@ -196,7 +196,7 @@ private struct CreateNetworkView: View {
     @State private var driver = "bridge"
     @State private var subnet = ""
     @State private var gateway = ""
-    @State private var internal = false
+    @State private var isInternal = false
     @State private var ipv6 = false
     @State private var busy = false
     @State private var error: String?
@@ -223,7 +223,7 @@ private struct CreateNetworkView: View {
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                     TextField(L10n.t("Gateway (e.g. 172.20.0.1)"), text: $gateway)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    Toggle(L10n.t("Internal network"), isOn: $internal)
+                    Toggle(L10n.t("Internal network"), isOn: $isInternal)
                     Toggle(L10n.t("Enable IPv6"), isOn: $ipv6)
                 } header: {
                     Text(L10n.t("Advanced options"))
@@ -268,7 +268,7 @@ private struct CreateNetworkView: View {
             driver: driver,
             subnet: subnet,
             gateway: gateway,
-            internal: internal,
+            isInternal: isInternal,
             ipv6: ipv6
         )
         switch result {
