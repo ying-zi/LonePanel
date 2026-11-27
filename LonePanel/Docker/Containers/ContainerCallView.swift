@@ -15,7 +15,6 @@ import SwiftUI
 struct ContainerCallView: View {
     let target: ModuleCoordinator.ContainerOpenTarget
 
-    @Environment(\.dismiss) private var dismiss
     @StateObject private var model = ContainerListModel()
     @State private var loadedContainer: DockerContainer?
     @State private var loadError: String?
@@ -49,7 +48,7 @@ struct ContainerCallView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(L10n.t("Done")) { dismiss() }
+                    DismissChevronButton()
                 }
             }
             .task { await load() }

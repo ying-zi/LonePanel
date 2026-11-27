@@ -831,6 +831,7 @@ enum BuiltinPacks {
         d["The container will be stopped, backed up and recreated with the new settings. If creation fails, the original is restored. Data outside mounted paths will be lost."] = "容器将被停止、备份，并按新设置重建。若创建失败，原容器会自动恢复。未挂载路径中的数据将丢失。"
         d["The original container had a health check; it is not restored by the form."] = "原容器配置了健康检查，表单不会还原它。"
         d["Unknown"] = "未知"
+        d["Compose file content"] = "Compose 文件内容"
         return d
     }()
 }

@@ -3540,6 +3540,16 @@
           }
         }
       }
+    },
+    "Compose 文件内容": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compose file content"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

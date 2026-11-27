@@ -1,16 +1,15 @@
 import SwiftUI
 
-/// Compose 项目列表页：展示项目与状态，点卡片进详情页做完整运维。
-/// 列表行遵循统一卡片形态：左侧状态色条 + 状态徽章 + 单一主操作 + ⋯（其余操作收进来）。
+/// Compose 项目列表页：**只读**展示项目与状态，点卡片进详情页查看组成。
+/// 刻意不在编排页提供任何启停/重启操作——`docker compose down` 会连容器一起删除
+/// （用户实测「停止」后容器彻底消失），容器的启停统一在「容器」分区的卡片/详情页完成。
+/// 列表行遵循统一卡片形态：左侧状态色条 + 状态徽章 + 信息；整行可点进详情。
 struct ComposeListView: View {
     private let service = DockerService.shared
 
     @State private var projects: [DockerComposeProject] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
-    @State private var actionTarget: DockerComposeProject?
-    @State private var pendingAction: DockerService.ComposeAction?
-    @State private var operationError: String?
     @State private var searchText = ""
     /// 点卡片进详情。Identifiable + Hashable 满足 navigationDestination(item:)。
     @State private var detailTarget: DockerComposeProject?
@@ -59,45 +58,16 @@ struct ComposeListView: View {
         .onReceive(AppEventBus.shared.containerChanges()) { _ in
             Task { await load() }
         }
-        // 点卡片进详情页（独立任务范式：push，完成后不必返回列表）。
+        // 点卡片进详情页（只读查看项目组成：概览 + 服务列表 + yml 内容）。
         .navigationDestination(item: $detailTarget) { project in
             ComposeProjectDetailView(project: project)
-        }
-        .alert(alertTitle, isPresented: Binding(
-            get: { pendingAction != nil },
-            set: { if !$0 { pendingAction = nil } }
-        )) {
-            Button(L10n.t("Cancel"), role: .cancel) { pendingAction = nil }
-            Button(L10n.t("OK")) {
-                if let project = actionTarget, let action = pendingAction {
-                    Task {
-                        let result = await service.composeAction(
-                            project.name,
-                            configFile: project.configFiles,
-                            action: action
-                        )
-                        if case .failure(let error) = result { operationError = error.localizedDescription }
-                        await load()
-                    }
-                }
-                pendingAction = nil
-            }
-        } message: {
-            Text(L10n.f("Perform %@ on \"%@\"? Compose actions affect all containers in this project.", String(describing: (actionLabel)), String(describing: (actionTarget?.name ?? ""))))
-        }
-        .alert(L10n.t("Operation failed"), isPresented: Binding(
-            get: { operationError != nil },
-            set: { if !$0 { operationError = nil } }
-        )) {
-            Button(L10n.t("OK"), role: .cancel) { operationError = nil }
-        } message: {
-            Text(operationError ?? "")
         }
     }
 
     // MARK: - 行
 
-    /// 项目卡片：左侧色条 + 名称/状态徽章 + 配置路径 + 主操作 + ⋯；整行可点进详情。
+    /// 项目卡片：左侧色条 + 名称/状态徽章 + 配置路径 + 可点进详情的箭头。
+    /// 刻意不放任何操作按钮：编排页只查看，启停统一在容器分区做。
     private func composeRow(_ project: DockerComposeProject) -> some View {
         ZStack(alignment: .leading) {
             Color(.secondarySystemGroupedBackground)
@@ -106,56 +76,28 @@ struct ComposeListView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 2))
                     .padding(.vertical, 11)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "square.stack.3d.up")
-                            .foregroundStyle(.tint)
+                HStack(spacing: 8) {
+                    Image(systemName: "square.stack.3d.up")
+                        .foregroundStyle(.tint)
+                    VStack(alignment: .leading, spacing: 6) {
                         Text(project.name)
                             .font(.headline)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
-                        Spacer(minLength: 4)
-                        StatusBadge(state: project.state)
-                            .fixedSize()
-                    }
-                    if !project.configFiles.isEmpty {
-                        Text(project.configFiles)
-                            .font(.caption2.monospaced())
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    HStack(spacing: 8) {
-                        // 单一主操作：运行/暂停→停止（down），已停止→启动（up）。
-                        Button {
-                            confirm(project, project.state == .stopped ? .up : .down)
-                        } label: {
-                            Label(project.state == .stopped ? L10n.t("Start") : L10n.t("Stop"),
-                                  systemImage: project.state == .stopped ? "play.fill" : "stop.fill")
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-
-                        // 其余操作收进 ⋯，与容器列表行一致，不在行内平铺。
-                        Menu {
-                            Button {
-                                confirm(project, .restart)
-                            } label: {
-                                Label(L10n.t("Restart"), systemImage: "arrow.clockwise")
-                            }
-                            Button {
-                                detailTarget = project
-                            } label: {
-                                Label(L10n.t("Project details"), systemImage: "doc.text.magnifyingglass")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .frame(width: 32, height: 28)
-                                .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+                        if !project.configFiles.isEmpty {
+                            Text(project.configFiles)
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                         }
                     }
+                    Spacer(minLength: 4)
+                    StatusBadge(state: project.state)
+                        .fixedSize()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
                 }
                 .padding(.leading, 12)
                 .padding(.trailing, 12)
@@ -190,30 +132,7 @@ struct ComposeListView: View {
         .padding(.vertical, 40)
     }
 
-    // MARK: - 动作
-
-    private func confirm(_ project: DockerComposeProject, _ action: DockerService.ComposeAction) {
-        actionTarget = project
-        pendingAction = action
-    }
-
-    private var alertTitle: String {
-        guard let action = pendingAction else { return L10n.t("Confirm Action") }
-        switch action {
-        case .up: return L10n.t("Start Compose Project")
-        case .down: return L10n.t("Stop Compose Project")
-        case .restart: return L10n.t("Restart Compose Project")
-        }
-    }
-
-    private var actionLabel: String {
-        guard let action = pendingAction else { return "" }
-        switch action {
-        case .up: return L10n.t("Start")
-        case .down: return L10n.t("Stop")
-        case .restart: return L10n.t("Restart")
-        }
-    }
+    // MARK: - 加载
 
     private func load() async {
         isLoading = true
@@ -229,16 +148,9 @@ struct ComposeListView: View {
 
 // MARK: - 编排项目详情
 
-/// 编辑编排载荷：携带覆盖原文件所需的路径 + 项目名 + 当前 yml，Identifiable 供 push。
-private struct ComposeEditPayload: Identifiable, Hashable {
-    let id = UUID()
-    let projectName: String
-    let configPath: String
-    let yaml: String
-}
-
-/// 编排项目详情页：项目摘要 + 服务/容器列表（可跳容器详情）+ 编辑 yml + 启停 + 删除项目。
-/// 作为列表页 navigationDestination(item:) 的 push 目标，是「查看+运维某项目」的独立任务页。
+/// 编排项目详情页：**只读**查看项目组成——项目概览 + 服务/容器列表（可跳容器详情）+ yml 内容。
+/// 刻意不提供启停/重启/删除/编辑：编排的 `down` 会连容器一起删除（用户实测容器消失），
+/// 容器的启停统一在「容器」分区做，yml 的编辑/项目删除今后如需再以安全方式单独设计。
 struct ComposeProjectDetailView: View {
     let project: DockerComposeProject
 
@@ -249,11 +161,6 @@ struct ComposeProjectDetailView: View {
     @State private var yaml: String = ""
     @State private var isLoading = true
     @State private var loadError: String?
-    @State private var operationError: String?
-    @State private var pendingAction: DockerService.ComposeAction?
-    @State private var confirmRemove = false
-    @State private var isWorking = false
-    @State private var editPayload: ComposeEditPayload?
 
     var body: some View {
         List {
@@ -340,36 +247,17 @@ struct ComposeProjectDetailView: View {
                 Text(L10n.t("Tap a service to open its container details."))
             }
 
-            // 运维操作：按项目状态收敛 + 编辑编排。
-            Section(L10n.t("Project actions")) {
-                Button {
-                    pendingAction = project.state == .stopped ? .up : .down
-                } label: {
-                    Label(project.state == .stopped ? L10n.t("Start project") : L10n.t("Stop project"),
-                          systemImage: project.state == .stopped ? "play.fill" : "stop.fill")
+            // Compose 文件内容：只读展示，方便核对端口/环境变量等配置。
+            if !yaml.isEmpty {
+                Section {
+                    Text(yaml)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .lineSpacing(2)
+                } header: {
+                    Text(L10n.t("Compose file content"))
                 }
-                Button {
-                    pendingAction = .restart
-                } label: {
-                    Label(L10n.t("Restart project"), systemImage: "arrow.clockwise")
-                }
-                Button {
-                    openEditor()
-                } label: {
-                    Label(L10n.t("Edit compose file"), systemImage: "square.and.pencil")
-                }
-                .disabled(project.primaryConfigFile.isEmpty)
-            }
-
-            // 危险操作：删除项目（down + 删 yml，不可恢复）。
-            Section {
-                Button(role: .destructive) {
-                    confirmRemove = true
-                } label: {
-                    Label(L10n.t("Delete compose project"), systemImage: "trash")
-                }
-            } footer: {
-                Text(L10n.t("Stops all containers in the project and deletes its compose file. This cannot be undone."))
             }
         }
         .navigationTitle(project.name)
@@ -378,71 +266,6 @@ struct ComposeProjectDetailView: View {
         // 切服 / 容器变更：本页数据属于旧服务器或已过期，pop 回列表让列表自己刷新。
         .onReceive(AppEventBus.shared.serverChanges()) { _ in dismiss() }
         .onReceive(AppEventBus.shared.containerChanges()) { _ in Task { await load() } }
-        // 编辑：push 通用编辑器（编辑模式，覆盖原文件 + 重新部署）。
-        .navigationDestination(item: $editPayload) { payload in
-            ComposeEditorView(
-                title: L10n.t("Edit compose file"),
-                projectName: payload.projectName,
-                yaml: payload.yaml,
-                existingConfigPath: payload.configPath,
-                onDeployed: { await load() }
-            )
-        }
-        .alert(actionAlertTitle, isPresented: Binding(
-            get: { pendingAction != nil },
-            set: { if !$0 { pendingAction = nil } }
-        )) {
-            Button(L10n.t("Cancel"), role: .cancel) { pendingAction = nil }
-            Button(L10n.t("OK")) {
-                if let action = pendingAction {
-                    Task { await runAction(action) }
-                }
-                pendingAction = nil
-            }
-        } message: {
-            Text(L10n.f("Perform %@ on \"%@\"? This affects all containers in the project.", String(describing: (actionLabel)), String(describing: project.name)))
-        }
-        .alert(L10n.t("Delete compose project"), isPresented: $confirmRemove) {
-            Button(L10n.t("Cancel"), role: .cancel) {}
-            Button(L10n.t("Delete"), role: .destructive) {
-                Task { await removeProject() }
-            }
-        } message: {
-            Text(L10n.f("Delete \"%@\"? All containers in it will be stopped and its compose file removed.", String(describing: project.name)))
-        }
-        .alert(L10n.t("Operation failed"), isPresented: Binding(
-            get: { operationError != nil },
-            set: { if !$0 { operationError = nil } }
-        )) {
-            Button(L10n.t("OK"), role: .cancel) { operationError = nil }
-        } message: {
-            Text(operationError ?? "")
-        }
-        .overlay {
-            if isWorking {
-                ProgressView()
-                    .padding()
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-            }
-        }
-    }
-
-    private var actionAlertTitle: String {
-        guard let action = pendingAction else { return L10n.t("Confirm Action") }
-        switch action {
-        case .up: return L10n.t("Start Compose Project")
-        case .down: return L10n.t("Stop Compose Project")
-        case .restart: return L10n.t("Restart Compose Project")
-        }
-    }
-
-    private var actionLabel: String {
-        guard let action = pendingAction else { return "" }
-        switch action {
-        case .up: return L10n.t("Start")
-        case .down: return L10n.t("Stop")
-        case .restart: return L10n.t("Restart")
-        }
     }
 
     private func load() async {
@@ -468,41 +291,5 @@ struct ComposeProjectDetailView: View {
     private func openContainer(_ svc: ComposeService) {
         guard !svc.id.isEmpty else { return }
         ModuleCoordinator.shared.openContainerDetail(id: svc.id, title: svc.serviceName.isEmpty ? svc.containerName : svc.serviceName)
-    }
-
-    private func openEditor() {
-        let cfg = project.primaryConfigFile
-        guard !cfg.isEmpty else { return }
-        editPayload = ComposeEditPayload(projectName: project.name, configPath: cfg, yaml: yaml)
-    }
-
-    private func runAction(_ action: DockerService.ComposeAction) async {
-        isWorking = true
-        defer { isWorking = false }
-        let result = await service.composeAction(
-            project.name,
-            configFile: project.configFiles,
-            action: action
-        )
-        if case .failure(let e) = result {
-            operationError = e.localizedDescription
-            return
-        }
-        await load()
-    }
-
-    private func removeProject() async {
-        isWorking = true
-        defer { isWorking = false }
-        let result = await service.removeComposeProject(
-            configFile: project.primaryConfigFile,
-            project: project.name
-        )
-        switch result {
-        case .failure(let e):
-            operationError = e.localizedDescription
-        case .success:
-            dismiss()
-        }
     }
 }

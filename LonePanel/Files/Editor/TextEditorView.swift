@@ -36,7 +36,12 @@ struct TextEditorView: View {
                             ToolbarItem(placement: .keyboard) {
                                 HStack {
                                     Spacer()
-                                    Button(L10n.t("Done")) { editorFocused = false }
+                                    // 与全 App 统一：收起用 chevron.down，不用文字 Done 按钮。
+                                    Button { editorFocused = false } label: {
+                                        Image(systemName: "chevron.down")
+                                            .font(.system(size: 16, weight: .semibold))
+                                    }
+                                    .accessibilityLabel(L10n.t("Close"))
                                 }
                             }
                         }
