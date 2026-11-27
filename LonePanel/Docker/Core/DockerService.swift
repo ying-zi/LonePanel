@@ -86,11 +86,12 @@ final class DockerService {
         return decodeLines(DockerImageRow.self, result.out).map(DockerImage.init)
     }
 
-    /// 拉取 Compose 项目。老版本无 `docker compose` 时返回空数组，不报错。
+    /// 拉取 Compose 项目（含已停止的）。老版本无 `docker compose` 时返回空数组，不报错。
+    /// `--all` 关键：默认只列 running 项目，已 down / created 的项目会被漏掉。
     func fetchComposeProjects() async throws -> [DockerComposeProject] {
-        let result = await run("docker compose ls --format json", timeout: listTimeout)
+        let result = await run("docker compose ls --all --format json", timeout: listTimeout)
         guard result.exit == 0 else { return [] }
-        return decodeLines(DockerComposeRow.self, result.out).map(DockerComposeProject.init)
+        return decodeComposeRows(result.out).map(DockerComposeProject.init)
     }
 
     // MARK: - 容器操作
@@ -715,6 +716,22 @@ final class DockerService {
             guard trimmed.hasPrefix("{"), let data = trimmed.data(using: .utf8) else { return nil }
             return try? decoder.decode(T.self, from: data)
         }
+    }
+
+    /// 解析 `docker compose ls --format json` 的输出。
+    /// ⚠️ 与 `docker ps --format '{{json .}}'` 不同：compose ls 输出的是**单个 JSON 数组**
+    /// （如 `[{"Name":"mysql","Status":"running(1)","ConfigFiles":"..."}]`，可能跨多行），
+    /// 不能套用逐行 decodeLines（数组以 `[` 开头会被整行跳过 → 恒定为空）。
+    /// 这里先截取 `[...]` 按数组整体解析，再兜底 JSON Lines（兼容旧版 compose），两者都容忍混入的告警日志。
+    private func decodeComposeRows(_ text: String) -> [DockerComposeRow] {
+        if let open = text.firstIndex(of: "["), let close = text.lastIndex(of: "]"), open < close {
+            let slice = String(text[open...close])
+            if let data = slice.data(using: .utf8),
+               let rows = try? decoder.decode([DockerComposeRow].self, from: data) {
+                return rows
+            }
+        }
+        return decodeLines(DockerComposeRow.self, text)
     }
 
     /// Docker 的 container ID 在 ps 与 stats 中都是 64 位十六进制，统一小写去空白。

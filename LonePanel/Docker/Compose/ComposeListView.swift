@@ -27,39 +27,56 @@ struct ComposeListView: View {
                 }
 
                 ForEach(filtered) { project in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Image(systemName: "square.stack.3d.up")
-                                .foregroundStyle(.tint)
-                            Text(project.name)
-                                .font(.headline)
-                            Spacer()
-                            Text(project.status)
-                                .font(.caption)
-                                .foregroundStyle(project.status.lowercased().contains("running") ? .green : .secondary)
+                    // 与容器列表行一致：左侧状态色条 + 名称/状态 + 配置文件 + 操作。
+                    ZStack(alignment: .leading) {
+                        Color(.secondarySystemGroupedBackground)
+                        HStack(spacing: 0) {
+                            StatusStripe(state: project.state)
+                                .clipShape(RoundedRectangle(cornerRadius: 2))
+                                .padding(.vertical, 11)
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: "square.stack.3d.up")
+                                        .foregroundStyle(.tint)
+                                    Text(project.name)
+                                        .font(.headline)
+                                    Spacer()
+                                    Text(project.status)
+                                        .font(.caption)
+                                        .foregroundStyle(DockerStateStyle.color(project.state))
+                                }
+                                if !project.configFiles.isEmpty {
+                                    Text(project.configFiles)
+                                        .font(.caption2.monospaced())
+                                        .foregroundStyle(.tertiary)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                }
+                                HStack(spacing: 8) {
+                                    Button {
+                                        confirm(project, .up)
+                                    } label: { Label(L10n.t("Start"), systemImage: "play.fill") }
+                                    Button {
+                                        confirm(project, .restart)
+                                    } label: { Label(L10n.t("Restart"), systemImage: "arrow.clockwise") }
+                                    Button(role: .destructive) {
+                                        confirm(project, .down)
+                                    } label: { Label(L10n.t("Stop"), systemImage: "stop.fill") }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                            .padding(.leading, 12)
+                            .padding(.trailing, 12)
+                            .padding(.vertical, 11)
                         }
-                        if !project.configFiles.isEmpty {
-                            Text(project.configFiles)
-                                .font(.caption2.monospaced())
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                        HStack(spacing: 8) {
-                            Button {
-                                confirm(project, .up)
-                            } label: { Label(L10n.t("Start"), systemImage: "play.fill") }
-                            Button {
-                                confirm(project, .restart)
-                            } label: { Label(L10n.t("Restart"), systemImage: "arrow.clockwise") }
-                            Button(role: .destructive) {
-                                confirm(project, .down)
-                            } label: { Label(L10n.t("Stop"), systemImage: "stop.fill") }
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
                     }
-                    .padding(.vertical, 6)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
+                    .listRowInsets(EdgeInsets(top: 3, leading: 16, bottom: 3, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
 
                 if filtered.isEmpty && !isLoading && errorMessage == nil {
@@ -71,7 +88,7 @@ struct ComposeListView: View {
                              ? L10n.t("No Compose projects")
                              : L10n.t("No matching Compose projects"))
                             .foregroundStyle(.secondary)
-                        Text(L10n.t("Projects started with docker compose appear here. Legacy docker-compose or an outdated Docker version may not be detected."))
+                        Text(L10n.t("All Compose projects on this server appear here, including running, stopped and created ones."))
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                             .multilineTextAlignment(.center)

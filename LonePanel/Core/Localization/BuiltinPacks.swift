@@ -418,7 +418,7 @@ enum BuiltinPacks {
         d["Private key data"] = "私钥数据"
         d["Privileged mode"] = "特权模式"
         d["Process count"] = "进程数"
-        d["Projects started with docker compose appear here. Legacy docker-compose or an outdated Docker version may not be detected."] = "使用 docker compose 启动的项目会显示在这里。旧版 docker-compose 或 Docker 版本过低时可能不显示。"
+        d["All Compose projects on this server appear here, including running, stopped and created ones."] = "当前服务器上的所有 Compose 项目都会显示在这里，包括运行中、已停止和已创建的项目。"
         d["Pull latest image before creating"] = "创建前拉取最新镜像"
         d["Query complete, no data"] = "查询完成，无数据"
         d["Quick Look"] = "快速查看"

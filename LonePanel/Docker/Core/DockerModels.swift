@@ -290,6 +290,16 @@ struct DockerComposeProject: Identifiable {
 
     var id: String { name }
 
+    /// 项目聚合状态，复用容器页三态语义驱动左侧色条与配色，保证视觉一致。
+    /// `docker compose ls` 的 Status 形如 `running(1)` / `exited(0)` / `created` /
+    /// `paused` / `running(1), paused(1)`；有暂停优先橙、有运行即绿、其余灰。
+    var state: DockerContainerState {
+        let s = status.lowercased()
+        if s.contains("paused") { return .paused }
+        if s.contains("running") { return .running }
+        return .stopped
+    }
+
     init(row: DockerComposeRow) {
         self.name = row.Name
         self.status = row.Status ?? ""
