@@ -8,6 +8,8 @@ import Combine
 enum AppEvent {
     case serverChanged(epoch: Int)
     case containersChanged
+    /// 编排部署成功（模板或容器转编排）。DockerView 据此切到编排分区并刷新，避免退回容器详情。
+    case composeDeployed
 }
 
 /// 系统级类型化事件总线（事件钩子的 emit / on 原语）。
@@ -50,6 +52,15 @@ final class AppEventBus {
     func containerChanges() -> AnyPublisher<Void, Never> {
         publisher.compactMap {
             if case .containersChanged = $0 { return () }
+            return nil
+        }
+        .eraseToAnyPublisher()
+    }
+
+    /// 只订阅「编排部署成功」。
+    func composeDeployments() -> AnyPublisher<Void, Never> {
+        publisher.compactMap {
+            if case .composeDeployed = $0 { return () }
             return nil
         }
         .eraseToAnyPublisher()

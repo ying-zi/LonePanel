@@ -14,6 +14,9 @@ struct ContainerDetailView: View {
     @State private var terminalSession: TerminalSession?
     @State private var confirmRemove = false
     @State private var confirmKill = false
+    // 容器转编排：独立任务，用 push 而非 sheet（完成后切编排分区，不返回本页）。
+    @State private var composeDraft: ComposeDraft?
+    @State private var isPreparingCompose = false
 
     var body: some View {
         List {
@@ -79,6 +82,12 @@ struct ContainerDetailView: View {
                     Label(L10n.t("Connect Terminal"), systemImage: "terminal")
                 }
                 .disabled(container.state != .running)
+                Button {
+                    Task { await prepareCompose() }
+                } label: {
+                    Label(L10n.t("Create compose template from this container"), systemImage: "square.stack.3d.up.badge.plus")
+                }
+                .disabled(isPreparingCompose)
             } footer: {
                 if container.state == .paused {
                     Text(L10n.t("Container is paused; docker exec is unavailable. Resume it to connect a terminal. Logs still show past output."))
@@ -232,6 +241,19 @@ struct ContainerDetailView: View {
         }
         .sheet(isPresented: $showLogs) {
             ContainerLogsView(containerID: container.id, containerName: container.name)
+        }
+        // 独立任务：push 编排编辑器。草稿已生成好，编辑器只负责编辑 + 部署。
+        .navigationDestination(item: $composeDraft) { draft in
+            ComposeEditorView(
+                title: L10n.t("New compose template"),
+                projectName: draft.projectName,
+                yaml: draft.yaml,
+                warnings: draft.warnings,
+                onDeployed: {
+                    // 部署成功：广播事件让 DockerView 切编排分区并 pop 掉本页，不返回容器详情。
+                    AppEventBus.shared.emit(.composeDeployed)
+                }
+            )
         }
         .sheet(item: $terminalSession) { session in
             TerminalView(session: session, title: container.name)
@@ -387,6 +409,19 @@ struct ContainerDetailView: View {
             execCommand: command,
             autoReconnect: false
         )
+    }
+
+    /// 从当前容器反向生成编排草稿，成功后 push 编辑器。失败走统一错误出口。
+    private func prepareCompose() async {
+        isPreparingCompose = true
+        defer { isPreparingCompose = false }
+        let result = await model.service.generateComposeDraft(containerID: container.id)
+        switch result {
+        case .success(let draft):
+            composeDraft = draft
+        case .failure(let error):
+            operationError = error.localizedDescription
+        }
     }
 
     // MARK: - 工具

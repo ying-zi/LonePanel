@@ -15,7 +15,6 @@ struct ComposeTemplateView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var path = NavigationPath()
-    @State private var dirPickTarget: ModuleCoordinator.FileOpenTarget?
 
     private let service = DockerService.shared
 
@@ -68,26 +67,31 @@ struct ComposeTemplateView: View {
                 }
             }
             .navigationDestination(for: ComposeTemplate.self) { template in
-                ComposeTemplateEditView(
-                    template: template,
-                    dirPickTarget: $dirPickTarget,
-                    onDeployed: onDeployed,
-                    dismiss: dismiss
+                ComposeEditorView(
+                    title: template.name,
+                    projectName: template.id,
+                    yaml: template.yaml,
+                    onDeployed: {
+                        dismiss()
+                        await onDeployed()
+                    }
                 )
             }
         }
-        .folderPicker(item: $dirPickTarget)
         .presentationDetents([.large])
     }
 }
 
-/// 模板编辑页：项目名 + yml 编辑 + 选服务器目录 + 部署。
-private struct ComposeTemplateEditView: View {
-    let template: ComposeTemplate
-    @Binding var dirPickTarget: ModuleCoordinator.FileOpenTarget?
+/// 通用编排编辑器：项目名 + yml 编辑 + 选服务器目录 + 部署。
+/// 来源两种：内置模板 / 从容器反向生成的草稿。部署成功后的导航完全交给 onDeployed，
+/// 编辑器自身不 dismiss——这样草稿流程可直接切到编排分区，而不必退回容器详情。
+struct ComposeEditorView: View {
+    let title: String
+    let warnings: [String]
     let onDeployed: () async -> Void
-    let dismiss: DismissAction
 
+    // 目录选择由编辑器自己承载（本地 .folderPicker），模板 sheet / 容器 push 两种来源都适用。
+    @State private var dirPickTarget: ModuleCoordinator.FileOpenTarget?
     @State private var projectName: String
     @State private var yaml: String
     @State private var directory = "/"
@@ -96,16 +100,16 @@ private struct ComposeTemplateEditView: View {
 
     private let service = DockerService.shared
 
-    init(template: ComposeTemplate,
-         dirPickTarget: Binding<ModuleCoordinator.FileOpenTarget?>,
-         onDeployed: @escaping () async -> Void,
-         dismiss: DismissAction) {
-        self.template = template
-        self._dirPickTarget = dirPickTarget
+    init(title: String,
+         projectName: String,
+         yaml: String,
+         warnings: [String] = [],
+         onDeployed: @escaping () async -> Void) {
+        self.title = title
+        self.warnings = warnings
         self.onDeployed = onDeployed
-        self.dismiss = dismiss
-        _projectName = State(initialValue: template.id)
-        _yaml = State(initialValue: template.yaml)
+        _projectName = State(initialValue: projectName)
+        _yaml = State(initialValue: yaml)
     }
 
     var body: some View {
@@ -154,6 +158,19 @@ private struct ComposeTemplateEditView: View {
                 Text(L10n.t("Compose content (docker-compose.yml)"))
             }
 
+            // 反向生成的注意事项（如端口冲突、未完全还原的字段）。
+            if !warnings.isEmpty {
+                SwiftUI.Section {
+                    ForEach(warnings, id: \.self) { warning in
+                        Label(warning, systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                } header: {
+                    Text(L10n.t("Review notes"))
+                }
+            }
+
             if let error = errorMessage {
                 SwiftUI.Section {
                     Label(error, systemImage: "xmark.circle.fill")
@@ -179,8 +196,9 @@ private struct ComposeTemplateEditView: View {
                 .disabled(isWorking || !canDeploy)
             }
         }
-        .navigationTitle(template.name)
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .folderPicker(item: $dirPickTarget)
     }
 
     private var canDeploy: Bool {
@@ -214,7 +232,7 @@ private struct ComposeTemplateEditView: View {
             case .failure(let e):
                 errorMessage = e.localizedDescription
             case .success:
-                dismiss()
+                // 导航交给调用方：模板流程关 sheet，草稿流程切编排分区。
                 await onDeployed()
             }
         }

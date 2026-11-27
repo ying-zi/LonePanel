@@ -317,6 +317,30 @@ struct DockerInspectInfo {
     var mounts: [(source: String, destination: String)] = []
     var env: [String] = []
 
+    // MARK: 容器转编排所需字段（仅新增，不改动上面既有字段，详情页解析不受影响）
+    /// 容器名（docker inspect 顶层 Name，带前导 "/"）。
+    var containerName: String = ""
+    /// Config.Cmd：容器启动命令。
+    var command: [String] = []
+    /// Config.Entrypoint：入口点。
+    var entrypoint: [String] = []
+    /// Config.WorkingDir。
+    var workingDir: String = ""
+    /// Config.User。
+    var user: String = ""
+    /// Config.Hostname。
+    var hostname: String = ""
+    /// HostConfig.NetworkMode（host / none / bridge / 自定义网络名）。
+    var networkMode: String = ""
+    /// HostConfig.Privileged。
+    var privileged: Bool = false
+    /// HostConfig.CapAdd。
+    var capAdd: [String] = []
+    /// Config.Labels。
+    var labels: [String: String] = [:]
+    /// Config.Healthcheck.Test（健康检查命令，反向生成时仅作提示）。
+    var healthcheck: [String] = []
+
     /// 宽松解析 docker inspect（数组，取第一个对象）。任何字段缺失都不影响其他字段。
     static func parse(_ text: String) -> DockerInspectInfo? {
         guard let data = text.data(using: .utf8),
@@ -325,13 +349,29 @@ struct DockerInspectInfo {
 
         var info = DockerInspectInfo()
         info.created = object["Created"] as? String ?? ""
+        // 顶层 Name 带前导 "/"，去掉后才是容器名。
+        if let name = object["Name"] as? String {
+            info.containerName = name.hasPrefix("/") ? String(name.dropFirst()) : name
+        }
         if let config = object["Config"] as? [String: Any] {
             info.image = config["Image"] as? String ?? ""
             if let env = config["Env"] as? [String] { info.env = env }
+            if let cmd = config["Cmd"] as? [String] { info.command = cmd }
+            if let entrypoint = config["Entrypoint"] as? [String] { info.entrypoint = entrypoint }
+            info.workingDir = config["WorkingDir"] as? String ?? ""
+            info.user = config["User"] as? String ?? ""
+            info.hostname = config["Hostname"] as? String ?? ""
+            if let labels = config["Labels"] as? [String: String] { info.labels = labels }
+            if let health = config["Healthcheck"] as? [String: Any],
+               let test = health["Test"] as? [String] { info.healthcheck = test }
         }
-        if let hostConfig = object["HostConfig"] as? [String: Any],
-           let policy = hostConfig["RestartPolicy"] as? [String: Any] {
-            info.restartPolicy = policy["Name"] as? String ?? ""
+        if let hostConfig = object["HostConfig"] as? [String: Any] {
+            if let policy = hostConfig["RestartPolicy"] as? [String: Any] {
+                info.restartPolicy = policy["Name"] as? String ?? ""
+            }
+            info.networkMode = hostConfig["NetworkMode"] as? String ?? ""
+            info.privileged = hostConfig["Privileged"] as? Bool ?? false
+            if let capAdd = hostConfig["CapAdd"] as? [String] { info.capAdd = capAdd }
         }
         if let networkSettings = object["NetworkSettings"] as? [String: Any] {
             if let networks = networkSettings["Networks"] as? [String: Any] {
@@ -481,5 +521,179 @@ struct DockerProcess: Identifiable, Hashable {
             guard cols.count >= 3 else { return nil }
             return DockerProcess(pid: cols[0], user: cols[1], command: cols.dropFirst(2).joined(separator: " "))
         }
+    }
+}
+
+// MARK: - 容器转编排（反向生成 compose yml）
+
+/// 从现有容器反向生成的编排草稿：项目名 + yml + 需要用户注意的提示。
+/// 这是「以原容器为基础创建的全新编排」，不是原地重编排——部署后生成新容器，原容器不动。
+struct ComposeDraft: Identifiable {
+    let id = UUID()
+    /// 建议项目名（后缀 -compose，避免与原容器名冲突）。
+    let projectName: String
+    /// 反向生成的 docker-compose.yml 内容，用户可在编辑页修改。
+    let yaml: String
+    /// 反向还原的注意事项（端口冲突、未完全还原的字段等）。
+    let warnings: [String]
+}
+
+/// 反向生成 yml 的辅助工具（纯函数，不碰 SSH / 导航）。
+enum ComposeGenerator {
+    /// 把任意容器名转成合法的 compose 项目名 / service 名：小写、仅保留字母数字与 - _，非法字符转 -。
+    static func sanitize(_ name: String) -> String {
+        let mapped = name.lowercased().map { ch -> Character in
+            (ch.isLetter || ch.isNumber || ch == "-" || ch == "_") ? ch : "-"
+        }
+        let collapsed = String(mapped).replacingOccurrences(of: "-+", with: "-", options: .regularExpression)
+        let trimmed = collapsed.trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
+        return trimmed.isEmpty ? "container" : trimmed
+    }
+
+    /// 生成建议项目名：<清洗后的容器名>-compose，保证与原容器不同名。
+    static func projectName(from containerName: String) -> String {
+        let base = sanitize(containerName)
+        return "\(base)-compose"
+    }
+
+    /// 从 inspect 解析结果反向生成 yml。尽力还原，无法等价的部分写进 warnings。
+    static func draft(from info: DockerInspectInfo) -> ComposeDraft {
+        var lines: [String] = []
+        var warnings: [String] = []
+
+        // 顶部注释：明确这是全新编排，不是原地重编排，并说明环境变量为明文。
+        lines.append("# Generated from container: \(info.containerName.isEmpty ? "—" : info.containerName)")
+        lines.append("# New compose project — deployment creates a NEW container; the original container is untouched.")
+        lines.append("# Review before deploying. Sensitive values below are written in plain text.")
+        lines.append("")
+
+        let serviceName = sanitize(info.containerName.isEmpty ? "service" : info.containerName)
+        lines.append("services:")
+        lines.append("  \(serviceName):")
+
+        // 镜像：反向生成的唯一必需项。镜像缺失时给占位，提示用户补。
+        let image = info.image.trimmingCharacters(in: .whitespaces)
+        if image.isEmpty {
+            lines.append("    image: REPLACE_ME:latest   # original image not detected — set it before deploying")
+            warnings.append(L10n.t("Original image was not detected. Replace REPLACE_ME before deploying."))
+        } else {
+            lines.append("    image: \(ymlScalar(image))")
+        }
+
+        // 刻意不写 container_name：让 compose 以 <project>-<service>-1 命名新容器，从根上避免撞名。
+        lines.append("    # container_name intentionally omitted — compose names the new container as <project>-<service>-1")
+
+        // 重启策略
+        if !info.restartPolicy.isEmpty, info.restartPolicy != "no" {
+            lines.append("    restart: \(info.restartPolicy)")
+        }
+
+        // 端口映射
+        if !info.portBindings.isEmpty {
+            lines.append("    ports:")
+            for binding in info.portBindings {
+                // host 可能是 "80" 或 "127.0.0.1:80"，container 形如 "80/tcp"。
+                let target = binding.container.replacingOccurrences(of: "/tcp", with: "")
+                                                .replacingOccurrences(of: "/udp", with: "")
+                let published = binding.host.isEmpty ? target : binding.host
+                lines.append("      - \"\(published):\(target)\"")
+            }
+            warnings.append(L10n.t("Port conflicts: if the original container still occupies these ports, stop it or change the ports before deploying."))
+        }
+
+        // 挂载：source:destination
+        if !info.mounts.isEmpty {
+            lines.append("    volumes:")
+            for mount in info.mounts where !mount.destination.isEmpty {
+                let source = mount.source.isEmpty ? mount.destination : mount.source
+                lines.append("      - \"\(source):\(mount.destination)\"")
+            }
+            warnings.append(L10n.t("Mounts are copied as bind paths. Verify the source paths exist on the target server."))
+        }
+
+        // 环境变量：明文写入（用户已确认），用 KEY: "value" 形式并转义引号/反斜杠。
+        if !info.env.isEmpty {
+            lines.append("    environment:")
+            for pair in info.env {
+                if let eq = pair.firstIndex(of: "=") {
+                    let key = String(pair[..<eq])
+                    let value = String(pair[pair.index(after: eq)...])
+                    lines.append("      \(key): \(ymlDoubleQuoted(value))")
+                } else {
+                    // 无 "=" 的项（如仅声明传递的 KEY）保留为空字符串。
+                    lines.append("      \(pair): \"\"")
+                }
+            }
+            warnings.append(L10n.t("Environment variables are written in plain text, including secrets. Protect the compose file."))
+        }
+
+        // 启动命令 / 入口点
+        if !info.entrypoint.isEmpty {
+            lines.append("    entrypoint:")
+            for item in info.entrypoint { lines.append("      - \(ymlScalar(item))") }
+        }
+        if !info.command.isEmpty {
+            lines.append("    command:")
+            for item in info.command { lines.append("      - \(ymlScalar(item))") }
+        }
+
+        // 工作目录 / 用户 / 主机名
+        if !info.workingDir.isEmpty { lines.append("    working_dir: \(ymlScalar(info.workingDir))") }
+        if !info.user.isEmpty { lines.append("    user: \(ymlScalar(info.user))") }
+        if !info.hostname.isEmpty { lines.append("    hostname: \(ymlScalar(info.hostname))") }
+
+        // 网络：host / none 用 network_mode；自定义网络仅提示，不自动生成（避免隐式建网）。
+        let mode = info.networkMode.trimmingCharacters(in: .whitespaces)
+        if mode == "host" || mode == "none" {
+            lines.append("    network_mode: \(mode)")
+        } else if !mode.isEmpty, mode != "bridge", !mode.hasPrefix("container:") {
+            lines.append("    # Original network: \(mode) (custom network — add it manually if needed)")
+            warnings.append(L10n.f("Original network \"%@\" is custom and was not recreated. Add it manually if needed.", mode))
+        }
+
+        // 特权 / capabilities
+        if info.privileged { lines.append("    privileged: true") }
+        if !info.capAdd.isEmpty {
+            lines.append("    cap_add:")
+            for cap in info.capAdd { lines.append("      - \(cap)") }
+        }
+
+        // 标签
+        if !info.labels.isEmpty {
+            lines.append("    labels:")
+            for (key, value) in info.labels.sorted(by: { $0.key < $1.key }) {
+                lines.append("      \(key): \(ymlDoubleQuoted(value))")
+            }
+        }
+
+        // 健康检查：inspect 结构复杂，仅注释提示，不自动生成（避免误配）。
+        if !info.healthcheck.isEmpty {
+            lines.append("    # Original healthcheck: \(info.healthcheck.joined(separator: " "))")
+            warnings.append(L10n.t("Healthcheck was not recreated automatically; review it manually."))
+        }
+
+        // 通用免责提示
+        warnings.append(L10n.t("This is a best-effort draft from container inspection. Not all settings can be reproduced; review before deploying."))
+
+        return ComposeDraft(
+            projectName: projectName(from: info.containerName),
+            yaml: lines.joined(separator: "\n") + "\n",
+            warnings: warnings
+        )
+    }
+
+    /// 简单标量：无特殊字符直接输出，否则加双引号。
+    private static func ymlScalar(_ value: String) -> String {
+        let needsQuote = value.isEmpty || value.contains(" ") || value.contains(":") ||
+                         value.contains("#") || value.contains("\"") || value.contains("'") ||
+                         value.hasPrefix("-") || value.hasPrefix("[") || value.hasPrefix("{")
+        return needsQuote ? ymlDoubleQuoted(value) : value
+    }
+
+    /// 双引号包裹并转义反斜杠与双引号。
+    private static func ymlDoubleQuoted(_ value: String) -> String {
+        let escaped = value.replacingOccurrences(of: "\\", with: "\\\\")
+                           .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
     }
 }

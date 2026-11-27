@@ -563,6 +563,21 @@ final class DockerService {
         return .success(result.out)
     }
 
+    /// 从现有容器反向生成编排草稿（单容器）。纯读取 + 本地生成，写文件/部署由编辑页负责。
+    /// 这是「以原容器为基础创建全新编排」——不修改原容器，草稿刻意省略 container_name。
+    func generateComposeDraft(containerID: String) async -> Result<ComposeDraft, DockerError> {
+        let inspected = await fetchInspect(containerID: containerID)
+        switch inspected {
+        case .failure(let error):
+            return .failure(error)
+        case .success(let json):
+            guard let info = DockerInspectInfo.parse(json) else {
+                return .failure(.commandFailed(message: L10n.t("Could not read container details")))
+            }
+            return .success(ComposeGenerator.draft(from: info))
+        }
+    }
+
     // MARK: - 日志
 
     /// 读取容器日志（尾部 N 行）。日志页用定时器轮询实现自动刷新。

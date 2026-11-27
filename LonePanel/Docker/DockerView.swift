@@ -139,6 +139,13 @@ struct DockerView: View {
                     await containerModel.refresh()
                 }
             }
+            // 编排部署成功（模板 / 容器转编排）：切到编排分区、清空导航栈（pop 掉容器详情）、
+            // 刷新容器。用户直接看到新项目，不退回容器详情。
+            .onReceive(AppEventBus.shared.composeDeployments()) { _ in
+                path = NavigationPath()
+                withAnimation { section = .compose }
+                Task { await containerModel.refresh() }
+            }
         }
     }
 

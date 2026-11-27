@@ -3050,6 +3050,116 @@
           }
         }
       }
+    },
+    "无法读取容器详情": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read container details"
+          }
+        }
+      }
+    },
+    "从该容器创建编排模板": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create compose template from this container"
+          }
+        }
+      }
+    },
+    "环境变量（含密钥）以明文写入，请注意保护编排文件。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Environment variables are written in plain text, including secrets. Protect the compose file."
+          }
+        }
+      }
+    },
+    "健康检查未自动还原，请手动检查。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Healthcheck was not recreated automatically; review it manually."
+          }
+        }
+      }
+    },
+    "挂载项已复制为绑定路径，请确认源路径在目标服务器上存在。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mounts are copied as bind paths. Verify the source paths exist on the target server."
+          }
+        }
+      }
+    },
+    "新建编排模板": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New compose template"
+          }
+        }
+      }
+    },
+    "未能识别原镜像，部署前请替换 REPLACE_ME。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original image was not detected. Replace REPLACE_ME before deploying."
+          }
+        }
+      }
+    },
+    "原网络 \"%@\" 为自定义网络，未自动重建，请按需手动添加。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original network \"%@\" is custom and was not recreated. Add it manually if needed."
+          }
+        }
+      }
+    },
+    "端口冲突：若原容器仍占用这些端口，请先停止它或修改端口后再部署。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Port conflicts: if the original container still occupies these ports, stop it or change the ports before deploying."
+          }
+        }
+      }
+    },
+    "检查提示": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review notes"
+          }
+        }
+      }
+    },
+    "这是根据容器信息尽力还原的草稿，部分设置无法完全复原，部署前请检查。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is a best-effort draft from container inspection. Not all settings can be reproduced; review before deploying."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

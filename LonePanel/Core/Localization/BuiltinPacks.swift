@@ -782,6 +782,17 @@ enum BuiltinPacks {
         d["Data"] = "数据"
         d["Structure"] = "结构"
         d["Key metadata"] = "Key 元信息"
+        d["Could not read container details"] = "无法读取容器详情"
+        d["Create compose template from this container"] = "从该容器创建编排模板"
+        d["Environment variables are written in plain text, including secrets. Protect the compose file."] = "环境变量（含密钥）以明文写入，请注意保护编排文件。"
+        d["Healthcheck was not recreated automatically; review it manually."] = "健康检查未自动还原，请手动检查。"
+        d["Mounts are copied as bind paths. Verify the source paths exist on the target server."] = "挂载项已复制为绑定路径，请确认源路径在目标服务器上存在。"
+        d["New compose template"] = "新建编排模板"
+        d["Original image was not detected. Replace REPLACE_ME before deploying."] = "未能识别原镜像，部署前请替换 REPLACE_ME。"
+        d["Original network \"%@\" is custom and was not recreated. Add it manually if needed."] = "原网络 \"%@\" 为自定义网络，未自动重建，请按需手动添加。"
+        d["Port conflicts: if the original container still occupies these ports, stop it or change the ports before deploying."] = "端口冲突：若原容器仍占用这些端口，请先停止它或修改端口后再部署。"
+        d["Review notes"] = "检查提示"
+        d["This is a best-effort draft from container inspection. Not all settings can be reproduced; review before deploying."] = "这是根据容器信息尽力还原的草稿，部分设置无法完全复原，部署前请检查。"
         return d
     }()
 }
