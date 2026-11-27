@@ -3160,6 +3160,386 @@
           }
         }
       }
+    },
+    "重建容器时，匿名卷以及未挂载路径中的数据不会保留。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anonymous volumes and data outside mounted paths are NOT preserved when the container is recreated."
+          }
+        }
+      }
+    },
+    "原容器添加的 Linux 能力（%@）无法在表单中还原。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capabilities added to the original container (%@) cannot be restored in the form."
+          }
+        }
+      }
+    },
+    "无法获取 Compose 配置文件路径": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compose config file path is unavailable"
+          }
+        }
+      }
+    },
+    "Compose 状态": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compose status"
+          }
+        }
+      }
+    },
+    "配置文件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Config file"
+          }
+        }
+      }
+    },
+    "确定删除「%@」吗？其中的所有容器将被停止，其 Compose 文件也会被删除。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete \"%@\"? All containers in it will be stopped and its compose file removed."
+          }
+        }
+      }
+    },
+    "删除 Compose 项目": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete compose project"
+          }
+        }
+      }
+    },
+    "编辑 Compose 文件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit compose file"
+          }
+        }
+      }
+    },
+    "编辑容器": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit container"
+          }
+        }
+      }
+    },
+    "编辑容器需要重建它。未挂载路径中的数据（例如未挂载出来的数据库目录）将永久丢失，已挂载的卷会保留。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editing a container requires recreating it. Data outside mounted paths (e.g. an unmounted database directory) will be permanently lost. Mounted volumes are preserved."
+          }
+        }
+      }
+    },
+    "备份原容器失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to back up the original container"
+          }
+        }
+      }
+    },
+    "创建新容器失败，原容器已恢复": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to create the new container; the original has been restored"
+          }
+        }
+      }
+    },
+    "解码 Compose 文件失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to decode compose file"
+          }
+        }
+      }
+    },
+    "加载 Compose 服务失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load compose services"
+          }
+        }
+      }
+    },
+    "读取 Compose 文件失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to read compose file"
+          }
+        }
+      }
+    },
+    "停止 Compose 项目失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to stop compose project"
+          }
+        }
+      }
+    },
+    "停止原容器失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to stop the original container"
+          }
+        }
+      }
+    },
+    "Compose 文件路径无效": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid compose file path"
+          }
+        }
+      }
+    },
+    "容器无效": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid container"
+          }
+        }
+      }
+    },
+    "正在加载服务…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading services…"
+          }
+        }
+      }
+    },
+    "未找到该项目的服务": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No services found for this project"
+          }
+        }
+      }
+    },
+    "原容器的用户设置（%@）无法在表单中还原，将使用镜像默认值。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original container user (%@) cannot be restored in the form; it will use the image default."
+          }
+        }
+      }
+    },
+    "确定对「%@」执行%@吗？这会影响该项目下的所有容器。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perform %@ on \"%@\"? This affects all containers in the project."
+          }
+        }
+      }
+    },
+    "项目操作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project actions"
+          }
+        }
+      }
+    },
+    "项目详情": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project details"
+          }
+        }
+      }
+    },
+    "项目概览": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project overview"
+          }
+        }
+      }
+    },
+    "重建容器": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recreate container"
+          }
+        }
+      }
+    },
+    "重启项目": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart project"
+          }
+        }
+      }
+    },
+    "保存并重建": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save and rebuild"
+          }
+        }
+      }
+    },
+    "保存并重新部署": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save and redeploy"
+          }
+        }
+      }
+    },
+    "服务": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Services"
+          }
+        }
+      }
+    },
+    "启动项目": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start project"
+          }
+        }
+      }
+    },
+    "停止项目": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop project"
+          }
+        }
+      }
+    },
+    "停止该项目下的所有容器并删除其 Compose 文件，此操作不可撤销。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stops all containers in the project and deletes its compose file. This cannot be undone."
+          }
+        }
+      }
+    },
+    "点按服务可打开其容器详情。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap a service to open its container details."
+          }
+        }
+      }
+    },
+    "容器将被停止、备份，并按新设置重建。若创建失败，原容器会自动恢复。未挂载路径中的数据将丢失。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The container will be stopped, backed up and recreated with the new settings. If creation fails, the original is restored. Data outside mounted paths will be lost."
+          }
+        }
+      }
+    },
+    "原容器配置了健康检查，表单不会还原它。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The original container had a health check; it is not restored by the form."
+          }
+        }
+      }
+    },
+    "未知": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

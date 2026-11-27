@@ -93,6 +93,35 @@ struct DockerView: View {
                                 Label(L10n.t("Compose templates"), systemImage: "doc.badge.plus")
                             }
                         }
+                        // 镜像分区：拉取 / 从 tar 导入——与网络/卷统一，入口都在右上 ⋯。
+                        if section == .images {
+                            Button {
+                                AppEventBus.shared.emit(.dockerCreateRequest(.pullImage))
+                            } label: {
+                                Label(L10n.t("Pull image"), systemImage: "arrow.down.circle")
+                            }
+                            Button {
+                                AppEventBus.shared.emit(.dockerCreateRequest(.importImage))
+                            } label: {
+                                Label(L10n.t("Import image from tar file"), systemImage: "square.and.arrow.down")
+                            }
+                        }
+                        // 网络分区：创建网络。
+                        if section == .networks {
+                            Button {
+                                AppEventBus.shared.emit(.dockerCreateRequest(.createNetwork))
+                            } label: {
+                                Label(L10n.t("Create network"), systemImage: "plus.circle")
+                            }
+                        }
+                        // 存储卷分区：创建卷。
+                        if section == .volumes {
+                            Button {
+                                AppEventBus.shared.emit(.dockerCreateRequest(.createVolume))
+                            } label: {
+                                Label(L10n.t("Create volume"), systemImage: "plus.circle")
+                            }
+                        }
                         Divider()
                         // 仓库 Registry：私有仓库登录/退出。
                         Button {

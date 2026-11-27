@@ -25,14 +25,6 @@ struct VolumeListView: View {
     var body: some View {
         ZStack {
             List {
-                Section {
-                    Button { showCreate = true } label: {
-                        Label(L10n.t("Create volume"), systemImage: "plus.circle")
-                    }
-                } footer: {
-                    Text(L10n.t("Volumes persist data independently of containers. Volumes in use by containers cannot be removed."))
-                }
-
                 if let error = errorMessage {
                     Section { Text(error).foregroundStyle(.red).font(.footnote) }
                 }
@@ -73,6 +65,10 @@ struct VolumeListView: View {
         }
         .onReceive(AppEventBus.shared.containerChanges()) { _ in
             Task { await load() }
+        }
+        // 右上 ⋯ 的新建入口：存储卷分区当前在树里，收到请求后弹出创建表单。
+        .onReceive(AppEventBus.shared.dockerCreateRequests()) { request in
+            if case .createVolume = request { showCreate = true }
         }
         .sheet(isPresented: $showCreate) {
             CreateVolumeView { message in

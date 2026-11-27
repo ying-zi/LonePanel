@@ -59,6 +59,45 @@ struct DockerComposeRow: Decodable {
     let ConfigFiles: String?
 }
 
+/// docker compose -f <file> -p <name> ps --format json 单行解析结果（JSON Lines）。
+/// 字段按 Compose v2 输出；只声明需要的，Codable 忽略其余字段以兼容版本差异。
+struct ComposeServiceRow: Decodable {
+    let ID: String?
+    let Name: String?
+    let Image: String?
+    let Status: String?
+    let State: String?
+    let Service: String?
+    let Ports: String?
+}
+
+/// Compose 项目里的单个服务（容器）。用于详情页服务列表与跳转容器详情。
+struct ComposeService: Identifiable, Hashable {
+    let id: String            // 容器 ID，用于跨模块跳详情
+    let serviceName: String
+    let containerName: String
+    let image: String
+    let state: DockerContainerState
+    let stateText: String
+    let ports: String
+
+    init(row: ComposeServiceRow) {
+        self.id = row.ID ?? ""
+        self.serviceName = row.Service ?? ""
+        self.containerName = row.Name ?? ""
+        self.image = row.Image ?? ""
+        let raw = row.State ?? row.Status ?? ""
+        self.stateText = raw
+        // compose ps 的 State 是 running/exited/paused/created，与 docker ps 的
+        // "Up 3 days"/"Exited (0)" 不同——不能用 DockerContainerState.from（它按 hasPrefix("up") 判断）。
+        let s = raw.lowercased()
+        if s.contains("paused") { self.state = .paused }
+        else if s.contains("running") || s.hasPrefix("up") { self.state = .running }
+        else { self.state = .stopped }
+        self.ports = row.Ports ?? ""
+    }
+}
+
 /// 资源用量，已换算成便于展示的数值（GB / 百分比）。
 struct DockerResourceUsage {
     /// CPU 百分比 0...100（可能超过 100，多核）
@@ -283,7 +322,8 @@ struct DockerVolume: Identifiable, Hashable {
 }
 
 /// Compose 项目展示模型。
-struct DockerComposeProject: Identifiable {
+/// Hashable：navigationDestination(item:) 要求 item 同时符合 Identifiable + Hashable。
+struct DockerComposeProject: Identifiable, Hashable {
     let name: String
     let status: String
     let configFiles: String
@@ -298,6 +338,11 @@ struct DockerComposeProject: Identifiable {
         if s.contains("paused") { return .paused }
         if s.contains("running") { return .running }
         return .stopped
+    }
+
+    /// `ConfigFiles` 可能是多个文件用逗号分隔；取第一个作为 compose -f 的主文件。
+    var primaryConfigFile: String {
+        configFiles.split(separator: ",").first.map { String($0).trimmingCharacters(in: .whitespaces) } ?? ""
     }
 
     init(row: DockerComposeRow) {

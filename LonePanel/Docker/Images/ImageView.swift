@@ -25,18 +25,6 @@ struct ImageView: View {
     var body: some View {
         ZStack {
             List {
-                // 全局镜像操作入口：拉取 / 导入。单镜像操作（打标签/导出/删除）在每行更多菜单。
-                Section {
-                    Button { action = .pull } label: {
-                        Label(L10n.t("Pull image"), systemImage: "arrow.down.circle")
-                    }
-                    Button { action = .importFile } label: {
-                        Label(L10n.t("Import image from tar file"), systemImage: "square.and.arrow.down")
-                    }
-                } footer: {
-                    Text(L10n.t("Pull fetches an image from a registry; import loads a local tar archive saved on the server."))
-                }
-
                 if let error = errorMessage {
                     Section {
                         Text(error).foregroundStyle(.red).font(.footnote)
@@ -82,6 +70,14 @@ struct ImageView: View {
         // 容器/镜像变更事件：别处拉取或删除镜像后，本页同步刷新。
         .onReceive(AppEventBus.shared.containerChanges()) { _ in
             Task { await load() }
+        }
+        // 右上 ⋯ 的新建入口：镜像分区当前在树里，收到请求后弹出对应表单。
+        .onReceive(AppEventBus.shared.dockerCreateRequests()) { request in
+            switch request {
+            case .pullImage: action = .pull
+            case .importImage: action = .importFile
+            default: break
+            }
         }
         .sheet(item: $action) { act in
             actionView(act)

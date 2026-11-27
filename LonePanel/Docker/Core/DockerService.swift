@@ -258,6 +258,74 @@ final class DockerService {
         return .success(id)
     }
 
+    /// 重建式编辑容器：Docker 不允许原地改网络/端口/挂载/镜像等配置，只能「停→改名备份→建同名新容器→删备份」。
+    /// 带回滚：任一步失败都把备份容器改回原名并（若原本在运行）重新启动，绝不留下"原容器没了、新的也没起来"的状态。
+    /// - Parameters:
+    ///   - originalID: 原容器 ID（完整或前缀均可，docker 接受）
+    ///   - name: 容器名（重建后保持同名）
+    ///   - wasRunning: 原容器编辑前是否在运行，用于失败回滚时决定是否 start
+    ///   - spec: 新配置（已由表单校验）
+    func recreateContainer(originalID: String, name: String, wasRunning: Bool, spec: ContainerCreateSpec) async -> Result<String, DockerError> {
+        if let error = spec.validate() {
+            return .failure(.commandFailed(message: error))
+        }
+        let cid = originalID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cname = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cid.isEmpty, !cname.isEmpty else {
+            return .failure(.commandFailed(message: L10n.t("Invalid container")))
+        }
+        // 备份名：加时间戳保证唯一，且符合 docker 名称规则。
+        let backup = "\(cname)-editbak-\(Int(Date().timeIntervalSince1970))"
+
+        // 1) 停原容器（运行中才停；已停止的直接改名）。
+        if wasRunning {
+            let stopped = await run("docker stop \(ShellQuote.quote(cid))", timeout: 30)
+            guard stopped.exit == 0 else {
+                return .failure(.commandFailed(message: firstError(stopped, L10n.t("Failed to stop the original container"))))
+            }
+        }
+
+        // 2) 原容器改名备份。
+        let renamed = await run("docker rename \(ShellQuote.quote(cid)) \(ShellQuote.quote(backup))", timeout: 20)
+        guard renamed.exit == 0 else {
+            // 改名失败：原容器没动。若刚才停了，尝试恢复运行。
+            if wasRunning { _ = await run("docker start \(ShellQuote.quote(cid))", timeout: 30) }
+            return .failure(.commandFailed(message: firstError(renamed, L10n.t("Failed to back up the original container"))))
+        }
+
+        // 3) 用新配置创建同名容器。需要时先拉镜像。
+        if spec.pullImage {
+            switch await pullImage(spec.image) {
+            case .failure(let e):
+                await rollback(backup: backup, originalName: cname, start: wasRunning)
+                return .failure(e)
+            case .success: break
+            }
+        }
+        let created = await run(Self.buildRunCommand(spec), timeout: 90)
+        guard created.exit == 0 else {
+            await rollback(backup: backup, originalName: cname, start: wasRunning)
+            return .failure(.commandFailed(message: firstError(created, L10n.t("Failed to create the new container; the original has been restored"))))
+        }
+        let newID = created.out.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 4) 新容器起来了 → 删除备份（备份容器已停，rm 即可；挂载卷数据不受影响）。
+        _ = await run("docker rm \(ShellQuote.quote(backup))", timeout: 30)
+        AppEventBus.shared.emit(.containersChanged)
+        return .success(newID)
+    }
+
+    /// 回滚：删除可能已建出的同名新容器 → 备份改回原名 → 按需重新启动。
+    private func rollback(backup: String, originalName: String, start: Bool) async {
+        // 若新容器已建出（同名），先删掉，否则改名会撞名。
+        _ = await run("docker rm -f \(ShellQuote.quote(originalName))", timeout: 30)
+        let restored = await run("docker rename \(ShellQuote.quote(backup)) \(ShellQuote.quote(originalName))", timeout: 20)
+        guard restored.exit == 0 else { return }  // 极端情况：连回滚都失败，交给诊断面板
+        if start {
+            _ = await run("docker start \(ShellQuote.quote(originalName))", timeout: 30)
+        }
+    }
+
     /// 命令行创建容器（对标 1Panel「命令行创建」）：用户粘贴一条完整 docker run 命令，原样执行。
     /// 安全纪律：
     /// - 只允许单条命令，禁止换行/分号/管道/反引号/`$()` 等拼接，避免借「创建容器」之名执行任意脚本。
@@ -549,6 +617,77 @@ final class DockerService {
         guard result.exit == 0 else {
             return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to deploy compose"))))
         }
+        AppEventBus.shared.emit(.containersChanged)
+        return .success(())
+    }
+
+    /// 读取某个 Compose 项目的服务（容器）列表：`docker compose -f <file> -p <name> ps --format json`。
+    /// 输出为 JSON Lines（每行一个对象），故用 decodeLines 逐行解析。
+    func fetchComposeServices(configFile: String, project: String) async -> Result<[ComposeService], DockerError> {
+        let p = configFile.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = project.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !p.isEmpty, p.hasPrefix("/"), Self.validResourceName(name) else {
+            return .failure(.commandFailed(message: L10n.t("Invalid compose file or project name")))
+        }
+        let command = "docker compose -f \(ShellQuote.quote(p)) -p \(ShellQuote.quote(name)) ps --format json"
+        let result = await run(command, timeout: 30)
+        guard result.exit == 0 else {
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to load compose services"))))
+        }
+        return .success(decodeLines(ComposeServiceRow.self, result.out).map(ComposeService.init))
+    }
+
+    /// 读取 Compose 配置文件内容：`base64 <file>` 后本地解码，避免 yml 里的引号/$/换行干扰。
+    func fetchComposeFileContent(path: String) async -> Result<String, DockerError> {
+        let p = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !p.isEmpty, p.hasPrefix("/") else {
+            return .failure(.commandFailed(message: L10n.t("Invalid compose file path")))
+        }
+        let result = await run("base64 \(ShellQuote.quote(p))", timeout: 20)
+        guard result.exit == 0 else {
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to read compose file"))))
+        }
+        // base64 解码：GNU base64 会对长行折行，先去掉所有空白再解。
+        let compact = result.out.filter { !$0.isWhitespace }
+        guard let data = Data(base64Encoded: compact), let text = String(data: data, encoding: .utf8) else {
+            return .failure(.commandFailed(message: L10n.t("Failed to decode compose file")))
+        }
+        return .success(text)
+    }
+
+    /// 更新已有项目的 Compose 文件内容（覆盖原路径），用于详情页「保存并重新部署」。
+    func updateComposeFile(path: String, yaml: String) async -> Result<Void, DockerError> {
+        let p = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !p.isEmpty, p.hasPrefix("/") else {
+            return .failure(.commandFailed(message: L10n.t("Invalid compose file path")))
+        }
+        guard !yaml.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .failure(.commandFailed(message: L10n.t("Compose content cannot be empty")))
+        }
+        let base64 = Data(yaml.utf8).base64EncodedString()
+        let command = "printf '%s' \(ShellQuote.quote(base64)) | base64 -d > \(ShellQuote.quote(p))"
+        let result = await run(command, timeout: 30)
+        guard result.exit == 0 else {
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to save compose file"))))
+        }
+        return .success(())
+    }
+
+    /// 删除 Compose 项目：`docker compose down`（停容器）+ 删除 yml 文件。
+    /// down 失败则中止、不删文件，避免留下"容器已删但编排文件还在"的不一致状态。
+    func removeComposeProject(configFile: String, project: String) async -> Result<Void, DockerError> {
+        let p = configFile.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = project.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !p.isEmpty, p.hasPrefix("/"), Self.validResourceName(name) else {
+            return .failure(.commandFailed(message: L10n.t("Invalid compose file or project name")))
+        }
+        let down = "docker compose -f \(ShellQuote.quote(p)) -p \(ShellQuote.quote(name)) down"
+        let result = await run(down, timeout: 120)
+        guard result.exit == 0 else {
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to stop compose project"))))
+        }
+        // down 成功后再删文件；删文件失败不影响容器已停的事实，仅提示。
+        _ = await run("rm -f \(ShellQuote.quote(p))", timeout: 20)
         AppEventBus.shared.emit(.containersChanged)
         return .success(())
     }

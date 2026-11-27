@@ -104,4 +104,73 @@ struct ContainerCreateSpec {
         let pattern = "^[0-9]+[kmgKMG]?$"
         return NSPredicate(format: "SELF MATCHES %@", pattern).evaluate(with: raw)
     }
+
+    // MARK: - 反向填充（编辑现有容器）
+
+    /// 从 `docker inspect` 解析结果反向填充编辑表单。
+    /// 只还原 spec 能表达、且重建时必须保留的字段；spec 表达不了的（如 capAdd、设备映射、
+    /// healthcheck、匿名卷等）由调用方生成 warnings 提示用户，避免"编辑后静默丢失"。
+    /// 注意：memory / cpus / 挂载 readOnly 在 inspect 轻量解析里未取，故留空/默认，不臆造。
+    static func from(inspect info: DockerInspectInfo) -> (spec: ContainerCreateSpec, warnings: [String]) {
+        var spec = ContainerCreateSpec()
+        var warnings: [String] = []
+
+        spec.name = info.containerName
+        spec.image = info.image
+        spec.pullImage = false
+
+        // 端口：inspect 的 host 形如 "8080" 或 "127.0.0.1:8080"，容器端形如 "80/tcp"。
+        for binding in info.portBindings {
+            let containerPort = binding.container.replacingOccurrences(of: "/tcp", with: "")
+                                                .replacingOccurrences(of: "/udp", with: "")
+            let proto = binding.container.hasSuffix("/udp") ? "udp" : "tcp"
+            let hostPart = binding.host.split(separator: ",").first.map { String($0).trimmingCharacters(in: .whitespaces) } ?? ""
+            // 只取端口数字部分（去掉可能的 HostIp 前缀）。
+            let hostPort = hostPart.contains(":") ? String(hostPart.split(separator: ":").last ?? "") : hostPart
+            guard !hostPort.isEmpty, !containerPort.isEmpty else { continue }
+            spec.ports.append(PortMapping(hostPort: hostPort, containerPort: containerPort, proto: proto))
+        }
+
+        // 挂载：inspect 只解析了 source/destination，读写模式未取，按可写还原。
+        for mount in info.mounts {
+            guard mount.source.hasPrefix("/"), mount.destination.hasPrefix("/") else { continue }
+            spec.mounts.append(Mount(hostPath: mount.source, containerPath: mount.destination, readOnly: false))
+        }
+
+        // 环境变量：inspect 是 "KEY=value" 数组，按第一个 = 拆分。
+        for raw in info.env {
+            guard let eq = raw.firstIndex(of: "=") else { continue }
+            let key = String(raw[..<eq])
+            let value = String(raw[raw.index(after: eq)...])
+            guard !key.isEmpty else { continue }
+            spec.env.append(EnvVar(key: key, value: value))
+        }
+
+        // 网络：优先 NetworkMode（host/none/bridge/自定义），回退 network。
+        let network = info.networkMode.isEmpty ? info.network : info.networkMode
+        spec.network = network.isEmpty ? "bridge" : network
+
+        // 重启策略。
+        spec.restartPolicy = info.restartPolicy.isEmpty ? "no" : info.restartPolicy
+
+        // 高级：命令 / entrypoint 由数组拼回空格分隔字符串。
+        spec.command = info.command.joined(separator: " ")
+        spec.entrypoint = info.entrypoint.joined(separator: " ")
+        spec.workdir = info.workingDir
+        spec.hostname = info.hostname
+        spec.privileged = info.privileged
+        // user 与 spec 无对应字段，提示用户。
+        if !info.user.isEmpty {
+            warnings.append(L10n.f("Original container user (%@) cannot be restored in the form; it will use the image default.", String(describing: (info.user))))
+        }
+        if !info.capAdd.isEmpty {
+            warnings.append(L10n.f("Capabilities added to the original container (%@) cannot be restored in the form.", String(describing: (info.capAdd.joined(separator: ", ")))))
+        }
+        if !info.healthcheck.isEmpty {
+            warnings.append(L10n.t("The original container had a health check; it is not restored by the form."))
+        }
+        warnings.append(L10n.t("Anonymous volumes and data outside mounted paths are NOT preserved when the container is recreated."))
+
+        return (spec, warnings)
+    }
 }

@@ -10,6 +10,18 @@ enum AppEvent {
     case containersChanged
     /// 编排部署成功（模板或容器转编排）。DockerView 据此切到编排分区并刷新，避免退回容器详情。
     case composeDeployed
+    /// DockerView 右上 ⋯ 请求打开某分区的「新建类」表单。当前分区子视图订阅后弹出自己的 sheet，
+    /// 表单的 onDone / toast 仍留在子视图内，避免把创建逻辑上提到父视图。
+    case dockerCreateRequest(DockerCreateRequest)
+}
+
+/// Docker 各分区的新建类操作，作为 AppEvent 载荷。
+/// 与 DockerView 右上 ⋯ 菜单一一对应：只有当前分区的子视图在树里，故只会有一个订阅者响应。
+enum DockerCreateRequest {
+    case pullImage
+    case importImage
+    case createNetwork
+    case createVolume
 }
 
 /// 系统级类型化事件总线（事件钩子的 emit / on 原语）。
@@ -61,6 +73,15 @@ final class AppEventBus {
     func composeDeployments() -> AnyPublisher<Void, Never> {
         publisher.compactMap {
             if case .composeDeployed = $0 { return () }
+            return nil
+        }
+        .eraseToAnyPublisher()
+    }
+
+    /// 只订阅「Docker 新建类表单请求」，输出请求类型。
+    func dockerCreateRequests() -> AnyPublisher<DockerCreateRequest, Never> {
+        publisher.compactMap {
+            if case .dockerCreateRequest(let request) = $0 { return request }
             return nil
         }
         .eraseToAnyPublisher()

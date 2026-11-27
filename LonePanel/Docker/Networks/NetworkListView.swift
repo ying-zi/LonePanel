@@ -27,14 +27,6 @@ struct NetworkListView: View {
     var body: some View {
         ZStack {
             List {
-                Section {
-                    Button { showCreate = true } label: {
-                        Label(L10n.t("Create network"), systemImage: "plus.circle")
-                    }
-                } footer: {
-                    Text(L10n.t("Custom networks isolate containers. Built-in bridge, host and none networks cannot be removed."))
-                }
-
                 if let error = errorMessage {
                     Section { Text(error).foregroundStyle(.red).font(.footnote) }
                 }
@@ -75,6 +67,10 @@ struct NetworkListView: View {
         }
         .onReceive(AppEventBus.shared.containerChanges()) { _ in
             Task { await load() }
+        }
+        // 右上 ⋯ 的新建入口：网络分区当前在树里，收到请求后弹出创建表单。
+        .onReceive(AppEventBus.shared.dockerCreateRequests()) { request in
+            if case .createNetwork = request { showCreate = true }
         }
         .sheet(isPresented: $showCreate) {
             CreateNetworkView { message in

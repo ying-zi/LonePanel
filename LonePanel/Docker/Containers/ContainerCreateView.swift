@@ -10,32 +10,88 @@ struct ContainerCreateView: View {
         case commandLine
     }
 
+    /// 编辑现有容器时的上下文。nil 表示新建。
+    /// Docker 不允许原地改配置，编辑=重建同名容器，故需记原 ID 与编辑前是否运行。
+    struct EditContext {
+        let originalID: String
+        let name: String
+        let wasRunning: Bool
+    }
+
     let onCreated: (String) async -> Void
     @Environment(\.dismiss) private var dismiss
 
+    /// 编辑模式的预填配置与注意事项；新建时均为默认/空。
+    private let editContext: EditContext?
+    private let initialWarnings: [String]
     @State private var mode: CreateMode = .form
     @State private var rawCommand = ""
-    @State private var spec = ContainerCreateSpec()
+    @State private var spec: ContainerCreateSpec
     @State private var images: [DockerImage] = []
     @State private var networks: [String] = ["bridge", "host", "none"]
     @State private var isRunning = false
     @State private var error: String?
     @State private var showImagePicker = false
+    @State private var showRebuildConfirm = false
     /// 本地目录选择目标：本表单本身是 sheet，必须用本地 .folderPicker 承载选择器，
     /// 才能做到「选完目录只关选择器、新建容器表单不收起」。
     @State private var mountPickTarget: ModuleCoordinator.FileOpenTarget?
 
     private let service = DockerService.shared
 
+    /// 新建入口（保持原有调用不变）。
+    init(onCreated: @escaping (String) async -> Void) {
+        self.onCreated = onCreated
+        self.editContext = nil
+        self.initialWarnings = []
+        _spec = State(initialValue: ContainerCreateSpec())
+        _mode = State(initialValue: .form)
+        _rawCommand = State(initialValue: "")
+    }
+
+    /// 编辑入口：预填反向生成的 spec，锁定名称，提交走重建。
+    init(editContext: EditContext, spec: ContainerCreateSpec, warnings: [String],
+         onCreated: @escaping (String) async -> Void) {
+        self.onCreated = onCreated
+        self.editContext = editContext
+        self.initialWarnings = warnings
+        _spec = State(initialValue: spec)
+        _mode = State(initialValue: .form)
+        _rawCommand = State(initialValue: "")
+    }
+
+    private var isEditing: Bool { editContext != nil }
+
     var body: some View {
         NavigationStack {
             Form {
-                // 模式切换：表单 / 命令行。放在最顶部，切换即换整套输入区。
-                Picker(L10n.t("Creation mode"), selection: $mode) {
-                    Text(L10n.t("Form")).tag(CreateMode.form)
-                    Text(L10n.t("Command line")).tag(CreateMode.commandLine)
+                // 编辑模式：顶部强警告——重建会丢未挂载的数据。
+                if isEditing {
+                    SwiftUI.Section {
+                        Label(L10n.t("Editing a container requires recreating it. Data outside mounted paths (e.g. an unmounted database directory) will be permanently lost. Mounted volumes are preserved."),
+                              systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .font(.caption)
+                    }
+                    if !initialWarnings.isEmpty {
+                        SwiftUI.Section {
+                            ForEach(initialWarnings, id: \.self) { warning in
+                                Label(warning, systemImage: "info.circle").font(.caption).foregroundStyle(.secondary)
+                            }
+                        } header: {
+                            Text(L10n.t("Review notes"))
+                        }
+                    }
                 }
-                .pickerStyle(.segmented)
+
+                // 模式切换：表单 / 命令行。编辑模式隐藏（重建须用结构化 spec）。
+                if !isEditing {
+                    Picker(L10n.t("Creation mode"), selection: $mode) {
+                        Text(L10n.t("Form")).tag(CreateMode.form)
+                        Text(L10n.t("Command line")).tag(CreateMode.commandLine)
+                    }
+                    .pickerStyle(.segmented)
+                }
 
                 if mode == .form {
                     basicSection
@@ -55,17 +111,27 @@ struct ContainerCreateView: View {
                     }
                 }
             }
-            .navigationTitle(L10n.t("New container"))
+            .navigationTitle(isEditing ? L10n.t("Edit container") : L10n.t("New container"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(L10n.t("Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(L10n.t("Create")) { Task { await submit() } }
-                        .fontWeight(.semibold)
-                        .disabled(isRunning || !canSubmit)
+                    Button(isEditing ? L10n.t("Save and rebuild") : L10n.t("Create")) {
+                        if isEditing { showRebuildConfirm = true } else { Task { await submit() } }
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(isRunning || !canSubmit)
                 }
+            }
+            .alert(L10n.t("Recreate container"), isPresented: $showRebuildConfirm) {
+                Button(L10n.t("Cancel"), role: .cancel) {}
+                Button(L10n.t("Save and rebuild"), role: .destructive) {
+                    Task { await submit() }
+                }
+            } message: {
+                Text(L10n.t("The container will be stopped, backed up and recreated with the new settings. If creation fails, the original is restored. Data outside mounted paths will be lost."))
             }
             .sheet(isPresented: $showImagePicker) {
                 ImagePickerView(images: images) { ref in
@@ -94,8 +160,13 @@ struct ContainerCreateView: View {
 
     private var basicSection: some View {
         Section {
-            TextField(L10n.t("Container name"), text: $spec.name)
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
+            // 编辑模式锁定名称：重建必须同名，改了名就是另一个容器了。
+            if isEditing {
+                LabeledContent(L10n.t("Container name"), value: spec.name)
+            } else {
+                TextField(L10n.t("Container name"), text: $spec.name)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+            }
             HStack {
                 TextField(L10n.t("Image (e.g. nginx:latest)"), text: $spec.image)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -325,9 +396,19 @@ struct ContainerCreateView: View {
         isRunning = true
         error = nil
         let result: Result<String, DockerError>
-        switch mode {
-        case .form: result = await service.createContainer(spec)
-        case .commandLine: result = await service.createContainerFromCommand(rawCommand)
+        if let ctx = editContext {
+            // 编辑模式：重建（带回滚），名称锁定为原名。
+            result = await service.recreateContainer(
+                originalID: ctx.originalID,
+                name: ctx.name,
+                wasRunning: ctx.wasRunning,
+                spec: spec
+            )
+        } else {
+            switch mode {
+            case .form: result = await service.createContainer(spec)
+            case .commandLine: result = await service.createContainerFromCommand(rawCommand)
+            }
         }
         isRunning = false
         switch result {

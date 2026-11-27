@@ -90,6 +90,9 @@ struct ComposeEditorView: View {
     let warnings: [String]
     let onDeployed: () async -> Void
 
+    /// 非空表示「编辑现有项目」：直接覆盖该文件并 up，隐藏项目名/目录选择，按钮文案改为保存并重新部署。
+    let existingConfigPath: String?
+
     // 目录选择由编辑器自己承载（本地 .folderPicker），模板 sheet / 容器 push 两种来源都适用。
     @State private var dirPickTarget: ModuleCoordinator.FileOpenTarget?
     @State private var projectName: String
@@ -104,48 +107,53 @@ struct ComposeEditorView: View {
          projectName: String,
          yaml: String,
          warnings: [String] = [],
+         existingConfigPath: String? = nil,
          onDeployed: @escaping () async -> Void) {
         self.title = title
         self.warnings = warnings
         self.onDeployed = onDeployed
+        self.existingConfigPath = existingConfigPath
         _projectName = State(initialValue: projectName)
         _yaml = State(initialValue: yaml)
     }
 
     var body: some View {
         Form {
-            SwiftUI.Section {
-                TextField(L10n.t("Project name"), text: $projectName)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-            } header: {
-                Text(L10n.t("Project"))
-            } footer: {
-                Text(L10n.t("Used as the compose project name (-p) and the saved file name."))
-            }
-
-            SwiftUI.Section {
-                Button {
-                    dirPickTarget = ModuleCoordinator.shared.directoryPickTarget(
-                        at: directory,
-                        title: L10n.t("Choose deploy directory")
-                    ) { picked in
-                        directory = picked
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: "folder").foregroundStyle(.tint)
-                        Text(directory).lineLimit(1).truncationMode(.middle)
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                    }
-                    .contentShape(Rectangle())
+            // 编辑现有项目：项目名与目录已随项目固定，不再让用户改（改了会变成另一个项目/文件）。
+            if existingConfigPath == nil {
+                SwiftUI.Section {
+                    TextField(L10n.t("Project name"), text: $projectName)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text(L10n.t("Project"))
+                } footer: {
+                    Text(L10n.t("Used as the compose project name (-p) and the saved file name."))
                 }
-                .buttonStyle(.plain)
-            } header: {
-                Text(L10n.t("Deploy directory"))
-            } footer: {
-                Text(L10n.t("The compose file will be saved to this directory on the server."))
+
+                SwiftUI.Section {
+                    Button {
+                        dirPickTarget = ModuleCoordinator.shared.directoryPickTarget(
+                            at: directory,
+                            title: L10n.t("Choose deploy directory")
+                        ) { picked in
+                            directory = picked
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "folder").foregroundStyle(.tint)
+                            Text(directory).lineLimit(1).truncationMode(.middle)
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                } header: {
+                    Text(L10n.t("Deploy directory"))
+                } footer: {
+                    Text(L10n.t("The compose file will be saved to this directory on the server."))
+                }
             }
 
             SwiftUI.Section {
@@ -188,7 +196,10 @@ struct ComposeEditorView: View {
                         if isWorking {
                             ProgressView()
                         } else {
-                            Label(L10n.t("Save and deploy"), systemImage: "rocket")
+                            Label(existingConfigPath == nil
+                                  ? L10n.t("Save and deploy")
+                                  : L10n.t("Save and redeploy"),
+                                  systemImage: "rocket")
                         }
                         Spacer()
                     }
@@ -212,29 +223,32 @@ struct ComposeEditorView: View {
         isWorking = true
         errorMessage = nil
         defer { isWorking = false }
-        // 第一步：写 yml 到服务器目录。
-        let saved = await service.saveComposeFile(
-            directory: directory,
-            projectName: projectName.trimmingCharacters(in: .whitespacesAndNewlines),
-            yaml: yaml
-        )
-        switch saved {
+
+        let name = projectName.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 第一步：写 yml。编辑模式覆盖原文件；新建模式写到所选目录。
+        let savedPath: String
+        if let existing = existingConfigPath {
+            let updated = await service.updateComposeFile(path: existing, yaml: yaml)
+            switch updated {
+            case .failure(let e): errorMessage = e.localizedDescription; return
+            case .success: savedPath = existing
+            }
+        } else {
+            let saved = await service.saveComposeFile(directory: directory, projectName: name, yaml: yaml)
+            switch saved {
+            case .failure(let e): errorMessage = e.localizedDescription; return
+            case .success(let path): savedPath = path
+            }
+        }
+
+        // 第二步：docker compose up -d。
+        let result = await service.deployCompose(path: savedPath, project: name)
+        switch result {
         case .failure(let e):
             errorMessage = e.localizedDescription
-            return
-        case .success(let path):
-            // 第二步：docker compose up -d。
-            let result = await service.deployCompose(
-                path: path,
-                project: projectName.trimmingCharacters(in: .whitespacesAndNewlines)
-            )
-            switch result {
-            case .failure(let e):
-                errorMessage = e.localizedDescription
-            case .success:
-                // 导航交给调用方：模板流程关 sheet，草稿流程切编排分区。
-                await onDeployed()
-            }
+        case .success:
+            // 导航交给调用方：模板流程关 sheet，草稿流程切编排分区。
+            await onDeployed()
         }
     }
 }
