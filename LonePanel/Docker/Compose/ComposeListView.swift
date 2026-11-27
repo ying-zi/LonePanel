@@ -10,6 +10,14 @@ struct ComposeListView: View {
     @State private var actionTarget: DockerComposeProject?
     @State private var pendingAction: DockerService.ComposeAction?
     @State private var operationError: String?
+    @State private var searchText = ""
+
+    /// 与容器/镜像/网络/卷分区统一：按项目名过滤搜索。
+    private var filtered: [DockerComposeProject] {
+        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return projects }
+        return projects.filter { $0.name.lowercased().contains(query) }
+    }
 
     var body: some View {
         ZStack {
@@ -18,7 +26,7 @@ struct ComposeListView: View {
                     Section { Text(error).foregroundStyle(.red).font(.footnote) }
                 }
 
-                ForEach(projects) { project in
+                ForEach(filtered) { project in
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Image(systemName: "square.stack.3d.up")
@@ -54,12 +62,14 @@ struct ComposeListView: View {
                     .padding(.vertical, 6)
                 }
 
-                if projects.isEmpty && !isLoading && errorMessage == nil {
+                if filtered.isEmpty && !isLoading && errorMessage == nil {
                     VStack(spacing: 10) {
                         Image(systemName: "square.stack.3d.up")
                             .font(.largeTitle)
                             .foregroundStyle(.tertiary)
-                        Text(L10n.t("No Compose projects"))
+                        Text(searchText.isEmpty
+                             ? L10n.t("No Compose projects")
+                             : L10n.t("No matching Compose projects"))
                             .foregroundStyle(.secondary)
                         Text(L10n.t("Projects started with docker compose appear here. Legacy docker-compose or an outdated Docker version may not be detected."))
                             .font(.caption)
@@ -77,6 +87,9 @@ struct ComposeListView: View {
                 ProgressView(L10n.t("Loading Compose projects…"))
             }
         }
+        .searchable(text: $searchText, prompt: Text(L10n.t("Search Compose projects")))
+        // 与容器/镜像/网络/卷分区统一：未聚焦时收缩为放大镜按钮，右上角工具栏结构一致。
+        .searchToolbarBehavior(.minimize)
         .refreshable { await load() }
         .task { await load() }
         // 切服事件：清空旧服务器 Compose 项目并重载。

@@ -2560,6 +2560,26 @@
           }
         }
       }
+    },
+    "搜索 Compose 项目": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search Compose projects"
+          }
+        }
+      }
+    },
+    "没有匹配的 Compose 项目": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No matching Compose projects"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
