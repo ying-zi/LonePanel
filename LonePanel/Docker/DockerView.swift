@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// Docker 模块主视图：容器 / 镜像 / 编排 / 网络 / 存储卷 五个分区。
-/// 统一顶部操作逻辑：左边只放「分类」（左上角汉堡做分区切换），右边放「所有操作 + 搜索」——
-/// 加号（新建容器）与系统搜索放大镜由 iOS 自动排成一枚胶囊，视图切换/诊断收进 ⋯ 更多菜单，
-/// 设置齿轮（入口态才出现）恒在最右。标题栏中间暂时预留，后续再安排。详情页走 NavigationStack 推入。
+/// 顶部操作逻辑与文件模块完全一致：左边只放「分类」（左上角汉堡做分区切换），
+/// 右边只放 ⋯ 更多菜单（新建容器/视图切换/编排模板/诊断全部收进来）+ 设置齿轮，
+/// 搜索放大镜由系统 .searchable 提供，不额外平铺任何图标。详情页走 NavigationStack 推入。
 struct DockerView: View {
     enum Section: String, CaseIterable {
         case containers = "Container"
@@ -64,49 +64,36 @@ struct DockerView: View {
                     }
                 }
 
-                // 右上：「操作」区。加号与系统搜索放大镜由 iOS 自动排成一枚玻璃胶囊。
-                // 仅在容器分区显示新建/视图切换；其余分区本身的操作各在自己的列表页里。
-                if section == .containers {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showCreate = true
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 17, weight: .semibold))
-                        }
-                        .help(L10n.t("New container"))
-                        .accessibilityLabel(L10n.t("New container"))
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            withAnimation {
-                                containerModel.viewMode = (containerModel.viewMode == .cards) ? .list : .cards
-                            }
-                        } label: {
-                            Image(systemName: containerModel.viewMode == .cards ? "list.bullet" : "square.grid.2x2")
-                                .font(.system(size: 16, weight: .semibold))
-                        }
-                        .help(containerModel.viewMode == .cards ? L10n.t("List View") : L10n.t("Card view"))
-                    }
-                }
-
-                // 编排分区：从模板创建（右边操作区）。
-                if section == .compose {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showTemplate = true
-                        } label: {
-                            Image(systemName: "doc.badge.plus")
-                                .font(.system(size: 17, weight: .semibold))
-                        }
-                        .help(L10n.t("Compose templates"))
-                        .accessibilityLabel(L10n.t("Compose templates"))
-                    }
-                }
-
-                // 诊断也归到右边操作区（⋯ 更多）。
+                // 右上：「操作」区。与文件模块完全一致——不额外平铺任何图标，
+                // 所有操作收进 ⋯ 更多菜单，搜索放大镜由系统 .searchable 提供，设置齿轮恒在最右。
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        // 容器分区：新建容器 + 视图切换。
+                        if section == .containers {
+                            Button {
+                                showCreate = true
+                            } label: {
+                                Label(L10n.t("New container"), systemImage: "plus")
+                            }
+                            Button {
+                                withAnimation {
+                                    containerModel.viewMode = (containerModel.viewMode == .cards) ? .list : .cards
+                                }
+                            } label: {
+                                Label(containerModel.viewMode == .cards ? L10n.t("List View") : L10n.t("Card view"),
+                                      systemImage: containerModel.viewMode == .cards ? "list.bullet" : "square.grid.2x2")
+                            }
+                        }
+                        // 编排分区：从模板创建。
+                        if section == .compose {
+                            Button {
+                                showTemplate = true
+                            } label: {
+                                Label(L10n.t("Compose templates"), systemImage: "doc.badge.plus")
+                            }
+                        }
+                        Divider()
+                        // 诊断：查看最近 Docker 命令的退出码与原始输出。
                         Button {
                             showDiagnostics = true
                             copied = false
