@@ -145,6 +145,94 @@ final class DockerService {
             .filter { !$0.isEmpty }
     }
 
+    // MARK: - 网络管理（对标 1Panel：列表 / 创建 / 删除）
+
+    /// 拉取完整网络列表（含 driver/scope 等），用于网络管理页。
+    func fetchNetworkList() async throws -> [DockerNetwork] {
+        let result = await runNonEmpty("docker network ls --format '{{json .}}'", timeout: listTimeout)
+        if result.exit != 0 {
+            throw DockerError.commandFailed(message: firstError(result, L10n.t("Failed to load networks")))
+        }
+        return decodeLines(DockerNetworkRow.self, result.out).map(DockerNetwork.init)
+            .sorted { lhs, rhs in
+                // 自定义网络优先，系统网络（bridge/host/none）置后；同级按名称。
+                if lhs.isSystem != rhs.isSystem { return !lhs.isSystem && rhs.isSystem }
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+    }
+
+    /// 创建网络：docker network create [--driver d] [--subnet s] [--gateway g] [--internal] [--ipv6] name。
+    /// 所有外部输入经 ShellQuote.quote；名称做字符集校验即时反馈。
+    func createNetwork(name: String, driver: String, subnet: String, gateway: String, internal: Bool, ipv6: Bool) async -> Result<Void, DockerError> {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard Self.validResourceName(n) else {
+            return .failure(.commandFailed(message: L10n.t("Invalid network name")))
+        }
+        var parts = ["docker", "network", "create"]
+        let d = driver.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !d.isEmpty { parts += ["--driver", ShellQuote.quote(d)] }
+        let s = subnet.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !s.isEmpty { parts += ["--subnet", ShellQuote.quote(s)] }
+        let g = gateway.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !g.isEmpty { parts += ["--gateway", ShellQuote.quote(g)] }
+        if internal { parts.append("--internal") }
+        if ipv6 { parts.append("--ipv6") }
+        parts.append(ShellQuote.quote(n))
+        return await mutate(parts.joined(separator: " "), success: L10n.f("Network created: %@", n))
+    }
+
+    /// 删除网络：docker network rm <name>。被容器占用的网络 docker 会拒绝，错误原样透出。
+    func removeNetwork(name: String) async -> Result<Void, DockerError> {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !n.isEmpty else {
+            return .failure(.commandFailed(message: L10n.t("Invalid network name")))
+        }
+        return await mutate("docker network rm \(ShellQuote.quote(n))", success: L10n.f("Network removed: %@", n))
+    }
+
+    // MARK: - 存储卷管理（对标 1Panel：列表 / 创建 / 删除）
+
+    /// 拉取完整存储卷列表。
+    func fetchVolumeList() async throws -> [DockerVolume] {
+        let result = await runNonEmpty("docker volume ls --format '{{json .}}'", timeout: listTimeout)
+        if result.exit != 0 {
+            throw DockerError.commandFailed(message: firstError(result, L10n.t("Failed to load volumes")))
+        }
+        return decodeLines(DockerVolumeRow.self, result.out).map(DockerVolume.init)
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// 创建存储卷：docker volume create [--driver d] name。
+    func createVolume(name: String, driver: String) async -> Result<Void, DockerError> {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 卷名允许留空（docker 会随机生成），但一旦填写就校验字符集。
+        if !n.isEmpty, !Self.validResourceName(n) {
+            return .failure(.commandFailed(message: L10n.t("Invalid volume name")))
+        }
+        var parts = ["docker", "volume", "create"]
+        let d = driver.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !d.isEmpty { parts += ["--driver", ShellQuote.quote(d)] }
+        if !n.isEmpty { parts.append(ShellQuote.quote(n)) }
+        return await mutate(parts.joined(separator: " "), success: n.isEmpty ? L10n.t("Volume created") : L10n.f("Volume created: %@", n))
+    }
+
+    /// 删除存储卷：docker volume rm <name>。被容器引用的卷 docker 会拒绝，错误原样透出。
+    func removeVolume(name: String) async -> Result<Void, DockerError> {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !n.isEmpty else {
+            return .failure(.commandFailed(message: L10n.t("Invalid volume name")))
+        }
+        return await mutate("docker volume rm \(ShellQuote.quote(n))", success: L10n.f("Volume removed: %@", n))
+    }
+
+    /// Docker 资源名（网络/卷）校验：允许字母数字与 _ . -，长度 1...255，不含空格与路径分隔符。
+    /// ShellQuote 已防注入，这里主要给用户即时格式反馈。
+    static func validResourceName(_ name: String) -> Bool {
+        guard !name.isEmpty, name.count <= 255 else { return false }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-")
+        return name.unicodeScalars.allSatisfy { allowed.contains($0) }
+    }
+
     /// 按规格创建并启动容器（docker run -d），返回新容器 ID。
     /// 命令构造纪律：所有外部输入经 ShellQuote.quote；端口/数值在 Spec 层已校验。
     func createContainer(_ spec: ContainerCreateSpec) async -> Result<String, DockerError> {

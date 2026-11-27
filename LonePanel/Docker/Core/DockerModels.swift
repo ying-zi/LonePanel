@@ -214,6 +214,74 @@ struct DockerImage: Identifiable {
     }
 }
 
+/// docker network ls --format '{{json .}}' 单行解析结果。
+/// 字段按 Docker 官方 network ls 输出声明，Codable 忽略其余字段兼容版本差异。
+struct DockerNetworkRow: Decodable {
+    let ID: String?
+    let Name: String
+    let Driver: String?
+    let Scope: String?
+    let Internal: String?
+    let Attachable: String?
+    let IPv6: String?
+}
+
+/// docker volume ls --format '{{json .}}' 单行解析结果。
+/// 老版本 Docker 的 volume ls 无 Size 字段，故全部可选。
+struct DockerVolumeRow: Decodable {
+    let Driver: String?
+    let Name: String
+    let Size: String?
+    let Labels: String?
+}
+
+/// 网络展示模型。
+struct DockerNetwork: Identifiable, Hashable {
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    static func == (lhs: DockerNetwork, rhs: DockerNetwork) -> Bool { lhs.id == rhs.id }
+
+    let id: String
+    let name: String
+    let driver: String
+    let scope: String
+    let isInternal: Bool
+    let attachable: Bool
+    let ipv6: Bool
+
+    init(row: DockerNetworkRow) {
+        self.id = row.ID ?? row.Name
+        self.name = row.Name
+        self.driver = row.Driver ?? ""
+        self.scope = row.Scope ?? ""
+        self.isInternal = (row.Internal ?? "").lowercased() == "true"
+        self.attachable = (row.Attachable ?? "").lowercased() == "true"
+        self.ipv6 = (row.IPv6 ?? "").lowercased() == "true"
+    }
+
+    /// Docker 内置的 bridge/host/none 三个网络不可删除。
+    var isSystem: Bool { name == "bridge" || name == "host" || name == "none" }
+}
+
+/// 存储卷展示模型。
+struct DockerVolume: Identifiable, Hashable {
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    static func == (lhs: DockerVolume, rhs: DockerVolume) -> Bool { lhs.id == rhs.id }
+
+    let id: String
+    let name: String
+    let driver: String
+    let size: String
+    let labels: String
+
+    init(row: DockerVolumeRow) {
+        self.name = row.Name
+        self.id = row.Name
+        self.driver = row.Driver ?? ""
+        self.size = row.Size ?? ""
+        self.labels = row.Labels ?? ""
+    }
+}
+
 /// Compose 项目展示模型。
 struct DockerComposeProject: Identifiable {
     let name: String

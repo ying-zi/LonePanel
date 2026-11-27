@@ -8,6 +8,8 @@ struct DockerView: View {
         case containers = "Container"
         case images = "Image"
         case compose = "Compose"
+        case networks = "Network"
+        case volumes = "Volume"
     }
 
     @State private var section: Section = .containers
@@ -30,6 +32,10 @@ struct DockerView: View {
                     ImageView()
                 case .compose:
                     ComposeListView()
+                case .networks:
+                    NetworkListView()
+                case .volumes:
+                    VolumeListView()
                 }
             }
             .navigationDestination(for: DockerContainer.self) { container in
@@ -46,7 +52,9 @@ struct DockerView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 240)
+                    // 5 段（容器/镜像/编排/网络/存储卷）：给足宽度避免文字被截断，
+                    // 同时用 maxWidth 限制不超过可用宽度，窄屏由系统压缩。
+                    .frame(maxWidth: 360)
                 }
 
                 // 更多操作：与文件模块统一，右上角只保留系统搜索放大镜 + 本「更多」菜单。
