@@ -528,7 +528,7 @@ struct DockerProcess: Identifiable, Hashable {
 
 /// 从现有容器反向生成的编排草稿：项目名 + yml + 需要用户注意的提示。
 /// 这是「以原容器为基础创建的全新编排」，不是原地重编排——部署后生成新容器，原容器不动。
-struct ComposeDraft: Identifiable {
+struct ComposeDraft: Identifiable, Hashable {
     let id = UUID()
     /// 建议项目名（后缀 -compose，避免与原容器名冲突）。
     let projectName: String
