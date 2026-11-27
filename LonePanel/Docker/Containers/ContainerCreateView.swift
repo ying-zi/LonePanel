@@ -115,7 +115,7 @@ struct ContainerCreateView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(L10n.t("Cancel")) { dismiss() }
+                    CancelXButton()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(isEditing ? L10n.t("Save and rebuild") : L10n.t("Create")) {
@@ -444,7 +444,7 @@ private struct ImagePickerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(L10n.t("Cancel")) { dismiss() }
+                    CancelXButton()
                 }
             }
         }

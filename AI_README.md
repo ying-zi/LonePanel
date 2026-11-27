@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.90.1`，版本 1.90.1（详见第 8.5 节） |
+| 当前基线 | tag `t1.90.2`，版本 1.90.2（详见第 8.5 节） |
 
 ---
 
@@ -205,7 +205,7 @@ ModuleCall
 - 卡片背景明显、左色条内缩卡片内、运行中/暂停中/已 stopped 状态配色一致；资源环用双环（CPU/内存）。
 - 系统级行为能利用就利用：如 TabView 嵌套 NavigationStack 的"点当前 Tab 回栈底"由系统 pop 实现，不写对抗系统的补丁代码。
 - 中文为主；`Localizable.xcstrings` 支持中英随系统切换（早期已建）。
-- **图形语义铁律（t1.90.1 用户定，勿混用）**：能用通用图形表达就别用文字按钮。✓ **勾（checkmark）= 操作完成 / 确认 / 选中**（调用态详情看完、多选完成、输入完成——统一用 `DoneCheckmarkButton` 或文件多选态同款勾）；⌄ **向下箭头（chevron.down）= 收起 / 折叠面板**（诊断、日志、终端、sheet 纯关闭——统一用 `DismissChevronButton`）；✕ = 取消 / 丢弃。同类操作全 App 必须同款图形。t1.90.0 曾把 Done 误用 chevron.down，t1.90.1 已纠正。
+- **图形语义铁律（t1.90.1 用户定、t1.90.2 补全取消，勿混用）**：能用通用图形表达就别用文字按钮，既统一交互又减少翻译文本。三个统一组件在 `TabModule.swift`：✓ **`DoneCheckmarkButton`（checkmark）= 操作完成 / 确认 / 选中**（调用态详情看完、多选完成、输入完成）；⌄ **`DismissChevronButton`（chevron.down）= 收起 / 折叠面板**（诊断、日志、终端、文件调用态 sheet 纯关闭）；✕ **`CancelXButton`（xmark）= 放弃表单操作**（sheet/表单左上角的取消，全 App 20 处已替换）。同类操作全 App 必须同款图形。**例外**：alert 确认弹窗里的标准「取消」保留文字（`role: .cancel`，iOS HIG，21 处未动）。t1.90.0 曾把 Done 误用 chevron.down，t1.90.1 已纠正。
 - 涉及金额/涨跌的场景遵循中国习惯（涨红跌绿、¥ 符号）——本项目当前无金融场景，记此备用。
 
 ---
@@ -292,6 +292,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **t1.89.0** | **容器模块交互梳理：编排闭环完善 + 创建入口统一 + 重建式编辑容器。** 用户在进入阶段 2 前要求全量梳理 Docker 交互，三项拍板：①**编排卡片**从三按钮平铺改为「按状态主操作（停→启动/跑→停止）+ ⋯（重启/详情）」+ 状态徽章，点卡片 push 详情页；②**创建入口统一**：镜像拉取/导入、网络/卷创建从各自列表顶部 Section 移到 DockerView 右上 ⋯，用 `AppEvent.dockerCreateRequest` + `dockerCreateRequests()` 事件解耦——父视图发事件、当前分区子视图订阅后弹自己的 sheet（onDone/toast 留子视图）；③**编排项目详情页** ComposeProjectDetailView（放 ComposeListView.swift 同文件免改 pbxproj）：项目概览 + 服务列表（`docker compose ps --format json` JSON Lines，点服务经 `ModuleCoordinator.openContainerDetail` 跳容器详情调用态）+ 编辑 yml（ComposeEditorView 加 `existingConfigPath` 覆盖原文件 + 重新 up）+ 启停/重启/删除项目（down + rm）。④**重建式编辑容器**（核心难点）：Docker 不允许原地改网络/端口/挂载/镜像，只能重建——用户拍板带回滚流程：`ContainerCreateSpec.from(inspect)` 反向预填表单（capAdd/user/healthcheck/匿名卷生成 warnings）、`DockerService.recreateContainer` 做「停→改名 backup→建同名新容器→成功删 backup / 失败回滚（删新+改名回+按需 start）」、`ContainerCreateView` 加 `EditContext` 编辑模式（隐藏命令行、锁定名称、顶部强警告 + 二次确认弹窗）、详情页加「编辑容器」入口。**⚠️ 关键认知：容器"编辑"= 重建同名容器，挂载卷数据保留、未挂载数据（如没挂出来的数据库目录）会丢——必须强警告。⚠️ compose ps 的 State 是 running/exited，与 docker ps 的 Up/Exited 不同，不能复用 DockerContainerState.from（按 hasPrefix("up") 判断），否则 running 被误判为停止。 |
 | **t1.90.0** | **编排模块收敛为纯只读 + 右上角完成按钮统一。** 用户实测致命 bug：在编排页点「停止」后容器**彻底消失**、容器列表也看不到。根因：编排的"停止"走 `docker compose down`——**down = 停容器 + 删容器**（不是 stop），容器被删除；且 t1.89.0 编排卡片/详情页都暴露了启停/重启/删除/编辑 yml，重复容器页能力又危险。用户拍板：编排页**不控制容器启停、不放操作按钮，点列表只进详情页看**。① ComposeListView 列表卡片去掉主操作 + ⋯ 菜单，改为纯展示（色条 + 徽章 + 配置路径 + chevron）+ 整行点击进详情；② ComposeProjectDetailView 移除「项目操作」（启停/重启）、「删除项目」Section、编辑 yml 入口（ComposeEditPayload/navigationDestination/runAction/removeProject 及全部 alert/state），改为**只读**：项目概览 + 服务列表（点服务跳容器详情做启停）+ yml 内容只读展示（新增 key `Compose file content`）；③ Service 层 `composeAction`/`removeComposeProject`/`updateComposeFile` 保留为无调用能力（"关入口不关能力"，将来如需安全版重编排可直接复用）；④ 全 App 文字「操作已完成」(Done) 按钮清零（图形化）：ContainerCallView / TextEditorView 的 Done 改图形按钮。**⚠️ 此处图形选择 t1.90.0 一度误用 chevron.down，t1.90.1 已纠正为勾（checkmark）——详见版本历史与图形语义规范。** 其余关闭/收起早已统一为 chevron.down。**⚠️ 铁律：`docker compose down` 会删容器——编排页永远不暴露 down/stop；容器启停只在容器分区做。 |
 | **t1.90.1** | **图形语义规范：完成用勾、收起用向下箭头（纠正 t1.90.0 的 Done 图形误用）。** 用户纠正：t1.90.0 把「操作已完成」(Done) 也改成了 chevron.down 是错误逻辑——**勾（✓）= 操作完成/确认，向下箭头（⌄）= 收起/折叠**，且「能用通用图形表达就别用文字」。① TabModule.swift 新增 `DoneCheckmarkButton`（checkmark / size 17 bold / .primary / 32×32，accessibility "Done"），样式与文件多选态右上角完成勾完全一致，与 `DismissChevronButton`（收起/关闭）分工明确；② ContainerCallView 调用态详情右上角 Done 由 chevron.down 改用 `DoneCheckmarkButton`；③ TextEditorView 键盘工具栏完成输入改用勾（行为仍 `editorFocused=false` 收起键盘、不 dismiss）。保持 chevron.down 的场景全是真「收起/关闭」：诊断面板、容器列表 more 关闭、文件调用态关闭、终端收起、排序箭头——不动。**⚠️ 图形语义铁律：✓ 勾=完成/确认/选中；⌄ 向下箭头=收起/折叠面板；✕=取消/丢弃。同类操作全 App 必须同款图形。 |
+| **t1.90.2** | **图形语义三件套补全：取消用叉（CancelXButton）。** 用户补齐规范：✓ 完成 / ⌄ 关面板 / ✕ 取消，用图形替代文字以减少翻译文本。用户拍板范围=仅工具栏取消（alert 标准取消保留文字）。① TabModule 新增 `CancelXButton`（xmark / size 15 bold / .primary / 32×32，accessibility "Cancel"），与 `DoneCheckmarkButton`/`DismissChevronButton` 组成三件套；② 全 App 20 处 sheet/表单 `.topBarLeading`/`.cancellationAction` 的 `Button(L10n.t("Cancel")){dismiss()}` 批量替换为 `CancelXButton()`（容器创建、镜像拉取/打标签/导出/导入、编排模板、网络/卷创建、数据库 6 处、文件选择/压缩、文本编辑、目录选择、服务器表单）；③ 21 处 alert 的 `role: .cancel` 标准取消按钮保留文字不动（iOS HIG）。至此图形语义三件套覆盖完整，同类操作全 App 同款图形，且少大量 `L10n.t("Cancel")` 文案。 |
 
 ---
 

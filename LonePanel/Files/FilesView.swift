@@ -82,7 +82,7 @@ struct FileCallView: View {
                     // 目录选择：有子层级时左上角提供「返回上一级」，逐级出栈；顶层才是取消。
                     ToolbarItem(placement: .topBarLeading) {
                         if pathStack.isEmpty {
-                            Button(L10n.t("Cancel")) { dismiss() }
+                            CancelXButton()
                         } else {
                             Button {
                                 goBack()

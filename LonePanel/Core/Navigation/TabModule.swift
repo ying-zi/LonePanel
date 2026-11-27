@@ -134,3 +134,23 @@ struct DoneCheckmarkButton: View {
         .accessibilityLabel(L10n.t("Done"))
     }
 }
+
+/// 统一的「取消」按钮：左上角叉（xmark）。
+/// 语义是「放弃这次表单操作」——sheet/表单左上角的取消，与完成勾、收起箭头组成三件套。
+/// 与 `DoneCheckmarkButton`（完成）、`DismissChevronButton`（收起）分工明确，勿混用。
+/// 注意：仅用于工具栏取消；alert 确认弹窗里的标准「取消」按钮保留文字（iOS HIG）。
+struct CancelXButton: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Button { dismiss() } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.primary)
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .help(L10n.t("Cancel"))
+        .accessibilityLabel(L10n.t("Cancel"))
+    }
+}

@@ -1154,7 +1154,7 @@ private struct TargetDirectorySheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(L10n.t("Cancel")) { dismiss() }
+                    CancelXButton()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 12) {
@@ -1318,7 +1318,7 @@ private struct CompressSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(L10n.t("Cancel")) { dismiss() }
+                    CancelXButton()
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(L10n.t("Compress")) {

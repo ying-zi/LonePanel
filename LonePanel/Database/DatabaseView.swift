@@ -328,7 +328,7 @@ private struct AdminPasswordView: View {
             .navigationTitle(L10n.t("Reset password"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button(L10n.t("Cancel")) { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) { CancelXButton() }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.t("Save")) { Task { await submit() } }
                         .fontWeight(.semibold)
@@ -522,7 +522,7 @@ private struct UserEditorView: View {
             .navigationTitle(L10n.t("New user"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button(L10n.t("Cancel")) { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) { CancelXButton() }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.t("Create")) { Task { await submit() } }
                         .fontWeight(.semibold)
@@ -581,7 +581,7 @@ private struct UserPasswordView: View {
             .navigationTitle(L10n.t("Change password"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button(L10n.t("Cancel")) { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) { CancelXButton() }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.t("Save")) { Task { await submit() } }
                         .fontWeight(.semibold)
@@ -815,7 +815,7 @@ private struct DatabaseCreateView: View {
             .navigationTitle(L10n.t("New database"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button(L10n.t("Cancel")) { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) { CancelXButton() }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.t("Create")) { Task { await submit() } }
                         .fontWeight(.semibold)
@@ -882,7 +882,7 @@ private struct DatabaseNameEditor: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(L10n.t("Cancel")) { dismiss() }
+                    CancelXButton()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(confirmTitle) {
@@ -1186,7 +1186,7 @@ struct ConnectionEditorView: View {
             .navigationTitle(isEditing ? L10n.t("Edit connection") : L10n.t("Add connection"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button(L10n.t("Cancel")) { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) { CancelXButton() }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.t("Save")) { save() }.fontWeight(.semibold)
                 }

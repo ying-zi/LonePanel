@@ -63,7 +63,7 @@ struct ComposeTemplateView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(L10n.t("Cancel")) { dismiss() }
+                    CancelXButton()
                 }
             }
             .navigationDestination(for: ComposeTemplate.self) { template in

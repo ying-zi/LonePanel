@@ -200,7 +200,7 @@ private struct CreateVolumeView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(L10n.t("Cancel")) { dismiss() }
+                    CancelXButton()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.t("Create")) { Task { await create() } }

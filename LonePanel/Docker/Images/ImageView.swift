@@ -262,7 +262,7 @@ private struct PullImageView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(L10n.t("Cancel")) { dismiss() }
+                    CancelXButton()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.t("Pull")) { Task { await pull() } }
@@ -338,7 +338,7 @@ private struct TagImageView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(L10n.t("Cancel")) { dismiss() }
+                    CancelXButton()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.t("Save")) { Task { await tag() } }
@@ -436,7 +436,7 @@ private struct ExportImageView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(L10n.t("Cancel")) { dismiss() }
+                    CancelXButton()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.t("Export")) { Task { await export() } }
@@ -525,7 +525,7 @@ private struct ImportImageView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(L10n.t("Cancel")) { dismiss() }
+                    CancelXButton()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.t("Import")) { Task { await importImage() } }
