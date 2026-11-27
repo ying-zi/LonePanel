@@ -131,6 +131,18 @@ enum TabRegistry {
 final class ModuleCoordinator: ObservableObject {
     static let shared = ModuleCoordinator()
 
+    /// 文件调用态的能力等级——调用方声明需要哪种能力，文件模块据此呈现对应 UI。
+    /// 这是"钩子暴露能力"的具体落点：同一入口按能力分级，而不是给每种场景复制一套视图。
+    enum FileCallCapability {
+        /// 目录选择：逐层浏览 + 逐级返回 + 「选择此目录」回传路径。供数据库/网站备份选目录。
+        case select
+        /// 只读浏览：逐层浏览 + 返回 + 下拉即走。供只需查看的场景。
+        case browse
+        /// 完整管理：复用入口态完整文件浏览器（新建/编辑/删除/上传/压缩等），
+        /// 但不写全局偏好、不注入设置入口。供容器卷挂载点等宿主机真实目录。
+        case manage
+    }
+
     /// 一次跨模块文件请求。Identifiable 便于 .sheet(item:) 呈现。
     struct FileOpenTarget: Identifiable {
         let id = UUID()
@@ -138,12 +150,17 @@ final class ModuleCoordinator: ObservableObject {
         let path: String
         /// 呈现标题（如容器名 + 挂载点）。
         let title: String
-        /// true = 目录选择模式：浏览并点「选择当前目录」回传路径（供容器挂载目录等场景）。
-        /// false = 只读浏览模式：看完下拉即走。
-        var pickDirectory = false
+        /// 需要的能力等级，默认只读浏览。
+        var capability: FileCallCapability = .browse
         /// 目录选择模式的回传闭包：参数是用户选中的目录绝对路径。
         /// 用闭包而非 @Binding，让调用方（可能是 sheet 内的表单）无需持有 Binding。
         var onPick: ((String) -> Void)?
+
+        /// 兼容旧代码：pickDirectory = true 等价于 .select 能力。
+        var pickDirectory: Bool {
+            get { if case .select = capability { return true }; return false }
+            set { if newValue { capability = .select } }
+        }
     }
 
     /// 一次跨模块"容器详情"请求。调用方（如网站反代关联容器）只持有容器 ID，
@@ -178,7 +195,12 @@ final class ModuleCoordinator: ObservableObject {
         var callView: some View {
             switch self {
             case .files(let target):
-                FileCallView(target: target)
+                switch target.capability {
+                case .manage:
+                    FileManageCallView(target: target)
+                case .select, .browse:
+                    FileCallView(target: target)
+                }
             case .containerDetail(let target):
                 ContainerCallView(target: target)
             }
@@ -204,13 +226,20 @@ final class ModuleCoordinator: ObservableObject {
         }
     }
 
-    /// 统一 API：请求"文件模块"打开某个服务器目录（调用态，只读浏览）。
+    /// 统一 API：请求"文件模块"以只读能力打开某个服务器目录（调用态）。
     /// - Parameters:
     ///   - path: 服务器绝对路径
     ///   - title: 调用态标题
     func openFiles(at path: String, title: String) {
         // 即便文件 Tab 未启用，能力仍可用——这里不检查 ModuleVisibility。
-        activeCall = .files(FileOpenTarget(path: path, title: title))
+        activeCall = .files(FileOpenTarget(path: path, title: title, capability: .browse))
+    }
+
+    /// 统一 API：请求"文件模块"以完整管理能力打开某个服务器目录（调用态）。
+    /// 供容器卷挂载点等宿主机真实目录——允许新建/编辑/删除/上传等文件操作。
+    /// 与 openFiles 同样不写全局偏好、不注入设置入口，符合"关入口不关能力"。
+    func manageFiles(at path: String, title: String) {
+        activeCall = .files(FileOpenTarget(path: path, title: title, capability: .manage))
     }
 
     /// 统一 API：请求"容器模块"打开某个容器详情（调用态，只读为主）。

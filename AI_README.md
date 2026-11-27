@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.78.0`，版本 1.78.0（详见第 8.5 节） |
+| 当前基线 | tag `t1.78.1`，版本 1.78.1（详见第 8.5 节） |
 
 ---
 
@@ -105,10 +105,14 @@ ModuleCall
 - **变更广播**：`DockerService.mutate()` 成功时广播 `.containersChanged`，为网站联动（如反代关联容器状态变化后刷新）预留订阅点。
 
 **已落地的调用态**：
-- `openFiles(at:title:)` / `pickDirectory(...)` / `directoryPickTarget(...)` → `FileCallView`：容器卷挂载点浏览、新建容器选目录。
+- `FileOpenTarget.capability`（t1.78.1 新增）定义文件能力等级，调用方**声明需要哪种能力**，文件模块据此呈现对应 UI——这是"钩子暴露能力"的落点：
+  - `.select`（`pickDirectory(...)` / `directoryPickTarget(...)`）→ `FileCallView`：目录选择，逐层浏览器 + **逐级返回**（`goBack()`，`pathStack` 出栈；顶层才是取消）+「选择此目录」回传。供数据库/网站备份选目录。**修复了进入子目录后无法返回上一级的 bug**。
+  - `.browse`（`openFiles(at:title:)`）→ `FileCallView`：只读浏览，左上角有层级时返回、右上角收起。
+  - `.manage`（`manageFiles(at:title:)`）→ `FileManageCallView`（`Files/`）：**复用入口态完整 `FileBrowserView`**，天然具备新建/编辑/删除/上传/压缩/粘贴 + 系统原生逐级返回。供容器卷挂载点（宿主机真实目录）操作文件。用独立 `FileBrowserModel`（`isCallInstance=true` 禁写全局偏好、`callRootPath` 指定挂载点为栈底）。
+  - `FileBrowserView` 加 `init(model:callClose:)` 注入点 + `callClose` 关闭按钮（透传给 DirectoryPage）：入口态零影响，调用态复用全部 UI。
 - `openContainerDetail(id:title:)` → `ContainerCallView`（`Docker/Containers/`）：按容器 ID 在**当前服务器**拉真实容器，复用 `ContainerDetailView`。**这是为网站反代关联容器预留的接口**——网站模块拿到关联容器 ID 后直接调它，无需认识容器模块内部。
 
-**调用态铁律**（严格遵守，否则联动出乱子）：独立 Model 实例（不碰 shared）、不注入设置齿轮、不读写偏好、看完即走。所有调用态的连接加载都走带 epoch 校验的连接层（见 5.1），保证打开的是**当前服务器**的资源，不会串到切服前的旧机器。
+**调用态铁律**（严格遵守，否则联动出乱子）：独立 Model 实例（不碰 shared）、不注入设置齿轮、不读写偏好（`isCallInstance` 强制）、看完即走。所有调用态的连接加载都走带 epoch 校验的连接层（见 5.1），保证打开的是**当前服务器**的资源，不会串到切服前的旧机器。文件能力按 `capability` 分级复用，**不要为每种场景复制一套视图**。
 
 ---
 
@@ -272,6 +276,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 | **t1.76.5** | **设置页模块管理列表的模块名（Website/Docker/Database/Files）切中文不翻译：SettingsView.moduleToggleRow 里 Label(item.title) 直接用英文 key（TabRegistry.module.title 存英文 key，Tab 栏展示时走 L10n.t，但设置页漏了），改为 Label(L10n.t(item.title))。注：t1.76.4 因 GitHub Actions force-update tag 复用旧 ref 上下文导致 asset 上传错位，改用全新 tag 规避** |
 | **t1.77.0** | **阶段 0 稳定性清理 + 跨模块联动地基。P0：①Redis 命令 quote——原始命令逐 token quote（新增 quoteRedisArgs），ACL SETUSER 的 `>pass`/`~*`/`&*`/`+@all` 逐个整体 quote（旧代码 `>` 被 shell 当重定向、口令写进文件，功能完全不可用）；②SFTP 移动软链数据丢失——copyItem 返回"是否保真复制"，含软链时返回 false，move 回退绝不删源、抛错交给上层 shell mv。P1：③连接代次 ServerSession.connectionEpoch——切服/删服/编辑后四条连接+终端统一失效重建，解决"切服仍操作旧服务器"（跨模块联动地基）；④FileCache 覆盖写自删——同 key 同扩展名新旧路径相同，删除旧路径时跳过；⑤SSHSession.close 幂等+异步 shutdown——消除 deinit 二次关闭与 event loop 线程同步死锁；⑥Docker/Database 错误反馈全线补齐——容器详情/列表/Compose/镜像/日志操作失败都出 alert，mutate 失败不再误报成功，parseLogs 不再把错误当日志，loadTables 失败不再吞成空；⑦数据库成功消息本地化。地基：ModuleCoordinator 升级为通用 ModuleCall 路由总线，新增 openContainerDetail + ContainerCallView（网站反代→容器详情接口），fileOpenTarget 计算属性兼容旧代码** |
 | **t1.78.0** | **阶段 0.5 钩子地基完善 + 切服容器刷新修复。①事件钩子 AppEventBus（Core/Session）：类型化 enum AppEvent（serverChanged/containersChanged）+ emit 统一主线程投递 + serverChanges()/containerChanges() 便捷订阅；②ServerSession.refresh 在 epoch 递增时广播 serverChanged，容器/镜像/Compose/容器调用态四视图订阅后清空旧数据重载——修复用户实测「切服后容器模块不自动刷新」，新模块按当前服务器加载数据只需订阅一行；③DockerService.mutate 成功广播 containersChanged，为网站反代联动预留订阅点；④能力总线的视图分派内聚到 ModuleCall.callView，ContentView 分派简化为一行、App 核心零改动，刻意保留 enum 编译期穷举检查（不用运行时注册表避免漏注册空白视图）。** |
+| **t1.78.1** | **文件调用态能力分级 + 目录返回修复。①修复目录选择模式进入子目录后无法返回上一级：FileCallView 加 goBack()，`pathStack` 出栈，左上角顶层显示取消/子层显示返回（select/browse 两档都有）；②FileOpenTarget 新增 FileCallCapability(.select/.browse/.manage) 能力等级——调用方声明能力、文件模块按级呈现（钩子暴露能力的落点）；③容器卷挂载点改用 manageFiles → FileManageCallView，复用入口态完整 FileBrowserView（新建/编辑/删除/上传/压缩/粘贴 + 系统原生返回），因卷是宿主机真实目录须允许操作；④FileBrowserView 加 init(model:callClose:) 注入点 + callClose 关闭按钮透传 DirectoryPage；⑤FileBrowserModel 加 isCallInstance(禁写全局偏好)/callRootPath(指定挂载点栈底)。** |
 
 ---
 

@@ -10,6 +10,12 @@ final class FileBrowserModel: ObservableObject {
     /// 避免离开文件页再回来时因视图重建而回到默认目录。
     static let shared = FileBrowserModel()
 
+    /// 调用态实例专用：起始根目录（如容器卷挂载点）。入口态为 nil，走默认目录逻辑。
+    /// 设置后 `initializeNavigationIfNeeded` 用它而非 entryPath。
+    var callRootPath: String?
+    /// 调用态标记：禁止任何写全局偏好的操作（设为默认目录等），保持"调用态不碰偏好"铁律。
+    var isCallInstance = false
+
     // MARK: - 导航（跨 Tab 保留）
 
     /// 导航栈底路径（根页 path）：设了默认目录时就是默认目录，否则是 "/"。
@@ -85,7 +91,8 @@ final class FileBrowserModel: ObservableObject {
     func initializeNavigationIfNeeded() {
         guard !navigationInitialized else { return }
         navigationInitialized = true
-        rootPath = entryPath
+        // 调用态：以传入的挂载点/指定目录为栈底；入口态：默认目录（未设则真根）。
+        rootPath = callRootPath ?? entryPath
         navPath = []
     }
 
@@ -109,6 +116,14 @@ final class FileBrowserModel: ObservableObject {
 
     /// 设为默认访问目录后归位：把该目录设为新的导航栈底并回到它。
     func setAsDefaultDirectory(_ path: String) {
+        // 调用态只读偏好：不写全局默认目录，仅归位到当前目录。
+        guard !isCallInstance else {
+            rootPath = path
+            navPath = []
+            searchText = ""
+            isSearching = false
+            return
+        }
         guard let id = ServerSession.shared.currentServer?.id else { return }
         DefaultDirectoryStore.set(path, for: id)
         rootPath = path

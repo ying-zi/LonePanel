@@ -404,6 +404,8 @@ enum BuiltinPacks {
         d["Passwords do not match"] = "两次输入不一致"
         d["Pause"] = "暂停"
         d["Paused"] = "已暂停"
+        d["Parent Folder"] = "上一级目录"
+        d["Back"] = "返回"
         d["Permission scope"] = "权限范围"
         d["Permissions"] = "权限"
         d["Pick a directory from the server"] = "从服务器挑一个目录"

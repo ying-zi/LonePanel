@@ -11,14 +11,31 @@ import UniformTypeIdentifiers
 /// - 单击文件走系统 QuickLook，分享走系统分享面板；拷贝→粘贴走共享剪贴板。
 struct FileBrowserView: View {
     /// 单例模型：导航栈与连接状态跨 Tab 切换存活。
-    @ObservedObject private var model = FileBrowserModel.shared
+    /// 调用态（容器卷管理）注入独立实例，入口态用 shared。
+    @ObservedObject private var model: FileBrowserModel
     @ObservedObject private var session = ServerSession.shared
     @Environment(\.scenePhase) private var scenePhase
 
+    /// 调用态关闭动作：非 nil 时在工具栏最右显示 chevron.down 关闭按钮（sheet 形态用）。
+    /// 入口态为 nil——文件 Tab 是常驻页面，没有"关闭"概念。
+    private let callClose: (() -> Void)?
+
+    /// 入口态初始化（shared 单例）。调用态用 init(model:callClose:) 注入独立实例。
+    init() {
+        self._model = ObservedObject(wrappedValue: FileBrowserModel.shared)
+        self.callClose = nil
+    }
+
+    /// 调用态初始化：注入独立 model（由调用方 @StateObject 持有），复用完整文件操作 UI。
+    init(model: FileBrowserModel, callClose: (() -> Void)? = nil) {
+        self._model = ObservedObject(wrappedValue: model)
+        self.callClose = callClose
+    }
+
     /// NavigationStack 导航栈：根不进 path。存放于单例 model，切走再回来停留在原目录。
     /// 系统原生返回由 NavigationStack 管理。
-    @State private var previewURL: URL?
-    @State private var shareItem: ShareItem?
+    @State private var previewURL: URL? = nil
+    @State private var shareItem: ShareItem? = nil
 
     /// 栈底标题：真根 "/" 显示服务器名，默认目录显示其末级目录名。
     private var rootTitle: String {
@@ -41,7 +58,8 @@ struct FileBrowserView: View {
                         node: FileNode(path: model.rootPath, title: rootTitle),
                         previewURL: $previewURL,
                         shareItem: $shareItem,
-                        navPath: $model.navPath
+                        navPath: $model.navPath,
+                        callClose: callClose
                     )
                     // rootPath 变化（冷启动定位 / 切服务器 / 点服务器名回真根 / 设默认归位）
                     // 时重建根页，确保其 .task 重新加载新栈底目录。
@@ -52,7 +70,8 @@ struct FileBrowserView: View {
                             node: node,
                             previewURL: $previewURL,
                             shareItem: $shareItem,
-                            navPath: $model.navPath
+                            navPath: $model.navPath,
+                            callClose: callClose
                         )
                     }
                 }
@@ -198,6 +217,15 @@ struct FileBrowserView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     SettingsGearButton()
                 }
+                if let callClose {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(action: callClose) {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .help(L10n.t("Close"))
+                    }
+                }
             }
         }
     }
@@ -214,6 +242,8 @@ private struct DirectoryPage: View {
     @Binding var previewURL: URL?
     @Binding var shareItem: ShareItem?
     @Binding var navPath: [FileNode]
+    /// 调用态关闭动作（透传自 FileBrowserView.callClose），入口态为 nil。
+    let callClose: (() -> Void)?
 
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var entries: [RemoteFile] = []
@@ -651,6 +681,17 @@ private struct DirectoryPage: View {
         }
         ToolbarItem(placement: .topBarTrailing) {
             SettingsGearButton()
+        }
+        // 调用态（sheet）：最右关闭按钮；入口态 callClose 为 nil，不显示。
+        if let callClose {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: callClose) {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                .help(L10n.t("Close"))
+                .accessibilityLabel(L10n.t("Close"))
+            }
         }
     }
 

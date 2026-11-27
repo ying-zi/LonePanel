@@ -79,8 +79,17 @@ struct FileCallView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if target.pickDirectory {
+                    // 目录选择：有子层级时左上角提供「返回上一级」，逐级出栈；顶层才是取消。
                     ToolbarItem(placement: .topBarLeading) {
-                        Button(L10n.t("Cancel")) { dismiss() }
+                        if pathStack.isEmpty {
+                            Button(L10n.t("Cancel")) { dismiss() }
+                        } else {
+                            Button {
+                                goBack()
+                            } label: {
+                                Label(L10n.t("Back"), systemImage: "chevron.left")
+                            }
+                        }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
@@ -93,6 +102,16 @@ struct FileCallView: View {
                         }
                     }
                 } else {
+                    // 只读浏览：左上角有子层级时返回上一级；右上角收起。
+                    if !pathStack.isEmpty {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button {
+                                goBack()
+                            } label: {
+                                Label(L10n.t("Back"), systemImage: "chevron.left")
+                            }
+                        }
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         DismissChevronButton()
                     }
@@ -109,6 +128,13 @@ struct FileCallView: View {
     private func enter(_ file: RemoteFile) {
         let name = (currentPath as NSString).appendingPathComponent(file.name)
         pathStack.append(FileNode(path: name, title: file.name))
+        Task { await loadCurrent() }
+    }
+
+    /// 返回上一级目录：出栈并重新加载。用于左上角「返回」按钮，解决进入子目录后无法回退的问题。
+    private func goBack() {
+        guard !pathStack.isEmpty else { return }
+        pathStack.removeLast()
         Task { await loadCurrent() }
     }
 

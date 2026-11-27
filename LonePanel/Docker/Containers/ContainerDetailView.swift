@@ -149,7 +149,8 @@ struct ContainerDetailView: View {
                 Section {
                     ForEach(info.mounts, id: \.destination) { mount in
                         Button {
-                            ModuleCoordinator.shared.openFiles(
+                            // 卷挂载点是宿主机真实目录，允许完整文件操作（新建/编辑/删除/上传）。
+                            ModuleCoordinator.shared.manageFiles(
                                 at: mount.source,
                                 title: L10n.f("%@ · %@", String(describing: (container.name)), String(describing: (mount.destination)))
                             )

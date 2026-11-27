@@ -28,6 +28,7 @@
 		D10000000000000000000018 /* DatabaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000018 /* DatabaseView.swift */; };
 		D10000000000000000000019 /* FilesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000019 /* FilesTab.swift */; };
 		D10000000000000000000020 /* FilesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000020 /* FilesView.swift */; };
+		D1000000000000000000005E /* FileManageCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000000000000000000005E /* FileManageCallView.swift */; };
 		D10000000000000000000021 /* SFTPProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000021 /* SFTPProtocol.swift */; };
 		D10000000000000000000022 /* SFTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000022 /* SFTPClient.swift */; };
 		D10000000000000000000023 /* DefaultDirectoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000023 /* DefaultDirectoryStore.swift */; };
@@ -103,6 +104,7 @@
 		C10000000000000000000018 /* DatabaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseView.swift; sourceTree = "<group>"; };
 		C10000000000000000000019 /* FilesTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesTab.swift; sourceTree = "<group>"; };
 		C10000000000000000000020 /* FilesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesView.swift; sourceTree = "<group>"; };
+		C1000000000000000000005E /* FileManageCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileManageCallView.swift; sourceTree = "<group>"; };
 		C10000000000000000000021 /* SFTPProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SFTPProtocol.swift; sourceTree = "<group>"; };
 		C10000000000000000000022 /* SFTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SFTPClient.swift; sourceTree = "<group>"; };
 		C10000000000000000000023 /* DefaultDirectoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultDirectoryStore.swift; sourceTree = "<group>"; };
@@ -381,6 +383,7 @@
 			children = (
 				C10000000000000000000019 /* FilesTab.swift */,
 				C10000000000000000000020 /* FilesView.swift */,
+				C1000000000000000000005E /* FileManageCallView.swift */,
 				B50000000000000000000001 /* Core */,
 				B50000000000000000000002 /* Browser */,
 				B50000000000000000000003 /* Detail */,
@@ -578,6 +581,7 @@
 				D10000000000000000000018 /* DatabaseView.swift in Sources */,
 				D10000000000000000000019 /* FilesTab.swift in Sources */,
 				D10000000000000000000020 /* FilesView.swift in Sources */,
+				D1000000000000000000005E /* FileManageCallView.swift in Sources */,
 				D10000000000000000000021 /* SFTPProtocol.swift in Sources */,
 				D10000000000000000000022 /* SFTPClient.swift in Sources */,
 				D10000000000000000000023 /* DefaultDirectoryStore.swift in Sources */,
