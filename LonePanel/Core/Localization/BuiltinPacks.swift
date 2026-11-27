@@ -715,6 +715,7 @@ enum BuiltinPacks {
         d["Failed to save compose file"] = "保存编排文件失败"
         d["Failed to deploy compose"] = "部署编排失败"
         d["Save and deploy"] = "保存并部署"
+        d["Version footer"] = "版本号由发布 tag 自动生成，截图反馈问题时请一并附上。"
         return d
     }()
 }

@@ -71,6 +71,20 @@ struct SettingsView: View {
                 } footer: {
                     Text(L10n.t("Disabled modules disappear from the bottom bar. Settings and base capabilities (SSH, notifications, logs, terminal) stay available; with all off, the app opens in the SSH terminal."))
                 }
+
+                // 版本信息：运行时从 App Bundle 读取，CI 从 tag 注入后自动同步，
+                // 每次发版无需手改代码。显示 版本号 + build 号，便于用户截图反馈。
+                Section {
+                    HStack {
+                        Text(L10n.t("Version"))
+                        Spacer()
+                        Text(AppVersion.display)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                } footer: {
+                    Text(L10n.t("Version footer"))
+                }
             }
             .navigationTitle(L10n.t("Settings"))
         }
@@ -87,5 +101,16 @@ struct SettingsView: View {
         )) {
             Label(L10n.t(item.title), systemImage: item.symbol)
         }
+    }
+}
+
+/// 版本号展示：运行时从 App Bundle 的 Info.plist 读取，CI 构建时由 tag 注入，
+/// 因此每次发版自动同步，无需手改代码。格式为 `1.82.1 (95)`。
+private enum AppVersion {
+    static var display: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "—"
+        let build = info?["CFBundleVersion"] as? String ?? "—"
+        return "\(version) (\(build))"
     }
 }
