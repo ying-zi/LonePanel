@@ -716,6 +716,23 @@ enum BuiltinPacks {
         d["Failed to deploy compose"] = "部署编排失败"
         d["Save and deploy"] = "保存并部署"
         d["Version footer"] = "版本号由发布 tag 自动生成，截图反馈问题时请一并附上。"
+        d["Registry"] = "仓库"
+        d["Logged-in registries"] = "已登录仓库"
+        d["No logged-in registries"] = "暂无已登录仓库"
+        d["Registry list is read from the server Docker config. If empty, a credential helper may be in use."] = "仓库列表读取自服务器的 Docker 配置；若为空，可能使用了凭据助手（credential helper）。"
+        d["Login to registry"] = "登录仓库"
+        d["Registry address"] = "仓库地址"
+        d["Password is sent via docker login and masked in diagnostics. Spaces are not allowed."] = "密码通过 docker login 发送，并已在诊断信息中打码；密码不可包含空格。"
+        d["HTTP insecure registry guide"] = "HTTP 不安全仓库配置指引"
+        d["For HTTP registries, Docker requires insecure-registries config and a restart, which interrupts running containers. The App will not do this automatically; view the manual steps here."] = "HTTP 仓库需在 Docker 配置 insecure-registries 并重启，重启会中断当前所有容器。本 App 不会自动执行，请在此查看手动步骤。"
+        d["Server, username and password are required"] = "服务器地址、用户名和密码均不能为空"
+        d["Password cannot contain spaces"] = "密码不能包含空格"
+        d["Invalid registry address"] = "仓库地址无效"
+        d["Login failed"] = "登录失败"
+        d["Logout failed"] = "退出登录失败"
+        d["Login"] = "登录"
+        d["Login successful"] = "登录成功"
+        d["Logged out: %@"] = "已退出登录：%@"
         return d
     }()
 }

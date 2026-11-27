@@ -66,6 +66,7 @@
 		D10000000000000000000051 /* ContainerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000051 /* ContainerDetailView.swift */; };
 		D10000000000000000000052 /* ContainerLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000052 /* ContainerLogsView.swift */; };
 		D10000000000000000000053 /* DockerSharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000053 /* DockerSharedViews.swift */; };
+		D10000000000000000000062 /* RegistryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000062 /* RegistryView.swift */; };
 		D10000000000000000000054 /* ImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000054 /* ImageView.swift */; };
 		D10000000000000000000055 /* ComposeListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000055 /* ComposeListView.swift */; };
 		D10000000000000000000061 /* ComposeTemplateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000061 /* ComposeTemplateView.swift */; };
@@ -143,6 +144,7 @@
 		C10000000000000000000051 /* ContainerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerDetailView.swift; sourceTree = "<group>"; };
 		C10000000000000000000052 /* ContainerLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerLogsView.swift; sourceTree = "<group>"; };
 		C10000000000000000000053 /* DockerSharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerSharedViews.swift; sourceTree = "<group>"; };
+		C10000000000000000000062 /* RegistryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegistryView.swift; sourceTree = "<group>"; };
 		C10000000000000000000054 /* ImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageView.swift; sourceTree = "<group>"; };
 		C10000000000000000000055 /* ComposeListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeListView.swift; sourceTree = "<group>"; };
 		C10000000000000000000061 /* ComposeTemplateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeTemplateView.swift; sourceTree = "<group>"; };
@@ -346,6 +348,7 @@
 			isa = PBXGroup;
 			children = (
 				C10000000000000000000053 /* DockerSharedViews.swift */,
+				C10000000000000000000062 /* RegistryView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -631,6 +634,7 @@
 				D10000000000000000000051 /* ContainerDetailView.swift in Sources */,
 				D10000000000000000000052 /* ContainerLogsView.swift in Sources */,
 				D10000000000000000000053 /* DockerSharedViews.swift in Sources */,
+				D10000000000000000000062 /* RegistryView.swift in Sources */,
 				D10000000000000000000054 /* ImageView.swift in Sources */,
 				D10000000000000000000055 /* ComposeListView.swift in Sources */,
 				D10000000000000000000061 /* ComposeTemplateView.swift in Sources */,

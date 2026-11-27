@@ -415,6 +415,74 @@ final class DockerService {
         return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to import image"))))
     }
 
+    // MARK: - 仓库 Registry
+
+    /// 登录私有仓库。密码经 ShellQuote 转义；DockerDiagnostics 会对 login 命令的密码打码，
+    /// 不会明文进入诊断面板。注意：密码不允许含空白（避免 shell 拼接歧义与打码残留）。
+    func registryLogin(server: String, username: String, password: String) async -> Result<Void, DockerError> {
+        let s = server.trimmingCharacters(in: .whitespacesAndNewlines)
+        let u = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty, !u.isEmpty, !password.isEmpty else {
+            return .failure(.commandFailed(message: L10n.t("Server, username and password are required")))
+        }
+        guard !password.contains(where: { $0.isWhitespace }) else {
+            return .failure(.commandFailed(message: L10n.t("Password cannot contain spaces")))
+        }
+        guard Self.validRegistryServer(s) else {
+            return .failure(.commandFailed(message: L10n.t("Invalid registry address")))
+        }
+        let command = "docker login \(ShellQuote.quote(s)) -u \(ShellQuote.quote(u)) -p \(ShellQuote.quote(password))"
+        let result = await run(command, timeout: 60)
+        if result.exit == 0 { return .success(()) }
+        return .failure(.commandFailed(message: firstError(result, L10n.t("Login failed"))))
+    }
+
+    /// 退出仓库登录（只删本地凭据，不影响镜像/容器）。
+    func registryLogout(server: String) async -> Result<Void, DockerError> {
+        let s = server.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty, Self.validRegistryServer(s) else {
+            return .failure(.commandFailed(message: L10n.t("Invalid registry address")))
+        }
+        let result = await run("docker logout \(ShellQuote.quote(s))", timeout: 30)
+        if result.exit == 0 { return .success(()) }
+        return .failure(.commandFailed(message: firstError(result, L10n.t("Logout failed"))))
+    }
+
+    /// 读取已登录仓库列表：解析 `docker info` 的 Username 行不可靠，改读 credentials 存储。
+    /// `docker login` 默认把凭据写入 ~/.docker/config.json 的 auths（或 credStore），
+    /// 这里取 auths 的键名作为「已登录仓库」展示；credStore 模式下列表可能为空，属正常。
+    func listRegistryLogins() async -> [String] {
+        let result = await run("cat ~/.docker/config.json 2>/dev/null", timeout: 20)
+        guard result.exit == 0, let data = result.out.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let auths = json["auths"] as? [String: Any] else { return [] }
+        return auths.keys.sorted()
+    }
+
+    /// 仓库地址宽松校验：允许 host[:port] 或带路径，不含空格与 shell 元字符。
+    static func validRegistryServer(_ s: String) -> Bool {
+        guard !s.isEmpty, s.count <= 512, !s.contains(where: { $0.isWhitespace }) else { return false }
+        let forbidden = CharacterSet(charactersIn: ";'\"`$&|><(){}[]\\")
+        return s.unicodeScalars.allSatisfy { !forbidden.contains($0) }
+    }
+
+    /// HTTP 不安全仓库的配置指引（纯文本，供用户复制到服务器手动执行）。
+    /// 本 App 绝不自动改 daemon.json / 不自动重启 Docker——重启会中断所有现有容器。
+    static func insecureRegistryGuide(server: String) -> String {
+        let s = server.trimmingCharacters(in: .whitespacesAndNewlines)
+        return """
+        1) 编辑 /etc/docker/daemon.json，加入（JSON，注意与已有项用逗号分隔）：
+           "insecure-registries": ["\(s)"]
+
+        2) 校验配置：sudo dockerd --validate --config-file=/etc/docker/daemon.json
+
+        3) 重启 Docker（会中断当前所有容器，请自行选择时机）：
+           sudo systemctl restart docker
+
+        4) 回到本页重新登录该仓库。
+        """
+    }
+
     /// 镜像名/tag 的宽松校验：只允许字母数字与 . _ - / : ，且不含空格。
     /// ShellQuote 已防注入，这里主要给用户即时格式反馈。
     static func validImageReference(_ ref: String) -> Bool {

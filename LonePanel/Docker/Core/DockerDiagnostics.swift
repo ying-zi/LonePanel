@@ -24,15 +24,42 @@ final class DockerDiagnostics: ObservableObject {
         formatter.dateFormat = "HH:mm:ss"
         let entry = Entry(
             time: formatter.string(from: Date()),
-            command: command,
+            command: Self.redact(command),
             exit: exit,
-            out: String(out.prefix(400)),
-            err: String(err.prefix(400))
+            out: String(Self.redact(out).prefix(400)),
+            err: String(Self.redact(err).prefix(400))
         )
         entries.append(entry)
         if entries.count > maxEntries {
             entries.removeFirst(entries.count - maxEntries)
         }
+    }
+
+    /// 敏感信息打码：`docker login` 的密码无论出现在命令（`-p`/`--password`）
+    /// 还是输出/错误里，一律替换为 ******，防止明文密码进入诊断面板或被复制外传。
+    private static func redact(_ text: String) -> String {
+        // --password 参数无条件打码（含输出/错误里可能的回显）。
+        var result = redactPattern(
+            text,
+            pattern: "(--password[= ]+)(['\\\"]?)[^\\s'\\\"]+\\2",
+            template: "$1$2******"
+        )
+        // -p 也是 docker run 的端口参数，只在 login 场景打码，避免误伤端口展示。
+        if text.lowercased().contains("login") {
+            result = redactPattern(
+                result,
+                pattern: "((?:^|\\s)-p\\s+)(['\\\"]?)[^\\s'\\\"]+\\2",
+                template: "$1$2******"
+            )
+        }
+        return result
+    }
+
+    /// 用正则把匹配片段按模板替换（$1/$2 为捕获组）。
+    private static func redactPattern(_ text: String, pattern: String, template: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return text }
+        let range = NSRange(text.startIndex..., in: text)
+        return regex.stringByReplacingMatches(in: text, range: range, withTemplate: template)
     }
 
     /// 拼成可复制的纯文本报告。

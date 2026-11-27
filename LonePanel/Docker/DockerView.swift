@@ -20,6 +20,7 @@ struct DockerView: View {
     @State private var showDiagnostics = false
     @State private var showCreate = false
     @State private var showTemplate = false
+    @State private var showRegistry = false
     @State private var copied = false
 
     var body: some View {
@@ -93,6 +94,12 @@ struct DockerView: View {
                             }
                         }
                         Divider()
+                        // 仓库 Registry：私有仓库登录/退出。
+                        Button {
+                            showRegistry = true
+                        } label: {
+                            Label(L10n.t("Registry"), systemImage: "shippingbox")
+                        }
                         // 诊断：查看最近 Docker 命令的退出码与原始输出。
                         Button {
                             showDiagnostics = true
@@ -113,6 +120,9 @@ struct DockerView: View {
             }
             .sheet(isPresented: $showDiagnostics) {
                 diagnosticsSheet
+            }
+            .sheet(isPresented: $showRegistry) {
+                RegistryView()
             }
             .sheet(isPresented: $showCreate) {
                 ContainerCreateView { newID in
