@@ -801,6 +801,7 @@ enum BuiltinPacks {
         d["Delete \"%@\"? All containers in it will be stopped and its compose file removed."] = "确定删除「%@」吗？其中的所有容器将被停止，其 Compose 文件也会被删除。"
         d["Delete compose project"] = "删除 Compose 项目"
         d["Edit compose file"] = "编辑 Compose 文件"
+        d["Edit and redeploy updates containers per the new yaml; it will not remove the project."] = "编辑并重新部署会按新的 yaml 更新容器，不会删除该项目。"
         d["Edit container"] = "编辑容器"
         d["Editing a container requires recreating it. Data outside mounted paths (e.g. an unmounted database directory) will be permanently lost. Mounted volumes are preserved."] = "编辑容器需要重建它。未挂载路径中的数据（例如未挂载出来的数据库目录）将永久丢失，已挂载的卷会保留。"
         d["Failed to back up the original container"] = "备份原容器失败"

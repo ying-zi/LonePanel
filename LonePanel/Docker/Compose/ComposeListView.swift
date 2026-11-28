@@ -148,9 +148,12 @@ struct ComposeListView: View {
 
 // MARK: - 编排项目详情
 
-/// 编排项目详情页：**只读**查看项目组成——项目概览 + 服务/容器列表（可跳容器详情）+ yml 内容。
-/// 刻意不提供启停/重启/删除/编辑：编排的 `down` 会连容器一起删除（用户实测容器消失），
-/// 容器的启停统一在「容器」分区做，yml 的编辑/项目删除今后如需再以安全方式单独设计。
+/// 编排项目详情页：项目概览 + 服务/容器列表（可跳容器详情）+ yml 内容，并支持就地编辑 yml。
+/// - 启停/重启/删除一律不提供：`docker compose down` 会连容器一起删除（用户实测容器消失），
+///   容器的启停统一在「容器」分区卡片/详情页做。
+/// - 编辑 yml 是唯一编排操作：sheet 承载编辑器（模态覆盖，不加深导航层级），
+///   保存走「覆盖原文件 + `up -d`」——compose 按新 yml 重建受影响的容器，不会像 down 那样整体删除。
+///   这正是「编排的真相来源是 yml」：改配置就改 yml，不去原地重建单个容器。
 struct ComposeProjectDetailView: View {
     let project: DockerComposeProject
 
@@ -161,6 +164,8 @@ struct ComposeProjectDetailView: View {
     @State private var yaml: String = ""
     @State private var isLoading = true
     @State private var loadError: String?
+    /// 就地编辑 yml：sheet 模态覆盖，不往导航栈再压一层。
+    @State private var showEditor = false
 
     var body: some View {
         List {
@@ -247,22 +252,49 @@ struct ComposeProjectDetailView: View {
                 Text(L10n.t("Tap a service to open its container details."))
             }
 
-            // Compose 文件内容：只读展示，方便核对端口/环境变量等配置。
-            if !yaml.isEmpty {
-                Section {
+            // Compose 文件内容：展示 + 就地编辑入口。改配置就改这里的 yml，
+            // 不再去容器详情页做「原地重建」——编排的真相来源是 yml。
+            Section {
+                if !yaml.isEmpty {
                     Text(yaml)
                         .font(.caption2.monospaced())
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                         .lineSpacing(2)
-                } header: {
-                    Text(L10n.t("Compose file content"))
+                } else if !isLoading {
+                    Text(loadError ?? L10n.t("Unknown"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
+                Button {
+                    showEditor = true
+                } label: {
+                    Label(L10n.t("Edit compose file"), systemImage: "square.and.pencil")
+                }
+                .disabled(project.primaryConfigFile.isEmpty)
+            } header: {
+                Text(L10n.t("Compose file content"))
+            } footer: {
+                Text(L10n.t("Edit and redeploy updates containers per the new yaml; it will not remove the project."))
             }
         }
         .navigationTitle(project.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        // 就地编辑：复用通用编辑器，existingConfigPath 模式覆盖原文件并 up -d（不删容器）。
+        // 部署成功后重新载入本页，展示最新 yml 与服务状态；不广播 composeDeployed，避免弹走本页。
+        .sheet(isPresented: $showEditor) {
+            ComposeEditorView(
+                title: L10n.t("Edit compose file"),
+                projectName: project.name,
+                yaml: yaml,
+                existingConfigPath: project.primaryConfigFile,
+                onDeployed: {
+                    showEditor = false   // 关掉编辑 sheet，回到详情页
+                    await load()          // 展示最新 yml 与服务状态
+                }
+            )
+        }
         // 切服 / 容器变更：本页数据属于旧服务器或已过期，pop 回列表让列表自己刷新。
         .onReceive(AppEventBus.shared.serverChanges()) { _ in dismiss() }
         .onReceive(AppEventBus.shared.containerChanges()) { _ in Task { await load() } }

@@ -337,7 +337,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 2. **新增一个可插拔模块**：建 `<Name>/<Name>Tab.swift`（导出 `TabModule`）+ View；在 `TabRegistry.modules` 加一行；如需开关，`ModuleID` 加 case（`isCore=false`）；如需设置项，填 `settingsSection`。删模块反过来即可。
 3. **加悬浮终端的宿主模块**：在模块 TabModule 里设 `showsFloatingTerminal: true`。
 4. **改终端行为**：动 `TerminalSession` / `TerminalView` 前，先读 6.1 与踩坑表；终端是底座，任何"模块级终端开关"都不能加。
-5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前下一个是 t1.75.0）。
+5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前基线 t1.91.0）。
 
 ### 当前待办 / 方向（供参考）
 
@@ -347,4 +347,11 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 
 ---
 
-*最后更新：2026-11-26，基线 t1.74.0。文档随版本演进同步更新。*
+*最后更新：2026-11-28，基线 t1.91.0。文档随版本演进同步更新。*
+
+### t1.91.0 编排编辑收敛：编辑入口只留在编排，去掉容器"原地重建"
+
+- **理念确认**：编排的真相来源是 yml。非编排创建的容器做"重建式原地编辑"不理想（重建会脱离编排，下次 `up` 又会被 yml 覆盖）。**改配置一律改 yml**，不再原地重建单个容器。
+- **去掉容器"编辑容器"入口**：`ContainerDetailView` 删除编辑按钮 / `prepareEdit` / `editSpec` sheet / `ContainerEditDraft`。**底层能力按"关入口不关能力"全部保留**：`DockerService.recreateContainer`、`ContainerCreateView.EditContext` + 编辑 init、`ContainerCreateSpec.from(inspect:)` 均不动，将来需要可随时接回入口。
+- **编排详情页就地编辑 yml**：`ComposeProjectDetailView` 的"Compose 文件内容"Section 加 `Edit compose file` 按钮，用 `.sheet` 承载 `ComposeEditorView(existingConfigPath:)`（sheet 模态覆盖，**不加深导航层级**——用户明确"不要太多层级"）。保存走 `updateComposeFile` 覆盖原文件 + `deployCompose`（`up -d`），**不广播 `composeDeployed`**（避免弹走详情页），`onDeployed` 里关 sheet + `load()` 刷新。
+- **安全边界不变**：编排页仍不提供 down/stop/restart/delete 任何操作（down 会删容器，用户实测过）。`up -d` 即便 yml 移除 service 也不会删已有容器（无 `--remove-orphans`），安全。

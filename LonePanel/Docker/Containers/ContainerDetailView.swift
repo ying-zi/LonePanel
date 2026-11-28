@@ -17,9 +17,6 @@ struct ContainerDetailView: View {
     // 容器转编排：独立任务，用 push 而非 sheet（完成后切编排分区，不返回本页）。
     @State private var composeDraft: ComposeDraft?
     @State private var isPreparingCompose = false
-    // 编辑容器（重建式）：从 inspect 反向生成预填 spec，sheet 承载编辑表单。
-    @State private var editSpec: ContainerEditDraft?
-    @State private var isPreparingEdit = false
 
     var body: some View {
         List {
@@ -85,12 +82,6 @@ struct ContainerDetailView: View {
                     Label(L10n.t("Connect Terminal"), systemImage: "terminal")
                 }
                 .disabled(container.state != .running)
-                Button {
-                    Task { await prepareEdit() }
-                } label: {
-                    Label(L10n.t("Edit container"), systemImage: "square.and.pencil")
-                }
-                .disabled(isPreparingEdit)
                 Button {
                     Task { await prepareCompose() }
                 } label: {
@@ -271,21 +262,6 @@ struct ContainerDetailView: View {
                 .interactiveDismissDisabled(true)
                 .onDisappear { session.closeForContainer() }
         }
-        // 编辑容器（重建式）：sheet 承载预填表单；重建成功后刷新并退回列表（容器 ID 已变）。
-        .sheet(item: $editSpec) { draft in
-            ContainerCreateView(
-                editContext: ContainerCreateView.EditContext(
-                    originalID: container.id,
-                    name: container.name,
-                    wasRunning: container.state == .running
-                ),
-                spec: draft.spec,
-                warnings: draft.warnings
-            ) { _ in
-                await model.refresh()
-                dismiss()
-            }
-        }
         .alert(L10n.t("Force stop container"), isPresented: $confirmKill) {
             Button(L10n.t("Cancel"), role: .cancel) {}
             Button(L10n.t("Force stop"), role: .destructive) {
@@ -448,27 +424,6 @@ struct ContainerDetailView: View {
         }
     }
 
-    /// 从 inspect 反向生成编辑表单预填配置。复用详情页已加载的 inspectInfo，
-    /// 缺失时按需再拉一次，失败走统一错误出口。
-    private func prepareEdit() async {
-        isPreparingEdit = true
-        defer { isPreparingEdit = false }
-        var info = inspectInfo
-        if info == nil {
-            let fetched = await model.service.fetchInspect(containerID: container.id)
-            switch fetched {
-            case .success(let json): info = DockerInspectInfo.parse(json)
-            case .failure(let error): operationError = error.localizedDescription; return
-            }
-        }
-        guard let info else {
-            operationError = L10n.t("Could not read container details")
-            return
-        }
-        let draft = ContainerCreateSpec.from(inspect: info)
-        editSpec = ContainerEditDraft(spec: draft.spec, warnings: draft.warnings)
-    }
-
     // MARK: - 工具
 
     private func formatCreated(_ iso: String) -> String {
@@ -480,13 +435,6 @@ struct ContainerDetailView: View {
         display.timeStyle = .short
         return display.string(from: date)
     }
-}
-
-/// 编辑容器的预填草稿：Identifiable 供 .sheet(item:) 使用。
-private struct ContainerEditDraft: Identifiable {
-    let id = UUID()
-    let spec: ContainerCreateSpec
-    let warnings: [String]
 }
 
 /// 详情页信息行。internal 可见：ComposeProjectDetailView 等同模块视图复用，避免重复定义。
