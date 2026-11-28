@@ -474,12 +474,23 @@ struct DockerInspectInfo {
 
 /// 内置编排模板：对标 1Panel「编排模板」，选模板→改 yml→部署。
 /// yml 采用 docker compose v2 语法；仅内置最小可用配置，用户可在 UI 里编辑。
-struct ComposeTemplate: Identifiable, Hashable {
+struct ComposeTemplate: Identifiable, Hashable, Codable {
     let id: String
     let name: String
     let detail: String
     let symbol: String
     let yaml: String
+    /// 用户保存的模板标记为 true，内置模板为 false（用于模板列表分组）。
+    let isCustom: Bool
+
+    init(id: String, name: String, detail: String, symbol: String, yaml: String, isCustom: Bool = false) {
+        self.id = id
+        self.name = name
+        self.detail = detail
+        self.symbol = symbol
+        self.yaml = yaml
+        self.isCustom = isCustom
+    }
 
     /// 内置模板集合。内容保持精简，够跑起来即可，详细配置交给用户编辑。
     static let builtins: [ComposeTemplate] = [

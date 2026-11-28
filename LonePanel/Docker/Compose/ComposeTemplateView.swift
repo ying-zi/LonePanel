@@ -1,6 +1,55 @@
 import SwiftUI
 import UIKit
 
+/// 用户「保存为编排模板」的本地存储。持久化到 UserDefaults（模板是配置文本，量小，
+/// 跟随 App 本地数据，不跟服务器走——换设备可通过 iCloud 同步偏好，但模板本身仅本机）。
+/// 用 ObservableObject 让模板列表页在保存/删除后即时刷新。
+final class ComposeTemplateStore: ObservableObject {
+    static let shared = ComposeTemplateStore()
+
+    @Published private(set) var customTemplates: [ComposeTemplate] = []
+
+    private let defaults = UserDefaults.standard
+    private let storageKey = "com.lone.lonepanel.compose.custom.templates"
+
+    private init() { load() }
+
+    /// 保存 yml 为用户模板。同名覆盖（更新内容），返回保存后的模板。
+    @discardableResult
+    func save(name: String, yaml: String) -> ComposeTemplate {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let template = ComposeTemplate(
+            id: "custom-\(UUID().uuidString)",
+            name: trimmed.isEmpty ? L10n.t("Untitled template") : trimmed,
+            detail: L10n.t("Saved from a compose project"),
+            symbol: "doc.text",
+            yaml: yaml,
+            isCustom: true
+        )
+        // 同名覆盖：删掉旧的再插入新的，避免列表里出现重名项。
+        customTemplates.removeAll { $0.name == template.name }
+        customTemplates.insert(template, at: 0)
+        persist()
+        return template
+    }
+
+    func remove(id: String) {
+        customTemplates.removeAll { $0.id == id }
+        persist()
+    }
+
+    private func load() {
+        guard let data = defaults.data(forKey: storageKey),
+              let list = try? JSONDecoder().decode([ComposeTemplate].self, from: data) else { return }
+        customTemplates = list
+    }
+
+    private func persist() {
+        guard let data = try? JSONEncoder().encode(customTemplates) else { return }
+        defaults.set(data, forKey: storageKey)
+    }
+}
+
 /// 模板图标兜底：个别 SF Symbol 在特定 iOS 版本上可能渲染为空白。
 /// 用 UIImage(systemName:) 探测，失效时回退到通用图标，避免出现「文字顶到最左、图标位空白」。
 private func composeTemplateSymbol(_ name: String) -> String {
@@ -15,6 +64,7 @@ struct ComposeTemplateView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var path = NavigationPath()
+    @ObservedObject private var templateStore = ComposeTemplateStore.shared
 
     private let service = DockerService.shared
 
@@ -56,6 +106,52 @@ struct ComposeTemplateView: View {
                     }
                 } header: {
                     Text(L10n.t("Built-in templates"))
+                }
+
+                // 用户从编排项目保存的模板：与内置模板一样可点开编辑部署，额外支持删除。
+                if !templateStore.customTemplates.isEmpty {
+                    SwiftUI.Section {
+                        ForEach(templateStore.customTemplates) { template in
+                            HStack(spacing: 12) {
+                                Button {
+                                    path.append(template)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: composeTemplateSymbol(template.symbol))
+                                            .font(.title3)
+                                            .foregroundStyle(.tint)
+                                            .frame(width: 28)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(template.name)
+                                                .font(.subheadline.weight(.medium))
+                                                .foregroundStyle(.primary)
+                                            Text(template.detail)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                Button(role: .destructive) {
+                                    templateStore.remove(id: template.id)
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.red)
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                        }
+                    } header: {
+                        Text(L10n.t("My templates"))
+                    } footer: {
+                        Text(L10n.t("Templates saved from compose projects. Tap to edit and deploy, swipe or tap trash to remove."))
+                    }
                 }
             }
             .listStyle(.insetGrouped)

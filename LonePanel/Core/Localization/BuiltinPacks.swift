@@ -833,6 +833,15 @@ enum BuiltinPacks {
         d["The original container had a health check; it is not restored by the form."] = "原容器配置了健康检查，表单不会还原它。"
         d["Unknown"] = "未知"
         d["Compose file content"] = "Compose 文件内容"
+        d["Untitled template"] = "未命名模板"
+        d["Saved from a compose project"] = "从编排项目保存"
+        d["My templates"] = "我的模板"
+        d["Templates saved from compose projects. Tap to edit and deploy, swipe or tap trash to remove."] = "从编排项目保存的模板。点按可编辑并部署，点垃圾桶图标可删除。"
+        d["Save as template"] = "保存为模板"
+        d["Template name"] = "模板名称"
+        d["Save this compose configuration as a reusable template. Find it under Compose templates."] = "将当前编排配置保存为可复用模板，可在「编排模板」里找到它。"
+        d["Saved"] = "已保存"
+        d["Template saved. Open Compose templates to use it."] = "模板已保存，打开「编排模板」即可使用。"
         return d
     }()
 }

@@ -337,7 +337,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 2. **新增一个可插拔模块**：建 `<Name>/<Name>Tab.swift`（导出 `TabModule`）+ View；在 `TabRegistry.modules` 加一行；如需开关，`ModuleID` 加 case（`isCore=false`）；如需设置项，填 `settingsSection`。删模块反过来即可。
 3. **加悬浮终端的宿主模块**：在模块 TabModule 里设 `showsFloatingTerminal: true`。
 4. **改终端行为**：动 `TerminalSession` / `TerminalView` 前，先读 6.1 与踩坑表；终端是底座，任何"模块级终端开关"都不能加。
-5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前基线 t1.92.0）。
+5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前基线 t1.93.0）。
 
 ### 当前待办 / 方向（供参考）
 
@@ -347,7 +347,17 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 
 ---
 
-*最后更新：2026-11-28，基线 t1.92.0。文档随版本演进同步更新。*
+*最后更新：2026-11-28，基线 t1.93.0。文档随版本演进同步更新。*
+
+### t1.93.0 编辑浮层关闭箭头 + 保存为编排模板
+
+- **编辑浮层右上角关闭箭头**：`ComposeProjectDetailView` 里 sheet 承载的 `ComposeEditorView` 之前没被 NavigationStack 包裹，navigationTitle 与 toolbar 都不显示（截图里只看到 Form 的 section header，右上角空白）。**正解：sheet 内用 `NavigationStack` 包一层 + 右上角 `DismissChevronButton`（chevron.down）**。`ComposeEditorView` 在 push 场景由外层提供 NavigationStack，此改动只动 sheet 调用处，不影响模板/容器转编排两条 push 流程。
+- **保存为编排模板（用户拍板：按钮放编排详情页，模板并入现有编排模板列表）**：
+  - `ComposeTemplate` 加 `Codable` + `isCustom` 字段 + 自定义 init（内置模板 isCustom=false）。
+  - 新建 `ComposeTemplateStore`（放 `ComposeTemplateView.swift` 同文件，免改 pbxproj）：`@Published customTemplates`，UserDefaults 持久化，同名覆盖（先删后插），保存/删除/加载。**模板是配置文本跟 App 本地走，不跟服务器走。**
+  - 编排详情页 yml Section 加「保存为模板」（`doc.badge.plus`），弹 alert 命名（预填项目名），存当前 yml；保存成功 alert 确认。
+  - `ComposeTemplateView` 加「我的模板」Section：点条目 push `ComposeEditorView` 编辑部署（复用现有导航），垃圾桶按钮删除。内置模板分区不变。
+- **本地化**：新增 9 key（Untitled template / Saved from a compose project / My templates / Save as template / Template name / Saved / 三条长句），BuiltinPacks + xcstrings 双补；重复 key 检查通过（仅历史 `OK`）。
 
 ### t1.92.0 重建入口按容器来源分流：可视化表单复活（只对非编排容器）
 

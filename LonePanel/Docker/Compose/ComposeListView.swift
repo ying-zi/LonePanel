@@ -166,6 +166,11 @@ struct ComposeProjectDetailView: View {
     @State private var loadError: String?
     /// 就地编辑 yml：sheet 模态覆盖，不往导航栈再压一层。
     @State private var showEditor = false
+    /// 保存为模板：命名弹窗。
+    @State private var showSaveTemplate = false
+    @State private var templateName = ""
+    @State private var templateSaved = false
+    private let templateStore = ComposeTemplateStore.shared
 
     var body: some View {
         List {
@@ -272,6 +277,13 @@ struct ComposeProjectDetailView: View {
                     Label(L10n.t("Edit compose file"), systemImage: "square.and.pencil")
                 }
                 .disabled(project.primaryConfigFile.isEmpty)
+                Button {
+                    templateName = project.name
+                    showSaveTemplate = true
+                } label: {
+                    Label(L10n.t("Save as template"), systemImage: "doc.badge.plus")
+                }
+                .disabled(yaml.isEmpty)
             } header: {
                 Text(L10n.t("Compose file content"))
             } footer: {
@@ -284,16 +296,41 @@ struct ComposeProjectDetailView: View {
         // 就地编辑：复用通用编辑器，existingConfigPath 模式覆盖原文件并 up -d（不删容器）。
         // 部署成功后重新载入本页，展示最新 yml 与服务状态；不广播 composeDeployed，避免弹走本页。
         .sheet(isPresented: $showEditor) {
-            ComposeEditorView(
-                title: L10n.t("Edit compose file"),
-                projectName: project.name,
-                yaml: yaml,
-                existingConfigPath: project.primaryConfigFile,
-                onDeployed: {
-                    showEditor = false   // 关掉编辑 sheet，回到详情页
-                    await load()          // 展示最新 yml 与服务状态
+            // 用 NavigationStack 包裹：编辑浮层需要标题栏承载右上角关闭箭头。
+            // ComposeEditorView 在 push 场景由外层提供 NavigationStack，此处 sheet 需自带。
+            NavigationStack {
+                ComposeEditorView(
+                    title: L10n.t("Edit compose file"),
+                    projectName: project.name,
+                    yaml: yaml,
+                    existingConfigPath: project.primaryConfigFile,
+                    onDeployed: {
+                        showEditor = false   // 关掉编辑 sheet，回到详情页
+                        await load()          // 展示最新 yml 与服务状态
+                    }
+                )
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        DismissChevronButton()
+                    }
                 }
-            )
+            }
+        }
+        // 保存为模板：弹窗命名，把当前 yml 存入用户模板列表（与内置模板并列）。
+        .alert(L10n.t("Save as template"), isPresented: $showSaveTemplate) {
+            TextField(L10n.t("Template name"), text: $templateName)
+            Button(L10n.t("Cancel"), role: .cancel) {}
+            Button(L10n.t("Save")) {
+                templateStore.save(name: templateName, yaml: yaml)
+                templateSaved = true
+            }
+        } message: {
+            Text(L10n.t("Save this compose configuration as a reusable template. Find it under Compose templates."))
+        }
+        .alert(L10n.t("Saved"), isPresented: $templateSaved) {
+            Button(L10n.t("OK"), role: .cancel) {}
+        } message: {
+            Text(L10n.t("Template saved. Open Compose templates to use it."))
         }
         // 切服 / 容器变更：本页数据属于旧服务器或已过期，pop 回列表让列表自己刷新。
         .onReceive(AppEventBus.shared.serverChanges()) { _ in dismiss() }

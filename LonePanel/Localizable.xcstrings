@@ -3560,6 +3560,96 @@
           }
         }
       }
+    },
+    "未命名模板": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Untitled template"
+          }
+        }
+      }
+    },
+    "从编排项目保存": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved from a compose project"
+          }
+        }
+      }
+    },
+    "我的模板": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My templates"
+          }
+        }
+      }
+    },
+    "保存为模板": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save as template"
+          }
+        }
+      }
+    },
+    "模板名称": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Template name"
+          }
+        }
+      }
+    },
+    "已保存": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved"
+          }
+        }
+      }
+    },
+    "从编排项目保存的模板。点按可编辑并部署，点垃圾桶图标可删除。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Templates saved from compose projects. Tap to edit and deploy, swipe or tap trash to remove."
+          }
+        }
+      }
+    },
+    "将当前编排配置保存为可复用模板，可在「编排模板」里找到它。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save this compose configuration as a reusable template. Find it under Compose templates."
+          }
+        }
+      }
+    },
+    "模板已保存，打开「编排模板」即可使用。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Template saved. Open Compose templates to use it."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
