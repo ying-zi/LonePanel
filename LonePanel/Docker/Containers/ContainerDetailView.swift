@@ -1,6 +1,8 @@
 import SwiftUI
 
-/// 容器详情页：四按钮操作区 + 基本信息 + 端口/卷/网络 + 日志/终端入口。
+/// 容器详情页：按状态收敛的操作区 + 基本信息 + 端口/卷/网络 + 日志/终端/转编排入口。
+/// 编辑配置不在此页做——改配置一律去「编排」详情页改 yml 再 up（真相来源是 yml，
+/// 非编排容器原地重建既脱离编排又会被下次 up 覆盖）。底层重建能力保留但不再暴露入口。
 struct ContainerDetailView: View {
     let container: DockerContainer
     @ObservedObject var model: ContainerListModel
