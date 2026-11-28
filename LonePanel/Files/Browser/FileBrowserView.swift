@@ -738,10 +738,10 @@ private struct DirectoryPage: View {
     private var currentLevel: Int { navPath.count }
 
     /// 跳到指定层级：截断 navPath 到该深度。idx=0（栈底）即清空导航栈。
+    /// 不碰剪贴板：与系统返回箭头行为一致（复制文件后跳层级仍可粘贴）。
     private func jumpToLevel(_ idx: Int) {
         guard idx < navPath.count else { return }
         navPath = Array(navPath.prefix(idx))
-        model.clearClipboard()
     }
 
     private var moreMenu: some View {
@@ -798,12 +798,13 @@ private struct DirectoryPage: View {
                     }
                 }
                 Divider()
+                // 与菜单其他项一致：文案表达"点它之后"的动作。当前升序 → 点它切降序。
                 Button {
                     model.sortAscending.toggle()
                     Task { await load() }
                 } label: {
-                    Label(model.sortAscending ? L10n.t("Ascending") : L10n.t("Descending"),
-                          systemImage: model.sortAscending ? "arrow.up" : "arrow.down")
+                    Label(model.sortAscending ? L10n.t("Descending") : L10n.t("Ascending"),
+                          systemImage: model.sortAscending ? "arrow.down" : "arrow.up")
                 }
             } label: {
                 Label(L10n.t("Sort By"), systemImage: "arrow.up.arrow.down")
@@ -825,7 +826,11 @@ private struct DirectoryPage: View {
             Button {
                 model.setAsDefaultDirectory(node.path)
             } label: {
-                Label(L10n.t("Set as Default Directory"), systemImage: "folder.badge.gearshape")
+                // 调用态只读偏好，此操作仅归位、不改全局默认目录，文案如实区分。
+                Label(model.isCallInstance
+                      ? L10n.t("Go to This Directory")
+                      : L10n.t("Set as Default Directory"),
+                      systemImage: "folder.badge.gearshape")
             }
             Button {
                 Task { await model.reconnect(); await load() }
@@ -933,7 +938,7 @@ private struct DirectoryPage: View {
             // 归档/未知类型系统无法在线预览：记录待分享文件，先弹提示，
             // 用户确认后再下载并打开系统分享面板，避免提示与分享面板同时弹出。
             pendingNoticeFile = file
-            previewNotice = "\"\(file.name)\" cannot be previewed online. It will be downloaded and opened in the Share sheet."
+            previewNotice = L10n.f("\"%@\" cannot be previewed online. It will be downloaded and opened in the Share sheet.", String(describing: (file.name)))
             return
         }
         Task { if let url = await model.localURL(for: file, purpose: "preview") { previewURL = url } }

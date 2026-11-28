@@ -225,7 +225,7 @@ struct ContainerListView: View {
                     if container.state == .running {
                         Button {
                             Task { await runQuickAction { await model.service.stopContainer(container.id) } }
-                        } label: { Label(L10n.t("Stop"), systemImage: "pause.fill") }
+                        } label: { Label(L10n.t("Stop"), systemImage: "stop.fill") }
                     }
                     if container.state == .paused {
                         Button {

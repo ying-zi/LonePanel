@@ -206,7 +206,8 @@ private struct CreateNetworkView: View {
                     TextField(L10n.t("Network name"), text: $name)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                     Picker(L10n.t("Driver"), selection: $driver) {
-                        ForEach(["bridge", "overlay", "macvlan", "ipvlan", "host", "none"], id: \.self) {
+                        // host/none 是 Docker 预定义网络，不能通过 network create 创建，故不提供。
+                        ForEach(["bridge", "overlay", "macvlan", "ipvlan"], id: \.self) {
                             Text($0).tag($0)
                         }
                     }

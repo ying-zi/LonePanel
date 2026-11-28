@@ -128,6 +128,19 @@ struct ServerFormView: View {
             errorMessage = L10n.t("Enter name, address and port")
             return false
         }
+        // 新增服务器必须给凭证，否则会存下一台永远连不上的服务器。
+        // 编辑时凭证框留空表示沿用钥匙串里的原值，不强制重填。
+        if server == nil {
+            let hasCredential = authKind == .password
+                ? !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                : !privateKeyPEM.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            guard hasCredential else {
+                errorMessage = authKind == .password
+                    ? L10n.t("Enter password")
+                    : L10n.t("Enter private key")
+                return false
+            }
+        }
         return true
     }
 

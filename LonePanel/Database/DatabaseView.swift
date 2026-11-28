@@ -90,15 +90,6 @@ struct LocalDatabaseListView: View {
                 Text(L10n.t("Commands run directly inside the container with no port mapping; credentials are read from container environment variables."))
             }
         }
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button { Task { await discover() } } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .disabled(isDiscovering)
-                .help(L10n.t("Rediscover container databases"))
-            }
-        }
         .refreshable { await discover() }
         .task { await discover() }
     }
@@ -121,6 +112,7 @@ struct LocalDatabaseListView: View {
 struct RemoteDatabaseListView: View {
     @ObservedObject var store: DatabaseConnectionStore
     @State private var showEditor = false
+    @State private var pendingDelete: DatabaseConnection?
 
     var body: some View {
         List {
@@ -142,7 +134,7 @@ struct RemoteDatabaseListView: View {
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
-                                withAnimation { store.delete(conn) }
+                                pendingDelete = conn
                             } label: {
                                 Label(L10n.t("Delete"), systemImage: "trash")
                             }
@@ -166,6 +158,20 @@ struct RemoteDatabaseListView: View {
         }
         .sheet(isPresented: $showEditor) {
             ConnectionEditorView(conn: nil, store: store)
+        }
+        .alert(L10n.t("Delete connection?"), isPresented: Binding(
+            get: { pendingDelete != nil },
+            set: { if !$0 { pendingDelete = nil } }
+        )) {
+            Button(L10n.t("Cancel"), role: .cancel) { pendingDelete = nil }
+            Button(L10n.t("Delete"), role: .destructive) {
+                if let conn = pendingDelete {
+                    withAnimation { store.delete(conn) }
+                    pendingDelete = nil
+                }
+            }
+        } message: {
+            Text(L10n.f("Delete connection \"%@\"? Its saved password in Keychain will also be removed. The remote database itself is not affected.", String(describing: (pendingDelete?.name ?? ""))))
         }
     }
 }
@@ -692,7 +698,7 @@ private struct DatabaseListSection: View {
             if canCreate {
                 Text(L10n.t("Adding a database also creates a dedicated user granted access to it. Swipe to rename or delete; tap to browse tables and data."))
             } else {
-                Text(L10n.t("Redis uses fixed DB indexes; tap an index to browse / clear keys."))
+                Text(L10n.t("Redis uses fixed DB indexes; tap an index to browse keys. To clear a database, use the Run SQL / command page with FLUSHDB."))
             }
         }
         .task { await load() }
@@ -703,10 +709,14 @@ private struct DatabaseListSection: View {
             }
         }
         .sheet(item: $renaming) { db in
-            DatabaseNameEditor(title: L10n.t("Rename database"),
+            DatabaseNameEditor(title: conn.kind == .postgresql
+                                ? L10n.t("Rename database")
+                                : L10n.t("Migrate and replace database"),
                                name: $renameText,
-                               confirmTitle: L10n.t("Save"),
-                               conn: conn) { name in
+                               confirmTitle: conn.kind == .postgresql ? L10n.t("Save") : L10n.t("Migrate"),
+                               conn: conn,
+                               riskWarning: conn.kind == .postgresql ? nil
+                                : L10n.t("For this database type, renaming creates a new database, moves all tables, then drops the original. Review the confirmation before proceeding.")) { name in
                 await DatabaseService.shared.renameDatabase(conn, from: db.name, to: name)
             } onDone: { message in
                 present(message)
@@ -853,12 +863,15 @@ private struct DatabaseNameEditor: View {
     @Binding var name: String
     let confirmTitle: String
     let conn: DatabaseConnection
+    /// 迁移型重命名（MySQL/MongoDB）的风险提示；非空时提交前必须二次确认。
+    var riskWarning: String? = nil
     let action: (String) async -> Result<String, DatabaseError>
     let onDone: (String) async -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var isRunning = false
     @State private var error: String?
+    @State private var showConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -870,6 +883,12 @@ private struct DatabaseNameEditor: View {
                     Text(L10n.t("Database name"))
                 } footer: {
                     Text(L10n.f("Only letters, digits and underscores, up to 64 characters. %@ will run the corresponding command on the server.", String(describing: (conn.kind.title))))
+                }
+                if let riskWarning {
+                    Section {
+                        Label(riskWarning, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange).font(.caption)
+                    }
                 }
                 if let error {
                     Section {
@@ -886,7 +905,11 @@ private struct DatabaseNameEditor: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(confirmTitle) {
-                        Task { await submit() }
+                        if riskWarning != nil {
+                            showConfirm = true
+                        } else {
+                            Task { await submit() }
+                        }
                     }
                     .fontWeight(.semibold)
                     .disabled(isRunning || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -894,6 +917,14 @@ private struct DatabaseNameEditor: View {
             }
         }
         .presentationDetents([.medium])
+        .alert(L10n.t("Migrate and replace database?"), isPresented: $showConfirm) {
+            Button(L10n.t("Cancel"), role: .cancel) {}
+            Button(L10n.t("Migrate"), role: .destructive) {
+                Task { await submit() }
+            }
+        } message: {
+            Text(L10n.t("This creates a new database, moves all tables, then drops the original. A failure midway can leave data in both databases. This cannot be undone automatically."))
+        }
     }
 
     private func submit() async {
@@ -1674,6 +1705,19 @@ struct QueryView: View {
     @State private var error: String?
     @State private var isRunning = false
     @State private var copied = false
+    @State private var showDangerConfirm = false
+
+    /// 执行前按关键词识别可能改数据的语句。宁可多确认一次，也不静默执行破坏性命令。
+    /// SELECT/SHOW/EXPLAIN/WITH 等只读语句直接放行。
+    private var isDangerousStatement: Bool {
+        let lower = statement.lowercased()
+        let dangerous = ["drop", "delete", "truncate", "alter", "insert", "replace",
+                         "grant", "revoke", "flush", "rename", "create", "update ",
+                         "remove", "clear", "del ", "unlink", "expire", "hset", "hdel",
+                         "sadd", "srem", "lpush", "rpush", "lrem", "zadd", "zrem",
+                         "eval", "shutdown", "config set"]
+        return dangerous.contains { lower.contains($0) }
+    }
 
     private var placeholder: String {
         switch conn.kind {
@@ -1700,7 +1744,11 @@ struct QueryView: View {
                         Button(L10n.t("Clear")) { statement = "" }
                         Spacer()
                         Button {
-                            Task { await runStatement() }
+                            if isDangerousStatement {
+                                showDangerConfirm = true
+                            } else {
+                                Task { await runStatement() }
+                            }
                         } label: {
                             HStack {
                                 if isRunning { ProgressView() }
@@ -1763,6 +1811,14 @@ struct QueryView: View {
                 if statement.isEmpty {
                     statement = initialStatement.isEmpty ? "" : initialStatement
                 }
+            }
+            .alert(L10n.t("Run destructive command?"), isPresented: $showDangerConfirm) {
+                Button(L10n.t("Cancel"), role: .cancel) {}
+                Button(L10n.t("Run anyway"), role: .destructive) {
+                    Task { await runStatement() }
+                }
+            } message: {
+                Text(L10n.t("This command may modify or delete data and cannot be undone. Run it only if you are sure."))
             }
         }
     }

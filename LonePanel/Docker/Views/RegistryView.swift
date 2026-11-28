@@ -18,6 +18,7 @@ struct RegistryView: View {
     @State private var success: String?
     @State private var showGuide = false
     @State private var guideServer = ""
+    @State private var pendingLogout: String?
 
     var body: some View {
         NavigationStack {
@@ -38,7 +39,7 @@ struct RegistryView: View {
                                 Label(item, systemImage: "shippingbox")
                                 Spacer()
                                 Button(role: .destructive) {
-                                    Task { await logout(item) }
+                                    pendingLogout = item
                                 } label: {
                                     Image(systemName: "rectangle.portrait.and.arrow.right")
                                 }
@@ -125,10 +126,7 @@ struct RegistryView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .semibold))
-                    }
+                    DismissChevronButton()
                 }
             }
             .task { await load() }
@@ -136,6 +134,18 @@ struct RegistryView: View {
                 Button(L10n.t("OK"), role: .cancel) {}
             } message: {
                 Text(DockerService.insecureRegistryGuide(server: guideServer))
+            }
+            .alert(L10n.t("Log out of registry?"), isPresented: Binding(
+                get: { pendingLogout != nil },
+                set: { if !$0 { pendingLogout = nil } }
+            )) {
+                Button(L10n.t("Cancel"), role: .cancel) { pendingLogout = nil }
+                Button(L10n.t("Log out"), role: .destructive) {
+                    if let item = pendingLogout { Task { await logout(item) } }
+                    pendingLogout = nil
+                }
+            } message: {
+                Text(L10n.f("Remove the saved login for \"%@\" from this server? You can log in again anytime.", String(describing: (pendingLogout ?? ""))))
             }
         }
     }

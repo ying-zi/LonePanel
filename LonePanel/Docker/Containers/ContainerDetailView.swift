@@ -99,17 +99,22 @@ struct ContainerDetailView: View {
                     }
                     .disabled(isPreparingEdit)
                 }
-                Button {
-                    Task { await prepareCompose() }
-                } label: {
-                    Label(L10n.t("Create compose template from this container"), systemImage: "square.stack.3d.up.badge.plus")
+                // 把非编排容器纳入编排：反向生成草稿并部署成新项目。编排容器本身已在编排里，无需此项。
+                if !container.isComposeManaged {
+                    Button {
+                        Task { await prepareCompose() }
+                    } label: {
+                        Label(L10n.t("Create compose project from this container"), systemImage: "square.stack.3d.up.badge.plus")
+                    }
+                    .disabled(isPreparingCompose)
                 }
-                .disabled(isPreparingCompose)
             } footer: {
                 if container.state == .paused {
                     Text(L10n.t("Container is paused; docker exec is unavailable. Resume it to connect a terminal. Logs still show past output."))
                 } else if container.state == .stopped {
                     Text(L10n.t("Container is stopped; start it to connect a terminal. Logs still show past output."))
+                } else if !container.isComposeManaged {
+                    Text(L10n.t("Create compose project creates a new project and container; the original stays untouched. Adjust port conflicts before deploying."))
                 }
             }
 
@@ -262,7 +267,7 @@ struct ContainerDetailView: View {
         // 独立任务：push 编排编辑器。草稿已生成好，编辑器只负责编辑 + 部署。
         .navigationDestination(item: $composeDraft) { draft in
             ComposeEditorView(
-                title: L10n.t("New compose template"),
+                title: L10n.t("New compose project"),
                 projectName: draft.projectName,
                 yaml: draft.yaml,
                 warnings: draft.warnings,

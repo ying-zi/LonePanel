@@ -198,7 +198,7 @@ struct DockerView: View {
                         Image(systemName: "ladybug")
                             .font(.largeTitle)
                             .foregroundStyle(.tertiary)
-                        Text(L10n.t("No command records yet. Open the Containers or Images tab to refresh once."))
+                        Text(L10n.t("No command records yet. Open the Containers or Images section to refresh once."))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)

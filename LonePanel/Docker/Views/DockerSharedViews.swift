@@ -208,6 +208,7 @@ struct ContainerActionsBar: View {
     let onLogs: () -> Void
     let onMore: () -> Void
     @State private var acting = false
+    @State private var actionError: String?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -215,7 +216,10 @@ struct ContainerActionsBar: View {
                 Task {
                     acting = true
                     defer { acting = false }
-                    _ = await model.primaryAction(for: container)
+                    let result = await model.primaryAction(for: container)
+                    if case .failure(let error) = result {
+                        actionError = error.localizedDescription
+                    }
                     await model.refresh()
                 }
             } label: {
@@ -250,11 +254,19 @@ struct ContainerActionsBar: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
+        .alert(L10n.t("Operation failed"), isPresented: Binding(
+            get: { actionError != nil },
+            set: { if !$0 { actionError = nil } }
+        )) {
+            Button(L10n.t("OK"), role: .cancel) {}
+        } message: {
+            Text(actionError ?? "")
+        }
     }
 
     private var primaryIcon: String {
         switch container.state {
-        case .running: return "pause.fill"
+        case .running: return "stop.fill"
         case .paused: return "play.fill"
         case .stopped: return "play.fill"
         }

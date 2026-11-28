@@ -3690,6 +3690,276 @@
           }
         }
       }
+    },
+    "\"%@\" 无法在线预览，将下载后打开系统分享面板。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"%@\" cannot be previewed online. It will be downloaded and opened in the Share sheet."
+          }
+        }
+      }
+    },
+    "%@ 失败：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ failed: %@"
+          }
+        }
+      }
+    },
+    "%@ 失败：服务器拒绝了该操作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ failed: server refused the operation"
+          }
+        }
+      }
+    },
+    "已存在 id 为「%@」的语言包。导入将替换它及已保存的译文。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A language pack with id \"%@\" already exists. Importing will replace it and its saved translations."
+          }
+        }
+      }
+    },
+    "「以此容器新建编排项目」会创建新项目和容器，原容器保持不变。部署前请先调整端口冲突。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create compose project creates a new project and container; the original stays untouched. Adjust port conflicts before deploying."
+          }
+        }
+      }
+    },
+    "以此容器新建编排项目": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create compose project from this container"
+          }
+        }
+      }
+    },
+    "确定删除连接「%@」吗？钥匙串中保存的密码也会一并移除，远程数据库本身不受影响。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete connection \"%@\"? Its saved password in Keychain will also be removed. The remote database itself is not affected."
+          }
+        }
+      }
+    },
+    "删除连接？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete connection?"
+          }
+        }
+      }
+    },
+    "对此类数据库，重命名会新建库、迁移所有表后删除原库。请在下一步确认中仔细核对。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For this database type, renaming creates a new database, moves all tables, then drops the original. Review the confirmation before proceeding."
+          }
+        }
+      }
+    },
+    "前往此目录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to This Directory"
+          }
+        }
+      }
+    },
+    "退出登录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log out"
+          }
+        }
+      }
+    },
+    "退出仓库登录？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log out of registry?"
+          }
+        }
+      }
+    },
+    "迁移": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Migrate"
+          }
+        }
+      }
+    },
+    "迁移并替换数据库": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Migrate and replace database"
+          }
+        }
+      }
+    },
+    "迁移并替换数据库？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Migrate and replace database?"
+          }
+        }
+      }
+    },
+    "新建编排项目": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New compose project"
+          }
+        }
+      }
+    },
+    "还没有命令记录。打开「容器」或「镜像」分区刷新一次即可。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No command records yet. Open the Containers or Images section to refresh once."
+          }
+        }
+      }
+    },
+    "打开终端；可拖动调整位置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open terminal; drag to move its position"
+          }
+        }
+      }
+    },
+    "覆盖": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overwrite"
+          }
+        }
+      }
+    },
+    "覆盖语言包？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overwrite Language Pack?"
+          }
+        }
+      }
+    },
+    "Redis 使用固定的数据库索引；点按索引可浏览键。若要清空某个库，请在「运行 SQL / 命令」页执行 FLUSHDB。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redis uses fixed DB indexes; tap an index to browse keys. To clear a database, use the Run SQL / command page with FLUSHDB."
+          }
+        }
+      }
+    },
+    "移除本机保存的「%@」登录信息？随时可以重新登录。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove the saved login for \"%@\" from this server? You can log in again anytime."
+          }
+        }
+      }
+    },
+    "仍然运行": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run anyway"
+          }
+        }
+      }
+    },
+    "运行破坏性命令？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run destructive command?"
+          }
+        }
+      }
+    },
+    "此命令可能修改或删除数据，且不可撤销。确认无误后再运行。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This command may modify or delete data and cannot be undone. Run it only if you are sure."
+          }
+        }
+      }
+    },
+    "此操作会新建库、迁移所有表后删除原库。中途失败可能导致两个库中都残留数据，且无法自动回滚。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This creates a new database, moves all tables, then drops the original. A failure midway can leave data in both databases. This cannot be undone automatically."
+          }
+        }
+      }
+    },
+    "该语言包当前正在生效，将从本机移除，App 会切回英文。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This language pack is currently active and will be removed from this device. The App will switch back to English."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

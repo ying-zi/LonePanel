@@ -9,6 +9,8 @@ struct LanguageSettingsView: View {
     @State private var showImporter = false
     @State private var importError: String?
     @State private var confirmRemoveID: String?
+    /// 待确认覆盖的同 id 语言包（导入时命中已有包才有值）。
+    @State private var pendingImportPack: LanguagePack?
 
     var body: some View {
         List {
@@ -106,8 +108,14 @@ struct LanguageSettingsView: View {
         .sheet(isPresented: $showImporter) {
             DocumentPicker { data in
                 do {
-                    let pack = try store.importPack(data: data)
-                    store.select(pack.id)
+                    // 先解码看 id：命中已有自定义包时先确认覆盖，避免静默替换用户的翻译。
+                    let pack = try LanguagePack.decode(from: data)
+                    if store.customPacks.contains(where: { $0.id == pack.id }) {
+                        pendingImportPack = pack
+                    } else {
+                        let imported = try store.importPack(data: data)
+                        store.select(imported.id)
+                    }
                 } catch {
                     importError = error.localizedDescription
                 }
@@ -130,7 +138,25 @@ struct LanguageSettingsView: View {
                 if let id = confirmRemoveID { store.removePack(id: id) }
             }
         } message: {
-            Text(L10n.t("This language pack will be removed from this device."))
+            if confirmRemoveID == store.currentID {
+                Text(L10n.t("This language pack is currently active and will be removed from this device. The App will switch back to English."))
+            } else {
+                Text(L10n.t("This language pack will be removed from this device."))
+            }
+        }
+        .alert(L10n.t("Overwrite Language Pack?"), isPresented: Binding(
+            get: { pendingImportPack != nil }, set: { if !$0 { pendingImportPack = nil } }
+        )) {
+            Button(L10n.t("Cancel"), role: .cancel) { pendingImportPack = nil }
+            Button(L10n.t("Overwrite"), role: .destructive) {
+                if let pack = pendingImportPack {
+                    _ = try? store.importPack(data: try JSONEncoder().encode(pack))
+                    store.select(pack.id)
+                    pendingImportPack = nil
+                }
+            }
+        } message: {
+            Text(L10n.f("A language pack with id \"%@\" already exists. Importing will replace it and its saved translations.", String(describing: (pendingImportPack?.id ?? ""))))
         }
     }
 }

@@ -230,7 +230,7 @@ struct ContentView: View {
             .offset(x: fabRenderOffset.width, y: fabRenderOffset.height)
             .padding(.trailing, 20)
             .padding(.bottom, fabBottomPadding)
-            .accessibilityLabel(L10n.t("Open terminal; long press to drag its position"))
+            .accessibilityLabel(L10n.t("Open terminal; drag to move its position"))
             .transition(.scale.combined(with: .opacity))
             // 注意：这两个 animation 不能挂到 offset 上。拖动中 offset 由 fabRenderOffset 驱动，
             // 若带动画会逐帧追赶造成抖动；动画只在出现/隐藏与状态色变化时使用。

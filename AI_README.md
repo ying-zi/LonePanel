@@ -191,7 +191,7 @@ ModuleCall
 ### 6.7 多语言机制（t1.66 新增，接手必读）
 
 - **源语言 = 英文**：源码里所有 UI 字符串字面量已改为英文；显示点包 `L10n.t("English")`（`Core/Localization/L10n.swift`）。纯文案走查表，含插值的动态串保留 `\(...)` 结构直接写英文模板（**不能包 L10n.t**，插值在编译期求值成动态值，当 key 查不到）。
-- **内核** `Core/Localization/LocalizationStore.swift`：单例，查表（key=英文，value=当前语言译文，查不到回退英文）、切换、导入导出、iCloud 降级。`revision` 驱动 `ContentView` 根 `.id()`，切语言立即重建生效。
+- **内核** `Core/Localization/LocalizationStore.swift`：单例，查表（key=英文，value=当前语言译文，查不到回退英文）、切换、导入导出、iCloud 降级。**切换即时生效**（t1.74 恢复）：`currentID` 即查表 key，切时当前包身份一变，所有 `L10n.t` 下一帧读新译文；`scheduleBump()` 只把 `revision` 下一 runloop 自增作轻量刷新信号，**不用 `.id()` 重建视图树**（t1.71/t1.72 曾因重建触发字典懒初始化重复 key 崩溃，已根治）。
 - **内置包** `BuiltinPacks.swift`：英文包 identity（key 即 value），中文包 `[英文:中文]` 约 500 条。新增文案务必同步补中文包，否则中文环境显示英文（自查项）。
 - **用户包（Telegram 式）**：JSON 结构 `{id,name,version,strings:{英文:译文}}`。设置→语言 可导入/导出/删除。导出英文模板 = 让用户自己翻译成任意语言再导回。自定义包 id 不能是 `en`/`zh-Hans`。
 - **iCloud 优雅降级**：偏好（当前语言）走 `NSUbiquitousKeyValueStore`，自定义包镜像到 iCloud Drive 容器。侧载/免费签（Personal Team 无 iCloud capability）时 `ubiquityIdentityToken=nil`，全部自动退回本地 Documents/UserDefaults，**绝不崩溃**。上架（付费账号 + capability）后自动生效，无需改代码。
@@ -337,7 +337,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 2. **新增一个可插拔模块**：建 `<Name>/<Name>Tab.swift`（导出 `TabModule`）+ View；在 `TabRegistry.modules` 加一行；如需开关，`ModuleID` 加 case（`isCore=false`）；如需设置项，填 `settingsSection`。删模块反过来即可。
 3. **加悬浮终端的宿主模块**：在模块 TabModule 里设 `showsFloatingTerminal: true`。
 4. **改终端行为**：动 `TerminalSession` / `TerminalView` 前，先读 6.1 与踩坑表；终端是底座，任何"模块级终端开关"都不能加。
-5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前基线 t1.94.0）。
+5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前基线 t1.95.0）。
 
 ### 当前待办 / 方向（供参考）
 
@@ -347,7 +347,17 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 
 ---
 
-*最后更新：2026-11-28，基线 t1.94.0。文档随版本演进同步更新。*
+### t1.95.0 上架 App Store 标准：全 App 交互审计修复 + 翻译模板体检
+
+- **背景**：用户要求以"上架 App Store"标准逐按钮检查全 App（逻辑自洽 / 表述正确 / 位置合理），并"全修"，外加翻译模板体检。分 5 模块并行审计 + 主 Agent 亲自复核关键争议点（排除 2 处误报），共修 18 项。
+- **高危（数据不可逆）**：① `QueryView` 执行任意 SQL/命令前按关键词判定破坏性语句（DROP/DELETE/TRUNCATE/FLUSHDB 等），命中弹不可撤销确认——此前完全无确认；② 数据库"重命名"实为建新库+迁移表+DROP 旧库（MySQL/MongoDB），文案改「迁移并替换数据库」+ 风险警告 + 二次确认（PostgreSQL 原子 ALTER 保持原名）。
+- **中危**：容器详情页「从该容器创建编排模板」正名为「以此容器新建编排项目」（它实为克隆成新项目并部署、不进模板库），且只对非编排容器显示、加端口冲突脚注；卡片主操作失败不再吞掉（统一错误 alert）；网络创建 Driver 去掉 `host`/`none`（Docker 预定义网络不可 create）；连接删除/仓库退出登录加二次确认（如实告知删 Keychain 密码）；Redis 索引文案改为如实描述（清空走 FLUSHDB）；新增服务器强制校验凭证（否则存下连不上的服务器）；文件排序菜单文案统一为"点击后动作"；调用态"设为默认目录"按实际能力文案区分；跳层级不再清剪贴板（与系统返回一致）；预览失败提示本地化。
+- **低危**：Stop 图标统一 `stop.fill`（原 pause.fill）；Registry 关闭浮层由 ✕ 改 ⌄；诊断空态 "tab"→"分区"；FAB 无障碍文案 "long press"→"drag"；**终端工具栏（字号 Aa/重连/收起/齿轮）经评估保留**——均为高频核心操作、注释详实、收进 ⋯ 反降效，符合"工具类 App 打开即干活"。
+- **语言机制文档纠偏**：t1.71 历史条目（重启后生效）不动——它是真实版本演进；但架构节错误描述"`revision` 驱动根 `.id()` 重建"已改为当前实际机制（即时生效、`scheduleBump` 仅轻量信号、不用 `.id()` 重建）。语言包导入同 id 弹覆盖确认、删除当前生效包告知回退英文。
+- **翻译模板体检**：精确扫描全库 779 个 L10n key（还原 Swift `\"` 转义后比对），补齐 27 个缺失译文（含 3 个历史遗留 + 24 个本轮新增），BuiltinPacks 与 xcstrings 双写；重复 key 仅历史 `OK`（无碍）。**导出模板取 `BuiltinPacks.zhHans.keys` 全量，新 key 自动纳入。**
+- **一条铁律**：危险操作（SQL 执行、迁移型重命名、删连接/凭证、覆盖率）必须二次确认且如实告知后果；失败不能静默吞掉；"模板"一词专属模板库，从容器生成的是"编排项目"不是模板。
+
+*最后更新：2026-11-28，基线 t1.95.0。文档随版本演进同步更新。*
 
 ### t1.94.0 保存为模板改为「快照」：展开变量成实值
 
