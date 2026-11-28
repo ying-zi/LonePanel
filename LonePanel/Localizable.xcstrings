@@ -3960,6 +3960,56 @@
           }
         }
       }
+    },
+    "从已有容器创建模板": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create template from container"
+          }
+        }
+      }
+    },
+    "仅列出非编排创建的容器。编排容器请在编排项目详情页保存为模板。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only containers not created by Compose are listed. For Compose containers, save a template from the project detail page instead."
+          }
+        }
+      }
+    },
+    "没有找到非编排创建的容器。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No containers not created by Compose were found."
+          }
+        }
+      }
+    },
+    "从容器生成": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved from a container"
+          }
+        }
+      }
+    },
+    "模板保存在本机，可在「我的模板」中找到。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The template is saved on this device and can be found under My templates."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

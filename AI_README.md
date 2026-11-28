@@ -337,7 +337,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 2. **新增一个可插拔模块**：建 `<Name>/<Name>Tab.swift`（导出 `TabModule`）+ View；在 `TabRegistry.modules` 加一行；如需开关，`ModuleID` 加 case（`isCore=false`）；如需设置项，填 `settingsSection`。删模块反过来即可。
 3. **加悬浮终端的宿主模块**：在模块 TabModule 里设 `showsFloatingTerminal: true`。
 4. **改终端行为**：动 `TerminalSession` / `TerminalView` 前，先读 6.1 与踩坑表；终端是底座，任何"模块级终端开关"都不能加。
-5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前基线 t1.95.0）。
+5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前基线 t1.96.0）。
 
 ### 当前待办 / 方向（供参考）
 
@@ -357,7 +357,12 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 - **翻译模板体检**：精确扫描全库 779 个 L10n key（还原 Swift `\"` 转义后比对），补齐 27 个缺失译文（含 3 个历史遗留 + 24 个本轮新增），BuiltinPacks 与 xcstrings 双写；重复 key 仅历史 `OK`（无碍）。**导出模板取 `BuiltinPacks.zhHans.keys` 全量，新 key 自动纳入。**
 - **一条铁律**：危险操作（SQL 执行、迁移型重命名、删连接/凭证、覆盖率）必须二次确认且如实告知后果；失败不能静默吞掉；"模板"一词专属模板库，从容器生成的是"编排项目"不是模板。
 
-*最后更新：2026-11-28，基线 t1.95.0。文档随版本演进同步更新。*
+### t1.96.0 从容器创建模板统一到编排模板页
+- **入口收敛**：容器详情页移除「以此容器新建编排项目」（连同 `composeDraft`/`prepareCompose`/`navigationDestination`），避免与「重建容器」两个菜单并列困扰。底层 `generateComposeDraft` 能力保留（关入口不关能力）。
+- **新入口**：Docker 右上 ⋯ →「编排模板」页新增「从已有容器创建模板」→ 容器选择页（**只列非编排容器**：`!isComposeManaged`）→ 选中反向生成草稿 → 保存页（可改模板名/编辑 yml/看 warnings）→ 存入 `ComposeTemplateStore`「我的模板」。
+- **边界铁律补充**：编排容器已有 yml，存模板走编排详情页 `docker compose config` 快照（质量高、变量已展开）；非编排容器没有 yml，反向生成是唯一途径。两条路径互斥，不在同一列表里重复列编排容器。`ComposeTemplateStore.save` 增加可选 `detail`/`symbol` 参数以标注来源。
+
+*最后更新：2026-11-28，基线 t1.96.0。文档随版本演进同步更新。*
 
 ### t1.94.0 保存为模板改为「快照」：展开变量成实值
 

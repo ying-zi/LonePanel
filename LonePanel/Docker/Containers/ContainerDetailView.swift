@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// 容器详情页：按状态收敛的操作区 + 基本信息 + 端口/卷/网络 + 日志/终端/转编排入口。
+/// 容器详情页：按状态收敛的操作区 + 基本信息 + 端口/卷/网络 + 日志/终端入口。
 /// 改配置的入口按容器来源分流：
 /// - 编排创建的容器（有 com.docker.compose.project 标签）：不提供重建编辑——真相来源是 yml，
 ///   改配置去「编排」详情页编辑 yml 再 up；在此重建会脱离编排且下次 up 被覆盖。
 /// - 非编排容器（docker run 等）：没有 yml 可改，才提供「重建容器」入口，用可视化表单预填
 ///   当前配置后重建同名容器（重建出来仍是非编排容器，不影响任何 compose 项目）。
+/// 想转为编排：统一去「编排模板」页 →「从已有容器创建模板」，本页不再直接生成编排。
 struct ContainerDetailView: View {
     let container: DockerContainer
     @ObservedObject var model: ContainerListModel
@@ -19,9 +20,6 @@ struct ContainerDetailView: View {
     @State private var terminalSession: TerminalSession?
     @State private var confirmRemove = false
     @State private var confirmKill = false
-    // 容器转编排：独立任务，用 push 而非 sheet（完成后切编排分区，不返回本页）。
-    @State private var composeDraft: ComposeDraft?
-    @State private var isPreparingCompose = false
     // 重建容器（仅非编排容器）：从 inspect 反向生成预填 spec，sheet 承载可视化表单。
     @State private var editSpec: ContainerEditDraft?
     @State private var isPreparingEdit = false
@@ -99,22 +97,11 @@ struct ContainerDetailView: View {
                     }
                     .disabled(isPreparingEdit)
                 }
-                // 把非编排容器纳入编排：反向生成草稿并部署成新项目。编排容器本身已在编排里，无需此项。
-                if !container.isComposeManaged {
-                    Button {
-                        Task { await prepareCompose() }
-                    } label: {
-                        Label(L10n.t("Create compose project from this container"), systemImage: "square.stack.3d.up.badge.plus")
-                    }
-                    .disabled(isPreparingCompose)
-                }
             } footer: {
                 if container.state == .paused {
                     Text(L10n.t("Container is paused; docker exec is unavailable. Resume it to connect a terminal. Logs still show past output."))
                 } else if container.state == .stopped {
                     Text(L10n.t("Container is stopped; start it to connect a terminal. Logs still show past output."))
-                } else if !container.isComposeManaged {
-                    Text(L10n.t("Create compose project creates a new project and container; the original stays untouched. Adjust port conflicts before deploying."))
                 }
             }
 
@@ -263,19 +250,6 @@ struct ContainerDetailView: View {
         }
         .sheet(isPresented: $showLogs) {
             ContainerLogsView(containerID: container.id, containerName: container.name)
-        }
-        // 独立任务：push 编排编辑器。草稿已生成好，编辑器只负责编辑 + 部署。
-        .navigationDestination(item: $composeDraft) { draft in
-            ComposeEditorView(
-                title: L10n.t("New compose project"),
-                projectName: draft.projectName,
-                yaml: draft.yaml,
-                warnings: draft.warnings,
-                onDeployed: {
-                    // 部署成功：广播事件让 DockerView 切编排分区并 pop 掉本页，不返回容器详情。
-                    AppEventBus.shared.emit(.composeDeployed)
-                }
-            )
         }
         .sheet(item: $terminalSession) { session in
             TerminalView(session: session, title: container.name)
@@ -446,19 +420,6 @@ struct ContainerDetailView: View {
             execCommand: command,
             autoReconnect: false
         )
-    }
-
-    /// 从当前容器反向生成编排草稿，成功后 push 编辑器。失败走统一错误出口。
-    private func prepareCompose() async {
-        isPreparingCompose = true
-        defer { isPreparingCompose = false }
-        let result = await model.service.generateComposeDraft(containerID: container.id)
-        switch result {
-        case .success(let draft):
-            composeDraft = draft
-        case .failure(let error):
-            operationError = error.localizedDescription
-        }
     }
 
     /// 从 inspect 反向生成重建表单预填配置。复用详情页已加载的 inspectInfo，

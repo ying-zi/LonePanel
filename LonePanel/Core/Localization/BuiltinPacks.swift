@@ -873,6 +873,12 @@ enum BuiltinPacks {
         d["This command may modify or delete data and cannot be undone. Run it only if you are sure."] = "此命令可能修改或删除数据，且不可撤销。确认无误后再运行。"
         d["This creates a new database, moves all tables, then drops the original. A failure midway can leave data in both databases. This cannot be undone automatically."] = "此操作会新建库、迁移所有表后删除原库。中途失败可能导致两个库中都残留数据，且无法自动回滚。"
         d["This language pack is currently active and will be removed from this device. The App will switch back to English."] = "该语言包当前正在生效，将从本机移除，App 会切回英文。"
+        d["Create template from container"] = "从已有容器创建模板"
+        d["Only containers not created by Compose are listed. For Compose containers, save a template from the project detail page instead."] = "仅列出非编排创建的容器。编排容器请在编排项目详情页保存为模板。"
+        d["No containers not created by Compose were found."] = "没有找到非编排创建的容器。"
+        d["Containers"] = "容器"
+        d["Saved from a container"] = "从容器生成"
+        d["The template is saved on this device and can be found under My templates."] = "模板保存在本机，可在「我的模板」中找到。"
         return d
     }()
 }

@@ -15,14 +15,15 @@ final class ComposeTemplateStore: ObservableObject {
     private init() { load() }
 
     /// 保存 yml 为用户模板。同名覆盖（更新内容），返回保存后的模板。
+    /// detail 可传来源说明（如「从容器生成」），不传则默认来自编排项目。
     @discardableResult
-    func save(name: String, yaml: String) -> ComposeTemplate {
+    func save(name: String, yaml: String, detail: String? = nil, symbol: String = "doc.text") -> ComposeTemplate {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let template = ComposeTemplate(
             id: "custom-\(UUID().uuidString)",
             name: trimmed.isEmpty ? L10n.t("Untitled template") : trimmed,
-            detail: L10n.t("Saved from a compose project"),
-            symbol: "doc.text",
+            detail: detail ?? L10n.t("Saved from a compose project"),
+            symbol: symbol,
             yaml: yaml,
             isCustom: true
         )
@@ -75,6 +76,18 @@ struct ComposeTemplateView: View {
                     Text(L10n.t("Choose a template to start. You can edit the compose content before deploying."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                // 从已有（非编排）容器反向生成模板：补齐「普通容器没有 yml 可存」的缺口。
+                SwiftUI.Section {
+                    Button {
+                        path.append(ComposeContainerPickerRoute())
+                    } label: {
+                        Label(L10n.t("Create template from container"), systemImage: "square.stack.3d.up.badge.plus")
+                    }
+                } footer: {
+                    Text(L10n.t("Only containers not created by Compose are listed. For Compose containers, save a template from the project detail page instead."))
+                        .font(.caption)
                 }
 
                 SwiftUI.Section {
@@ -173,8 +186,189 @@ struct ComposeTemplateView: View {
                     }
                 )
             }
+            // 从已有容器创建模板：先选非编排容器，再进草稿保存页。
+            .navigationDestination(for: ComposeContainerPickerRoute.self) { _ in
+                ComposeContainerPickerView(path: $path)
+            }
+            .navigationDestination(for: ComposeDraft.self) { draft in
+                ComposeDraftSaveView(draft: draft, store: templateStore)
+            }
         }
         .presentationDetents([.large])
+    }
+}
+
+/// 容器选择器入口路由（push 到 ComposeContainerPickerView）。
+private struct ComposeContainerPickerRoute: Hashable {}
+
+/// 从已有非编排容器反向生成模板：列出容器 → 选中 → 生成草稿 → 进保存页。
+/// 只列非编排容器：编排容器已有 yml，去编排详情页存快照质量更高，反向生成反而丢信息。
+private struct ComposeContainerPickerView: View {
+    @Binding var path: NavigationPath
+
+    private let service = DockerService.shared
+    @State private var containers: [DockerContainer] = []
+    @State private var isLoading = true
+    @State private var loadError: String?
+    @State private var selectedID: String?
+    @State private var generateError: String?
+
+    var body: some View {
+        List {
+            Section {
+                Text(L10n.t("Only containers not created by Compose are listed. For Compose containers, save a template from the project detail page instead."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if isLoading {
+                Section { HStack { ProgressView(); Text(L10n.t("Loading containers…")) } }
+            } else if let loadError {
+                Section {
+                    Label(loadError, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red).font(.caption)
+                }
+            } else if containers.isEmpty {
+                Section {
+                    Text(L10n.t("No containers not created by Compose were found."))
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Section {
+                    ForEach(containers) { container in
+                        Button {
+                            Task { await choose(container) }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "cube")
+                                    .font(.title3).foregroundStyle(.tint).frame(width: 28)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(container.name)
+                                        .font(.subheadline.weight(.medium)).foregroundStyle(.primary)
+                                    Text(container.image)
+                                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                                Spacer()
+                                if selectedID == container.id {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption).foregroundStyle(.tertiary)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(selectedID != nil)
+                    }
+                } header: {
+                    Text(L10n.t("Containers"))
+                }
+            }
+            if let generateError {
+                Section {
+                    Label(generateError, systemImage: "xmark.circle.fill")
+                        .foregroundStyle(.red).font(.caption)
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle(L10n.t("Create template from container"))
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await load() }
+    }
+
+    private func load() async {
+        isLoading = true
+        loadError = nil
+        defer { isLoading = false }
+        do {
+            let all = try await service.fetchContainers()
+            containers = all.filter { !$0.isComposeManaged }
+        } catch {
+            loadError = error.localizedDescription
+        }
+    }
+
+    private func choose(_ container: DockerContainer) async {
+        selectedID = container.id
+        generateError = nil
+        defer { selectedID = nil }
+        let result = await service.generateComposeDraft(containerID: container.id)
+        switch result {
+        case .success(let draft):
+            // push 保存页（ComposeDraft 已 Identifiable+Hashable）。
+            path.append(draft)
+        case .failure(let error):
+            generateError = error.localizedDescription
+        }
+    }
+}
+
+/// 草稿保存页：可改模板名 + 预览/编辑 yml + 查看反向还原注意事项，确认后存入「我的模板」。
+private struct ComposeDraftSaveView: View {
+    let draft: ComposeDraft
+    let store: ComposeTemplateStore
+
+    @State private var name: String
+    @State private var yaml: String
+    @Environment(\.dismiss) private var dismiss
+
+    init(draft: ComposeDraft, store: ComposeTemplateStore) {
+        self.draft = draft
+        self.store = store
+        _name = State(initialValue: draft.projectName)
+        _yaml = State(initialValue: draft.yaml)
+    }
+
+    var body: some View {
+        Form {
+            SwiftUI.Section {
+                TextField(L10n.t("Template name"), text: $name)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+            } header: {
+                Text(L10n.t("Template name"))
+            } footer: {
+                Text(L10n.t("The template is saved on this device and can be found under My templates."))
+            }
+
+            SwiftUI.Section {
+                TextEditor(text: $yaml)
+                    .font(.caption2.monospaced())
+                    .frame(minHeight: 260)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            } header: {
+                Text(L10n.t("Compose content (docker-compose.yml)"))
+            }
+
+            if !draft.warnings.isEmpty {
+                SwiftUI.Section {
+                    ForEach(draft.warnings, id: \.self) { warning in
+                        Label(warning, systemImage: "exclamationmark.triangle")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                } header: {
+                    Text(L10n.t("Review notes"))
+                }
+            }
+
+            SwiftUI.Section {
+                Button {
+                    store.save(name: name, yaml: yaml, detail: L10n.t("Saved from a container"))
+                    dismiss()
+                } label: {
+                    HStack {
+                        Spacer()
+                        Label(L10n.t("Save as template"), systemImage: "square.and.arrow.down")
+                        Spacer()
+                    }
+                }
+                .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                          yaml.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .navigationTitle(L10n.t("Save as template"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
