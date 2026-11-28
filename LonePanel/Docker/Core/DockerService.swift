@@ -655,6 +655,29 @@ final class DockerService {
         return .success(text)
     }
 
+    /// 把 Compose 配置展开为「快照」：`docker compose -f <path> -p <name> config`。
+    /// config 会读取项目目录的 .env、把 ${VAR} 展开成当前实际值并输出规范化 yml，
+    /// 用于「保存为模板」——这样模板里是实值，从模板部署即可一键还原当前配置，不必再带 .env。
+    /// 注意：未定义且无默认值的变量会被展开为空串并告警，故快照可能仍有空值，部署前让用户核对。
+    func renderComposeConfig(path: String, project: String) async -> Result<String, DockerError> {
+        let p = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = project.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !p.isEmpty, p.hasPrefix("/"), Self.validResourceName(name) else {
+            return .failure(.commandFailed(message: L10n.t("Invalid compose file or project name")))
+        }
+        let command = "docker compose -f \(ShellQuote.quote(p)) -p \(ShellQuote.quote(name)) config"
+        let result = await run(command, timeout: 30)
+        guard result.exit == 0 else {
+            return .failure(.commandFailed(message: firstError(result, L10n.t("Failed to render compose config"))))
+        }
+        // config 的 yml 走 stdout；空输出视为失败（避免存进空模板）。
+        let text = result.out
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .failure(.commandFailed(message: L10n.t("Failed to render compose config")))
+        }
+        return .success(text)
+    }
+
     /// 更新已有项目的 Compose 文件内容（覆盖原路径），用于详情页「保存并重新部署」。
     func updateComposeFile(path: String, yaml: String) async -> Result<Void, DockerError> {
         let p = path.trimmingCharacters(in: .whitespacesAndNewlines)

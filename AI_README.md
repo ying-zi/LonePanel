@@ -337,7 +337,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 2. **新增一个可插拔模块**：建 `<Name>/<Name>Tab.swift`（导出 `TabModule`）+ View；在 `TabRegistry.modules` 加一行；如需开关，`ModuleID` 加 case（`isCore=false`）；如需设置项，填 `settingsSection`。删模块反过来即可。
 3. **加悬浮终端的宿主模块**：在模块 TabModule 里设 `showsFloatingTerminal: true`。
 4. **改终端行为**：动 `TerminalSession` / `TerminalView` 前，先读 6.1 与踩坑表；终端是底座，任何"模块级终端开关"都不能加。
-5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前基线 t1.93.0）。
+5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前基线 t1.94.0）。
 
 ### 当前待办 / 方向（供参考）
 
@@ -347,7 +347,17 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 
 ---
 
-*最后更新：2026-11-28，基线 t1.93.0。文档随版本演进同步更新。*
+*最后更新：2026-11-28，基线 t1.94.0。文档随版本演进同步更新。*
+
+### t1.94.0 保存为模板改为「快照」：展开变量成实值
+
+- **背景/拍板**：用户发现 t1.93 存的模板里 `${VAR}` 还是变量占位符，直接从模板部署会因缺 `.env` 把变量解析成空串，还原不了原容器。用户拍板方案 A——**把模板存成快照**：保存时展开变量成当前实值，从模板部署即一键还原；用户想改就在编辑器里改那个 yml（改实值或自己写回变量都行）。
+- **关键点：真相来源是 `.env`**。`docker compose config` 会从 compose 文件所在目录读 `.env`、展开 `${VAR}`、输出规范化 yml。快照正是这个输出，自带实值、不依赖 `.env`。
+- **实现**：
+  - `DockerService.renderComposeConfig(path:project:)`：`docker compose -f <path> -p <name> config`，取 stdout（空输出视为失败）；新增本地化 key「Failed to render compose config」。
+  - 详情页 Save as template 按钮改为异步 `saveTemplate()`：先展开 → 成功存快照 + 提示"变量已展开，部署可还原"；失败降级存原始 yml + 如实提示"已保存原始配置"（不丢内容）。
+  - 提示文案随结果动态（`saveNote`），替换原来写死的成功文案。
+- **本地化**：新增 4 key 双补（Failed to render compose config / 展开提示 / 快照成功提示 / 降级提示）；重复 key 检查通过（仅历史 `OK`）。
 
 ### t1.93.0 编辑浮层关闭箭头 + 保存为编排模板
 

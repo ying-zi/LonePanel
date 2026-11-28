@@ -3650,6 +3650,46 @@
           }
         }
       }
+    },
+    "无法展开编排配置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to render compose config"
+          }
+        }
+      }
+    },
+    "变量将展开为当前实际值并保存为快照，从该模板部署即可还原当前配置。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Variables will be resolved to current values and saved as a snapshot. Deploying from it recreates this setup."
+          }
+        }
+      }
+    },
+    "模板已保存为快照，变量已展开为实际值，部署即可还原当前配置。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Template saved as a snapshot with variables resolved. Deploying it recreates the current setup."
+          }
+        }
+      }
+    },
+    "无法展开变量，已改为保存原始配置。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not resolve variables; saved the original configuration instead."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

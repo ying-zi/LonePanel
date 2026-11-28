@@ -166,10 +166,11 @@ struct ComposeProjectDetailView: View {
     @State private var loadError: String?
     /// 就地编辑 yml：sheet 模态覆盖，不往导航栈再压一层。
     @State private var showEditor = false
-    /// 保存为模板：命名弹窗。
+    /// 保存为模板：命名弹窗。保存时把 ${VAR} 展开成当前实值，存成可一键还原的快照。
     @State private var showSaveTemplate = false
     @State private var templateName = ""
     @State private var templateSaved = false
+    @State private var saveNote = ""  // 保存结果说明：快照成功 / 展开失败降级
     private let templateStore = ComposeTemplateStore.shared
 
     var body: some View {
@@ -316,25 +317,43 @@ struct ComposeProjectDetailView: View {
                 }
             }
         }
-        // 保存为模板：弹窗命名，把当前 yml 存入用户模板列表（与内置模板并列）。
+        // 保存为模板：弹窗命名。先把 ${VAR} 展开成当前实值存成快照，
+        // 这样从模板部署时 yml 已是完整配置，一键即可还原当前容器。
         .alert(L10n.t("Save as template"), isPresented: $showSaveTemplate) {
             TextField(L10n.t("Template name"), text: $templateName)
             Button(L10n.t("Cancel"), role: .cancel) {}
             Button(L10n.t("Save")) {
-                templateStore.save(name: templateName, yaml: yaml)
-                templateSaved = true
+                Task { await saveTemplate() }
             }
         } message: {
-            Text(L10n.t("Save this compose configuration as a reusable template. Find it under Compose templates."))
+            Text(L10n.t("Variables will be resolved to current values and saved as a snapshot. Deploying from it recreates this setup."))
         }
         .alert(L10n.t("Saved"), isPresented: $templateSaved) {
             Button(L10n.t("OK"), role: .cancel) {}
         } message: {
-            Text(L10n.t("Template saved. Open Compose templates to use it."))
+            Text(saveNote)
         }
         // 切服 / 容器变更：本页数据属于旧服务器或已过期，pop 回列表让列表自己刷新。
         .onReceive(AppEventBus.shared.serverChanges()) { _ in dismiss() }
         .onReceive(AppEventBus.shared.containerChanges()) { _ in Task { await load() } }
+    }
+
+    /// 保存为快照模板：优先用 compose config 展开 ${VAR} 成当前实值，
+    /// 部署该模板即可一键还原；展开失败时降级存原始 yml 并在结果里说明。
+    private func saveTemplate() async {
+        let name = templateName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        let result = await service.renderComposeConfig(path: project.primaryConfigFile, project: project.name)
+        switch result {
+        case .success(let snapshot):
+            templateStore.save(name: name, yaml: snapshot)
+            saveNote = L10n.t("Template saved as a snapshot with variables resolved. Deploying it recreates the current setup.")
+        case .failure:
+            // 展开失败（如配置有语法问题）：仍存原始 yml，保证不丢内容，并如实告知。
+            templateStore.save(name: name, yaml: yaml)
+            saveNote = L10n.t("Could not resolve variables; saved the original configuration instead.")
+        }
+        templateSaved = true
     }
 
     private func load() async {

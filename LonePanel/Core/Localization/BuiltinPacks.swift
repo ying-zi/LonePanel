@@ -842,6 +842,10 @@ enum BuiltinPacks {
         d["Save this compose configuration as a reusable template. Find it under Compose templates."] = "将当前编排配置保存为可复用模板，可在「编排模板」里找到它。"
         d["Saved"] = "已保存"
         d["Template saved. Open Compose templates to use it."] = "模板已保存，打开「编排模板」即可使用。"
+        d["Failed to render compose config"] = "无法展开编排配置"
+        d["Variables will be resolved to current values and saved as a snapshot. Deploying from it recreates this setup."] = "变量将展开为当前实际值并保存为快照，从该模板部署即可还原当前配置。"
+        d["Template saved as a snapshot with variables resolved. Deploying it recreates the current setup."] = "模板已保存为快照，变量已展开为实际值，部署即可还原当前配置。"
+        d["Could not resolve variables; saved the original configuration instead."] = "无法展开变量，已改为保存原始配置。"
         return d
     }()
 }
