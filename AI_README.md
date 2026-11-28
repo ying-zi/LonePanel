@@ -351,7 +351,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 
 ### t1.91.0 编排编辑收敛：编辑入口只留在编排，去掉容器"原地重建"
 
-- **理念确认**：编排的真相来源是 yml。非编排创建的容器做"重建式原地编辑"不理想（重建会脱离编排，下次 `up` 又会被 yml 覆盖）。**改配置一律改 yml**，不再原地重建单个容器。
+- **理念确认 / 边界铁律**：**编排只管编排创建的容器**——真相来源是 yml。非编排创建的容器（docker run 等）做"重建式原地编辑"不理想（重建会脱离编排，下次 `up` 又会被 yml 覆盖），**一律不在容器详情页提供原地编辑**。这类容器若真想纳入编排，唯一路径是容器详情页已有的「从该容器创建编排模板」（`prepareCompose`）生成 yml 草稿再部署——**此入口刻意保留，勿删**。一句话记住：**改配置只改 yml；容器详情只做运行态操作（启停/日志/终端）+ 转编排，不做原地重建编辑。**
 - **去掉容器"编辑容器"入口**：`ContainerDetailView` 删除编辑按钮 / `prepareEdit` / `editSpec` sheet / `ContainerEditDraft`。**底层能力按"关入口不关能力"全部保留**：`DockerService.recreateContainer`、`ContainerCreateView.EditContext` + 编辑 init、`ContainerCreateSpec.from(inspect:)` 均不动，将来需要可随时接回入口。
 - **编排详情页就地编辑 yml**：`ComposeProjectDetailView` 的"Compose 文件内容"Section 加 `Edit compose file` 按钮，用 `.sheet` 承载 `ComposeEditorView(existingConfigPath:)`（sheet 模态覆盖，**不加深导航层级**——用户明确"不要太多层级"）。保存走 `updateComposeFile` 覆盖原文件 + `deployCompose`（`up -d`），**不广播 `composeDeployed`**（避免弹走详情页），`onDeployed` 里关 sheet + `load()` 刷新。
 - **安全边界不变**：编排页仍不提供 down/stop/restart/delete 任何操作（down 会删容器，用户实测过）。`up -d` 即便 yml 移除 service 也不会删已有容器（无 `--remove-orphans`），安全。
