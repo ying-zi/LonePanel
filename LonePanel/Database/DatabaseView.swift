@@ -1706,6 +1706,11 @@ struct QueryView: View {
     @State private var isRunning = false
     @State private var copied = false
     @State private var showDangerConfirm = false
+    /// t1.97：执行历史 / 耗时 / 行数统计
+    @State private var showHistory = false
+    @State private var lastDurationMs = 0
+    @State private var lastRowCount = 0
+    @ObservedObject private var historyStore = QueryHistoryStore.shared
 
     /// 执行前按关键词识别可能改数据的语句。宁可多确认一次，也不静默执行破坏性命令。
     /// SELECT/SHOW/EXPLAIN/WITH 等只读语句直接放行。
@@ -1779,7 +1784,11 @@ struct QueryView: View {
                             Text(error)
                         }
                     } else if let result {
-                        QueryResultView(result: result)
+                        VStack(spacing: 0) {
+                            // t1.97：结果统计条——行数 + 耗时，纯展示不参与滚动。
+                            QueryResultStatsView(rowCount: result.rows.count, durationMs: lastDurationMs)
+                            QueryResultView(result: result)
+                        }
                     } else {
                         ContentUnavailableView {
                             Label(L10n.t("Ready"), systemImage: "chevron.left.forwardslash.chevron.right")
@@ -1794,16 +1803,51 @@ struct QueryView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 12) {
+                    Menu {
+                        // 复制结果（成功用勾，符合图形语义铁律）
                         if let result {
                             Button {
                                 UIPasteboard.general.string = flatResult(result)
                                 copied = true
                             } label: {
-                                Label(copied ? L10n.t("Copied") : L10n.t("Copy"), systemImage: copied ? "checkmark" : "doc.on.doc")
+                                Label(copied ? L10n.t("Copied") : L10n.t("Copy"),
+                                      systemImage: copied ? "checkmark" : "doc.on.doc")
+                            }
+                            Button {
+                                exportResult(result, asCSV: false)
+                            } label: {
+                                Label(L10n.t("Export as TSV"), systemImage: "square.and.arrow.up")
+                            }
+                            Button {
+                                exportResult(result, asCSV: true)
+                            } label: {
+                                Label(L10n.t("Export as CSV"), systemImage: "square.and.arrow.up")
                             }
                         }
-                        DismissChevronButton()
+                        Divider()
+                        // 执行历史（只读回填，不存密码）
+                        Button {
+                            showHistory = true
+                        } label: {
+                            Label(L10n.t("Execution history"), systemImage: "clock.arrow.circlepath")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.title3)
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    DismissChevronButton()
+                }
+            }
+            .sheet(isPresented: $showHistory) {
+                NavigationStack {
+                    QueryHistoryView(currentConnectionID: conn.id.uuidString) { entry in
+                        statement = entry.statement
+                        // 回填后可立即重跑，结果区保留上一次结果由用户决定；清空避免误读。
+                        result = nil
+                        error = nil
+                        copied = false
                     }
                 }
             }
@@ -1828,12 +1872,68 @@ struct QueryView: View {
         error = nil
         result = nil
         copied = false
-        let res = await DatabaseService.shared.execute(conn, database: database, statement: statement)
+        let startedAt = Date()
+        let executedStatement = statement
+        let res = await DatabaseService.shared.execute(conn, database: database, statement: executedStatement)
+        let elapsedMs = Int(Date().timeIntervalSince(startedAt) * 1000)
         switch res {
-        case .success(let queryResult): result = queryResult
-        case .failure(let dbError): error = dbError.localizedDescription
+        case .success(let queryResult):
+            result = queryResult
+            lastRowCount = queryResult.rows.count
+            lastDurationMs = elapsedMs
+            // 执行历史：只记语句与元信息，绝不写入密码/凭据。
+            historyStore.record(
+                statement: executedStatement,
+                connectionID: conn.id.uuidString,
+                connectionName: conn.name,
+                kind: conn.kind,
+                database: database,
+                durationMs: elapsedMs,
+                rowCount: queryResult.rows.count,
+                succeeded: true
+            )
+        case .failure(let dbError):
+            error = dbError.localizedDescription
+            lastRowCount = 0
+            lastDurationMs = elapsedMs
+            // 失败也记入历史，方便回看哪条语句报错（错误信息可能是服务器返回，仍不含本地密码）。
+            historyStore.record(
+                statement: executedStatement,
+                connectionID: conn.id.uuidString,
+                connectionName: conn.name,
+                kind: conn.kind,
+                database: database,
+                durationMs: elapsedMs,
+                rowCount: 0,
+                succeeded: false
+            )
         }
         isRunning = false
+    }
+
+    /// 导出结果：TSV / CSV 写临时文件后走系统分享面板。文件名带时间戳避免覆盖。
+    private func exportResult(_ result: QueryResult, asCSV: Bool) {
+        let text = asCSV ? Self.csvText(from: result) : flatResult(result)
+        let ext = asCSV ? "csv" : "tsv"
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let stamp = formatter.string(from: Date())
+        SharePresenter.present(data: Data(text.utf8), filename: "lonepanel-query-\(stamp).\(ext)")
+    }
+
+    private static func csvText(from result: QueryResult) -> String {
+        func cell(_ value: String) -> String {
+            // CSV：含逗号/引号/换行的字段用双引号包裹，内部引号加倍。
+            if value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r") {
+                return "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+            }
+            return value
+        }
+        var lines: [String] = []
+        if !result.columns.isEmpty { lines.append(result.columns.map(cell).joined(separator: ",")) }
+        for row in result.rows { lines.append(row.map(cell).joined(separator: ",")) }
+        if lines.isEmpty { lines.append(cell(result.message)) }
+        return lines.joined(separator: "\n")
     }
 
     private func flatResult(_ result: QueryResult) -> String {
@@ -1842,6 +1942,209 @@ struct QueryView: View {
         for row in result.rows { lines.append(row.joined(separator: "\t")) }
         if lines.isEmpty { lines.append(result.message) }
         return lines.joined(separator: "\n")
+    }
+}
+
+// MARK: - 执行历史（t1.97）
+
+/// 一条执行历史。只存语句与元信息——**不存密码/凭据**（连接仅记 id + 名称）。
+struct QueryHistoryEntry: Codable, Identifiable, Hashable {
+    let id: String
+    let statement: String
+    let connectionID: String
+    let connectionName: String
+    let kindRaw: String
+    let database: String
+    let durationMs: Int
+    let rowCount: Int
+    let succeeded: Bool
+    let timestamp: Date
+}
+
+/// 执行历史持久化：UserDefaults，最多 50 条，最新在前。跟随 App 本地数据，不跟服务器走。
+/// 只保存用户输入的语句与元信息，绝不写密码或钥匙串凭据。
+final class QueryHistoryStore: ObservableObject {
+    static let shared = QueryHistoryStore()
+
+    @Published private(set) var entries: [QueryHistoryEntry] = []
+
+    private let defaults = UserDefaults.standard
+    private let storageKey = "com.lone.lonepanel.database.query.history"
+    private let maxCount = 50
+
+    private init() { load() }
+
+    /// 记录一次执行。同连接 + 同语句若已存在则先删除旧记录，再把本次置顶（历史不重复堆积）。
+    func record(statement: String, connectionID: String, connectionName: String,
+                kind: DatabaseKind, database: String, durationMs: Int,
+                rowCount: Int, succeeded: Bool) {
+        let trimmed = statement.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        entries.removeAll { $0.connectionID == connectionID && $0.statement == trimmed }
+        let entry = QueryHistoryEntry(
+            id: UUID().uuidString,
+            statement: trimmed,
+            connectionID: connectionID,
+            connectionName: connectionName,
+            kindRaw: kind.rawValue,
+            database: database,
+            durationMs: durationMs,
+            rowCount: rowCount,
+            succeeded: succeeded,
+            timestamp: Date()
+        )
+        entries.insert(entry, at: 0)
+        if entries.count > maxCount { entries = Array(entries.prefix(maxCount)) }
+        persist()
+    }
+
+    func remove(id: String) {
+        entries.removeAll { $0.id == id }
+        persist()
+    }
+
+    func clear() {
+        entries.removeAll()
+        persist()
+    }
+
+    private func load() {
+        guard let data = defaults.data(forKey: storageKey),
+              let list = try? JSONDecoder().decode([QueryHistoryEntry].self, from: data) else { return }
+        entries = list
+    }
+
+    private func persist() {
+        guard let data = try? JSONEncoder().encode(entries) else { return }
+        defaults.set(data, forKey: storageKey)
+    }
+}
+
+/// 结果统计条：行数 + 耗时，独立视图避免把统计逻辑塞进 QueryView。
+private struct QueryResultStatsView: View {
+    let rowCount: Int
+    let durationMs: Int
+
+    var body: some View {
+        HStack(spacing: 16) {
+            Label(L10n.f("%@ rows", String(describing: rowCount)), systemImage: "tablecells")
+            Label(L10n.f("%@ ms", String(describing: durationMs)), systemImage: "clock")
+            Spacer()
+        }
+        .font(.caption.weight(.medium))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color(.secondarySystemGroupedBackground))
+    }
+}
+
+/// 执行历史列表：点选回填输入框。分区显示「当前连接」与其他连接，避免误把别的库的语句回填。
+struct QueryHistoryView: View {
+    let currentConnectionID: String
+    let onPick: (QueryHistoryEntry) -> Void
+
+    @ObservedObject private var store = QueryHistoryStore.shared
+    @Environment(\.dismiss) private var dismiss
+    @State private var showClearConfirm = false
+
+    private var currentEntries: [QueryHistoryEntry] {
+        store.entries.filter { $0.connectionID == currentConnectionID }
+    }
+
+    private var otherEntries: [QueryHistoryEntry] {
+        store.entries.filter { $0.connectionID != currentConnectionID }
+    }
+
+    var body: some View {
+        List {
+            if store.entries.isEmpty {
+                ContentUnavailableView {
+                    Label(L10n.t("No execution history"), systemImage: "clock.arrow.circlepath")
+                } description: {
+                    Text(L10n.t("Executed statements appear here. Passwords are never saved."))
+                }
+            } else {
+                if !currentEntries.isEmpty {
+                    Section(L10n.t("Current Connection")) {
+                        ForEach(currentEntries) { entry in row(entry) }
+                    }
+                }
+                if !otherEntries.isEmpty {
+                    Section(L10n.t("Other connections")) {
+                        ForEach(otherEntries) { entry in row(entry) }
+                    }
+                }
+            }
+        }
+        .navigationTitle(L10n.t("Execution history"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    if !store.entries.isEmpty {
+                        Button(role: .destructive) {
+                            showClearConfirm = true
+                        } label: {
+                            Label(L10n.t("Clear history"), systemImage: "trash")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.title3)
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                DismissChevronButton()
+            }
+        }
+        .confirmationDialog(L10n.t("Clear all history?"), isPresented: $showClearConfirm) {
+            Button(L10n.t("Cancel"), role: .cancel) {}
+            Button(L10n.t("Clear history"), role: .destructive) { store.clear() }
+        } message: {
+            Text(L10n.t("This removes all saved statements on this device. It cannot be undone."))
+        }
+    }
+
+    @ViewBuilder
+    private func row(_ entry: QueryHistoryEntry) -> some View {
+        Button {
+            onPick(entry)
+            dismiss()
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: entry.succeeded ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundStyle(entry.succeeded ? .green : .orange)
+                    Text(entry.statement)
+                        .font(.system(.caption, design: .monospaced))
+                        .lineLimit(2)
+                        .foregroundStyle(.primary)
+                }
+                HStack(spacing: 10) {
+                    Text(L10n.dateTimeText(entry.timestamp))
+                    Text("·")
+                    Text(entry.database.isEmpty ? entry.connectionName : entry.database)
+                    Text("·")
+                    if entry.kindRaw == "redis" {
+                        Text(L10n.f("%@ ms", String(describing: entry.durationMs)))
+                    } else {
+                        Text(L10n.f("%@ rows", String(describing: entry.rowCount)))
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 2)
+        }
+        .buttonStyle(.plain)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                store.remove(id: entry.id)
+            } label: {
+                Label(L10n.t("Delete"), systemImage: "trash")
+            }
+        }
     }
 }
 

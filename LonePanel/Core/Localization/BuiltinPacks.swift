@@ -879,6 +879,18 @@ enum BuiltinPacks {
         d["Containers"] = "容器"
         d["Saved from a container"] = "从容器生成"
         d["The template is saved on this device and can be found under My templates."] = "模板保存在本机，可在「我的模板」中找到。"
+        // t1.97：SQL/命令执行页——执行历史 / 结果导出 / 耗时统计
+        d["Export as TSV"] = "导出为 TSV"
+        d["Export as CSV"] = "导出为 CSV"
+        d["Execution history"] = "执行历史"
+        d["No execution history"] = "暂无执行历史"
+        d["Executed statements appear here. Passwords are never saved."] = "执行过的语句会显示在这里。密码不会被保存。"
+        d["Other connections"] = "其他连接"
+        d["Clear history"] = "清空历史"
+        d["Clear all history?"] = "清空全部历史？"
+        d["This removes all saved statements on this device. It cannot be undone."] = "将删除本机保存的所有语句，且无法撤销。"
+        d["%@ rows"] = "%@ 行"
+        d["%@ ms"] = "%@ 毫秒"
         return d
     }()
 }

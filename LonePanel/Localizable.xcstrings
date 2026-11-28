@@ -4010,6 +4010,116 @@
           }
         }
       }
+    },
+    "导出为 TSV": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export as TSV"
+          }
+        }
+      }
+    },
+    "导出为 CSV": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export as CSV"
+          }
+        }
+      }
+    },
+    "执行历史": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Execution history"
+          }
+        }
+      }
+    },
+    "暂无执行历史": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No execution history"
+          }
+        }
+      }
+    },
+    "执行过的语句会显示在这里。密码不会被保存。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Executed statements appear here. Passwords are never saved."
+          }
+        }
+      }
+    },
+    "其他连接": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other connections"
+          }
+        }
+      }
+    },
+    "清空历史": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear history"
+          }
+        }
+      }
+    },
+    "清空全部历史？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear all history?"
+          }
+        }
+      }
+    },
+    "将删除本机保存的所有语句，且无法撤销。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This removes all saved statements on this device. It cannot be undone."
+          }
+        }
+      }
+    },
+    "%@ 行": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ rows"
+          }
+        }
+      }
+    },
+    "%@ 毫秒": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ms"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
