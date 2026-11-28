@@ -1,8 +1,11 @@
 import SwiftUI
 
 /// 容器详情页：按状态收敛的操作区 + 基本信息 + 端口/卷/网络 + 日志/终端/转编排入口。
-/// 编辑配置不在此页做——改配置一律去「编排」详情页改 yml 再 up（真相来源是 yml，
-/// 非编排容器原地重建既脱离编排又会被下次 up 覆盖）。底层重建能力保留但不再暴露入口。
+/// 改配置的入口按容器来源分流：
+/// - 编排创建的容器（有 com.docker.compose.project 标签）：不提供重建编辑——真相来源是 yml，
+///   改配置去「编排」详情页编辑 yml 再 up；在此重建会脱离编排且下次 up 被覆盖。
+/// - 非编排容器（docker run 等）：没有 yml 可改，才提供「重建容器」入口，用可视化表单预填
+///   当前配置后重建同名容器（重建出来仍是非编排容器，不影响任何 compose 项目）。
 struct ContainerDetailView: View {
     let container: DockerContainer
     @ObservedObject var model: ContainerListModel
@@ -19,6 +22,9 @@ struct ContainerDetailView: View {
     // 容器转编排：独立任务，用 push 而非 sheet（完成后切编排分区，不返回本页）。
     @State private var composeDraft: ComposeDraft?
     @State private var isPreparingCompose = false
+    // 重建容器（仅非编排容器）：从 inspect 反向生成预填 spec，sheet 承载可视化表单。
+    @State private var editSpec: ContainerEditDraft?
+    @State private var isPreparingEdit = false
 
     var body: some View {
         List {
@@ -84,6 +90,15 @@ struct ContainerDetailView: View {
                     Label(L10n.t("Connect Terminal"), systemImage: "terminal")
                 }
                 .disabled(container.state != .running)
+                // 编排容器改配置去编排页改 yml；非编排容器没有 yml 可改，才给重建入口。
+                if !container.isComposeManaged {
+                    Button {
+                        Task { await prepareEdit() }
+                    } label: {
+                        Label(L10n.t("Recreate container"), systemImage: "square.and.pencil")
+                    }
+                    .disabled(isPreparingEdit)
+                }
                 Button {
                     Task { await prepareCompose() }
                 } label: {
@@ -264,6 +279,21 @@ struct ContainerDetailView: View {
                 .interactiveDismissDisabled(true)
                 .onDisappear { session.closeForContainer() }
         }
+        // 重建非编排容器：sheet 承载预填表单；重建成功后刷新并退回列表（ID 已变）。
+        .sheet(item: $editSpec) { draft in
+            ContainerCreateView(
+                editContext: ContainerCreateView.EditContext(
+                    originalID: container.id,
+                    name: container.name,
+                    wasRunning: container.state == .running
+                ),
+                spec: draft.spec,
+                warnings: draft.warnings
+            ) { _ in
+                await model.refresh()
+                dismiss()
+            }
+        }
         .alert(L10n.t("Force stop container"), isPresented: $confirmKill) {
             Button(L10n.t("Cancel"), role: .cancel) {}
             Button(L10n.t("Force stop"), role: .destructive) {
@@ -426,6 +456,27 @@ struct ContainerDetailView: View {
         }
     }
 
+    /// 从 inspect 反向生成重建表单预填配置。复用详情页已加载的 inspectInfo，
+    /// 缺失时按需再拉一次，失败走统一错误出口。仅非编排容器调用。
+    private func prepareEdit() async {
+        isPreparingEdit = true
+        defer { isPreparingEdit = false }
+        var info = inspectInfo
+        if info == nil {
+            let fetched = await model.service.fetchInspect(containerID: container.id)
+            switch fetched {
+            case .success(let json): info = DockerInspectInfo.parse(json)
+            case .failure(let error): operationError = error.localizedDescription; return
+            }
+        }
+        guard let info else {
+            operationError = L10n.t("Could not read container details")
+            return
+        }
+        let draft = ContainerCreateSpec.from(inspect: info)
+        editSpec = ContainerEditDraft(spec: draft.spec, warnings: draft.warnings)
+    }
+
     // MARK: - 工具
 
     private func formatCreated(_ iso: String) -> String {
@@ -437,6 +488,13 @@ struct ContainerDetailView: View {
         display.timeStyle = .short
         return display.string(from: date)
     }
+}
+
+/// 重建容器的预填草稿：Identifiable 供 .sheet(item:) 使用。
+private struct ContainerEditDraft: Identifiable {
+    let id = UUID()
+    let spec: ContainerCreateSpec
+    let warnings: [String]
 }
 
 /// 详情页信息行。internal 可见：ComposeProjectDetailView 等同模块视图复用，避免重复定义。

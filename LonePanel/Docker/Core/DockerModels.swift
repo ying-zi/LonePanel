@@ -224,6 +224,14 @@ struct DockerContainer: Identifiable, Hashable {
         guard !trimmed.isEmpty else { return 0 }
         return max(0, trimmed.split(separator: ",").count - 1)
     }
+
+    /// 是否为 Compose 编排创建的容器。判定依据：docker ps 的 Labels 中含
+    /// `com.docker.compose.project`（compose up 时由 Docker 自动打上的标签）。
+    /// 用途：编排容器改配置只去编排页改 yml，不在此详情页提供重建式编辑；
+    /// 非编排容器（docker run 等）没有 yml 可改，才在详情页提供重建入口。
+    var isComposeManaged: Bool {
+        labels.split(separator: ",").contains { $0.trimmingCharacters(in: .whitespaces).hasPrefix("com.docker.compose.project=") }
+    }
 }
 
 /// 镜像展示模型。

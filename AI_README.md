@@ -337,7 +337,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 2. **新增一个可插拔模块**：建 `<Name>/<Name>Tab.swift`（导出 `TabModule`）+ View；在 `TabRegistry.modules` 加一行；如需开关，`ModuleID` 加 case（`isCore=false`）；如需设置项，填 `settingsSection`。删模块反过来即可。
 3. **加悬浮终端的宿主模块**：在模块 TabModule 里设 `showsFloatingTerminal: true`。
 4. **改终端行为**：动 `TerminalSession` / `TerminalView` 前，先读 6.1 与踩坑表；终端是底座，任何"模块级终端开关"都不能加。
-5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前基线 t1.91.0）。
+5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前基线 t1.92.0）。
 
 ### 当前待办 / 方向（供参考）
 
@@ -347,7 +347,17 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 
 ---
 
-*最后更新：2026-11-28，基线 t1.91.0。文档随版本演进同步更新。*
+*最后更新：2026-11-28，基线 t1.92.0。文档随版本演进同步更新。*
+
+### t1.92.0 重建入口按容器来源分流：可视化表单复活（只对非编排容器）
+
+- **背景**：t1.91 去掉了容器详情「编辑容器」入口，导致那套可视化表单（`ContainerCreateView` 编辑模式 / `from(inspect:)` / `recreateContainer`）变成死代码。用户拍板精细化分流——**不是砍掉能力，而是按容器来源决定要不要暴露**。
+- **判定依据**：`DockerContainer.isComposeManaged` —— 解析 `docker ps --format '{{json .}}'` 的 `Labels`（逗号分隔 `k=v`），含 `com.docker.compose.project=` 即为编排容器（compose up 自动打此标签）。
+- **分流规则**：
+  - 编排容器 → 详情页**不显示**重建入口（改配置去编排页改 yml 再 up；在此重建会脱编排且下次 up 被覆盖）。
+  - 非编排容器（docker run 等）→ 详情页入口区显示「重建容器」按钮（`Recreate container`），复用 `prepareEdit` → `ContainerCreateSpec.from(inspect:)` 预填 → `ContainerCreateView` 编辑模式 sheet → `recreateContainer`（停→改名备份→docker run 同名→成功删备份/失败回滚）。重建出来仍是非编排容器，不影响任何 compose 项目。
+- **关键认知**：可视化编辑（docker run 重建）**不会**把普通容器变成编排容器——不带 compose 标签；反过来编排容器经它重建反而**脱离**编排。真正转成编排的唯一路径是「从该容器创建编排模板」→ 生成 yml → `compose up -d` 打标签。
+- **能力未删**：t1.91 保留的底层能力此轮重新接回入口，死代码问题消解。编排页就地编辑 yml 的逻辑不变。
 
 ### t1.91.0 编排编辑收敛：编辑入口只留在编排，去掉容器"原地重建"
 
