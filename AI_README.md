@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.90.2`，版本 1.90.2（详见第 8.5 节） |
+| 当前基线 | tag `t1.97.0`，版本 1.97.0（详见第 8.5 节） |
 
 ---
 
@@ -362,7 +362,13 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 - **新入口**：Docker 右上 ⋯ →「编排模板」页新增「从已有容器创建模板」→ 容器选择页（**只列非编排容器**：`!isComposeManaged`）→ 选中反向生成草稿 → 保存页（可改模板名/编辑 yml/看 warnings）→ 存入 `ComposeTemplateStore`「我的模板」。
 - **边界铁律补充**：编排容器已有 yml，存模板走编排详情页 `docker compose config` 快照（质量高、变量已展开）；非编排容器没有 yml，反向生成是唯一途径。两条路径互斥，不在同一列表里重复列编排容器。`ComposeTemplateStore.save` 增加可选 `detail`/`symbol` 参数以标注来源。
 
-*最后更新：2026-11-28，基线 t1.96.0。文档随版本演进同步更新。*
+### t1.97.0 SQL/命令执行页升级（执行历史 + 导出 + 统计）
+- **方向决策**：放弃「复用 TerminalView 做全屏 SQL 终端」。摸底确认两套通道模型不兼容——`TerminalView` 绑定 `TerminalSession`（pty 交互字节流），数据库执行走 `DatabaseSSHConnection`（exec 一次性命令 + `QueryResult` 结构化表格）；硬套会丢现有表格、体验倒退。改为打磨现有 `QueryView`。
+- **执行历史**：新建 `QueryHistoryStore`（UserDefaults，50 条上限，同连接+同语句去重）。执行页 ⋯ 菜单进 sheet，分「当前连接/其他连接」两区，点选回填、滑动删除、清空二次确认。**只存语句与元信息（连接 id+名/库/耗时/行数/成败），绝不写密码或凭据。**
+- **结果导出**：TSV/CSV 写临时文件走 `SharePresenter` 系统分享面板（本版把 `SharePresenter` 从 private 放开为 internal 供跨文件复用）；CSV 含逗号/引号/换行字段用双引号包裹+内部引号加倍。
+- **耗时统计**：`QueryResultStatsView` 显示「N 行 · N 毫秒」，执行前后计时。复制入口从平铺收进 ⋯（右上只留 ⋯ + ⌄）。补 11 个本地化 key（Delete 已存在），校验 0 缺失。
+
+*最后更新：2026-11-28，基线 t1.97.0。文档随版本演进同步更新。*
 
 ### t1.94.0 保存为模板改为「快照」：展开变量成实值
 

@@ -191,7 +191,7 @@ private struct DocumentPicker: UIViewControllerRepresentable {
 /// - 不用 SwiftUI .sheet 包裹——分享面板本身是 modal，套一层 sheet 会出现「点了没反应」；
 /// - 不用「空 VC + present」——空 VC 尚未进入 window 层级时 present 会静默失败；
 /// - 写到临时目录再分享，文件名明确，用户可「存储到文件」或直接转发。
-private enum SharePresenter {
+enum SharePresenter {
     static func present(data: Data, filename: String) {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         try? data.write(to: tmp, options: .atomic)
