@@ -406,3 +406,30 @@ struct RedisConfigSnapshot: Hashable {
     var mode: RedisPersistenceMode = .rdb
     var passwordSet = false
 }
+
+// MARK: - MySQL / PostgreSQL 服务器状态（t1.98）
+
+/// 一条状态项（SHOW GLOBAL STATUS / SELECT 的结果行）。
+struct DatabaseStatusItem: Identifiable, Hashable {
+    let id: String
+    let key: String
+    let value: String
+}
+
+/// 慢查询可用性：探测到就直接显示数据，探不到给出如实指引（不伪造成功）。
+enum SlowQueryAvailability: Hashable {
+    /// 已开启且读到了慢查询记录。
+    case available(rows: [[String]])
+    /// 服务器未开启 / 未安装扩展 / 无权限，附原因说明。
+    case unavailable(reason: String)
+}
+
+/// MySQL / PostgreSQL 服务器状态快照：状态摘要 + 进程列表 + 慢查询探测结果。
+struct DatabaseStatusSnapshot: Hashable {
+    var items: [DatabaseStatusItem] = []
+    /// 进程列表（SHOW PROCESSLIST / pg_stat_activity）；列头 + 行。
+    var processColumns: [String] = []
+    var processRows: [[String]] = []
+    /// 慢查询探测结论。nil 表示该类型不支持慢查询（如 MongoDB/Redis）。
+    var slowQueries: SlowQueryAvailability?
+}

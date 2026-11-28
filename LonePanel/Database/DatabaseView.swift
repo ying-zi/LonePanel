@@ -287,6 +287,14 @@ private struct InstanceAdminSection: View {
                     Label(L10n.t("Config & persistence"), systemImage: "slider.horizontal.3")
                 }
             }
+            // t1.98：MySQL / PostgreSQL 状态 + 进程 + 慢查询探测（Redis 走上面的配置页）。
+            if conn.kind == .mysql || conn.kind == .postgresql {
+                NavigationLink {
+                    DatabaseStatusView(conn: conn)
+                } label: {
+                    Label(L10n.t("Server status"), systemImage: "chart.bar.doc.horizontal")
+                }
+            }
         } header: {
             Label(L10n.t("Instance management"), systemImage: "wrench.and.screwdriver")
         } footer: {
@@ -2144,6 +2152,147 @@ struct QueryHistoryView: View {
             } label: {
                 Label(L10n.t("Delete"), systemImage: "trash")
             }
+        }
+    }
+}
+
+// MARK: - MySQL / PostgreSQL 服务器状态（t1.98）
+
+/// 服务器状态页：状态摘要 + 进程列表 + 慢查询探测（探测不到给开启指引）。
+/// 只读，不改动服务器配置；入口在 InstanceAdminSection，容器实例与远程连接共用。
+struct DatabaseStatusView: View {
+    let conn: DatabaseConnection
+
+    @State private var snapshot: DatabaseStatusSnapshot?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    private let service = DatabaseService.shared
+
+    var body: some View {
+        List {
+            if isLoading {
+                HStack {
+                    ProgressView()
+                    Text(L10n.t("Loading server status…")).foregroundStyle(.secondary)
+                }
+            } else if let error = errorMessage {
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange).font(.caption)
+                    Button(L10n.t("Retry")) { Task { await load() } }
+                }
+            } else if let snapshot {
+                // 状态摘要
+                Section(L10n.t("Server status")) {
+                    ForEach(snapshot.items) { item in
+                        LabeledContent(L10n.t(item.key), value: item.value)
+                    }
+                    if snapshot.items.isEmpty {
+                        Text(L10n.t("No status data returned by the server")).foregroundStyle(.secondary)
+                    }
+                }
+
+                // 进程列表
+                Section {
+                    if snapshot.processRows.isEmpty {
+                        Text(L10n.t("No processes to display")).foregroundStyle(.secondary)
+                    } else {
+                        StatusTable(columns: snapshot.processColumns, rows: snapshot.processRows)
+                    }
+                } header: {
+                    HStack {
+                        Text(L10n.t("Process list"))
+                        Spacer()
+                        Text(L10n.f("%@ shown", String(describing: snapshot.processRows.count)))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+
+                // 慢查询：探测到才显示数据，探不到给如实指引。
+                Section(L10n.t("Slow queries")) {
+                    switch snapshot.slowQueries {
+                    case .some(.available(let rows)):
+                        if rows.isEmpty {
+                            Text(L10n.t("No slow query records yet")).foregroundStyle(.secondary)
+                        } else {
+                            StatusTable(columns: [
+                                conn.kind == .mysql ? L10n.t("Time") : L10n.t("Calls"),
+                                conn.kind == .mysql ? L10n.t("Query") : L10n.t("Query"),
+                            ], rows: rows)
+                        }
+                    case .some(.unavailable(let reason)):
+                        Label(reason, systemImage: "info.circle")
+                            .font(.caption).foregroundStyle(.secondary)
+                    case .none:
+                        Text(L10n.t("Slow queries are not supported for this database type")).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .navigationTitle(L10n.t("Server status"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        Task { await load() }
+                    } label: {
+                        Label(L10n.t("Refresh"), systemImage: "arrow.clockwise")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.title3)
+                }
+            }
+        }
+        .task { await load() }
+    }
+
+    private func load() async {
+        isLoading = true
+        errorMessage = nil
+        snapshot = nil
+        let result = await service.fetchDatabaseStatus(conn, database: conn.database)
+        switch result {
+        case .success(let value): snapshot = value
+        case .failure(let error): errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+}
+
+/// 状态页通用表格：列头 + 行，横向可滚动，文本可选中复制。
+private struct StatusTable: View {
+    let columns: [String]
+    let rows: [[String]]
+
+    var body: some View {
+        ScrollView([.horizontal, .vertical]) {
+            Grid(alignment: .topLeading, horizontalSpacing: 1, verticalSpacing: 1) {
+                GridRow {
+                    ForEach(columns.indices, id: \.self) { i in
+                        Text(i < columns.count ? columns[i] : "")
+                            .font(.caption.weight(.semibold))
+                            .padding(6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(.secondarySystemGroupedBackground))
+                    }
+                }
+                ForEach(rows.indices, id: \.self) { r in
+                    GridRow {
+                        ForEach(columns.indices, id: \.self) { c in
+                            Text(c < rows[r].count ? rows[r][c] : "")
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                                .padding(6)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(r % 2 == 0 ? Color(.systemGroupedBackground) : Color.clear)
+                        }
+                    }
+                }
+            }
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8))
         }
     }
 }

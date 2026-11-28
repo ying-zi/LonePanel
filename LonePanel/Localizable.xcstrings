@@ -4120,6 +4120,166 @@
           }
         }
       }
+    },
+    "服务器状态仅支持 MySQL 与 PostgreSQL": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server status is available only for MySQL and PostgreSQL"
+          }
+        }
+      }
+    },
+    "无法读取慢查询设置，请检查服务器权限。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read slow query setting. Check server permissions."
+          }
+        }
+      }
+    },
+    "慢查询日志未开启。需在服务器上启用 slow_query_log 才会记录慢查询。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slow query log is off. Enable slow_query_log on the server to record slow queries."
+          }
+        }
+      }
+    },
+    "慢查询日志已开启，但 mysql.slow_log 表不可用。需在服务器上设置 log_output=TABLE 才能在此查看记录。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slow query log is on, but the mysql.slow_log table is unavailable. Set log_output=TABLE on the server to view records here."
+          }
+        }
+      }
+    },
+    "pg_stat_statements 不可用。需在服务器上安装扩展（CREATE EXTENSION pg_stat_statements）并加入 shared_preload_libraries 后才能查看慢查询。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pg_stat_statements is not available. Install the extension on the server (CREATE EXTENSION pg_stat_statements) and add it to shared_preload_libraries to view slow queries."
+          }
+        }
+      }
+    },
+    "正在加载服务器状态…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading server status…"
+          }
+        }
+      }
+    },
+    "服务器未返回状态数据": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No status data returned by the server"
+          }
+        }
+      }
+    },
+    "没有可显示的进程": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No processes to display"
+          }
+        }
+      }
+    },
+    "显示 %@ 条": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ shown"
+          }
+        }
+      }
+    },
+    "慢查询": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slow queries"
+          }
+        }
+      }
+    },
+    "暂无慢查询记录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No slow query records yet"
+          }
+        }
+      }
+    },
+    "该数据库类型不支持慢查询": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slow queries are not supported for this database type"
+          }
+        }
+      }
+    },
+    "时间": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time"
+          }
+        }
+      }
+    },
+    "调用次数": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calls"
+          }
+        }
+      }
+    },
+    "进程列表": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Process list"
+          }
+        }
+      }
+    },
+    "查询": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Query"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

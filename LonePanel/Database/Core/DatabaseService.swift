@@ -697,6 +697,143 @@ final class DatabaseService {
         }
     }
 
+    // MARK: - MySQL / PostgreSQL 服务器状态（t1.98）
+
+    /// 读取 MySQL / PostgreSQL 服务器状态：版本/运行时间/连接数等摘要 + 进程列表 + 慢查询探测。
+    /// 全部是只读查询，命令用固定 SQL（无外部输入），口令由 mysqlBase/psqlBase 经环境变量注入。
+    /// 慢查询依赖服务器配置（MySQL slow_log / PG pg_stat_statements），探不到时如实返回指引，不伪造成功。
+    func fetchDatabaseStatus(_ conn: DatabaseConnection, database: String) async -> Result<DatabaseStatusSnapshot, DatabaseError> {
+        guard conn.kind == .mysql || conn.kind == .postgresql else {
+            return .failure(.commandFailed(message: L10n.t("Server status is available only for MySQL and PostgreSQL")))
+        }
+        var snapshot = DatabaseStatusSnapshot()
+
+        switch conn.kind {
+        case .mysql:
+            let base = mysqlBase(conn)
+
+            // 摘要：一条 SQL 取版本 + 关键 GLOBAL STATUS 变量（固定列表，无外部输入）。
+            let statusSQL = """
+            SELECT 'Version', VERSION()
+            UNION ALL SELECT 'Uptime (s)', VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='UPTIME'
+            UNION ALL SELECT 'Connections', VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='CONNECTIONS'
+            UNION ALL SELECT 'Threads connected', VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='THREADS_CONNECTED'
+            UNION ALL SELECT 'Queries', VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='QUERIES'
+            UNION ALL SELECT 'Slow queries', VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='SLOW_QUERIES'
+            """
+            let statusRes = await run("\(base) -B -N -e \(ShellQuote.quote(statusSQL)) 2>&1", timeout: queryTimeout)
+            if statusRes.exit == 0 && !looksLikeError(statusRes.out) {
+                snapshot.items = parseKeyValueLines(statusRes.out)
+            }
+            // MySQL 8 移除了 information_schema.GLOBAL_STATUS，回退到 SHOW GLOBAL STATUS。
+            if snapshot.items.isEmpty {
+                let showSQL = "SHOW GLOBAL STATUS WHERE Variable_name IN ('Uptime','Connections','Threads_connected','Queries','Slow_queries')"
+                let showRes = await run("\(base) -B -e \(ShellQuote.quote(showSQL)) 2>&1", timeout: queryTimeout)
+                if showRes.exit == 0 && !looksLikeError(showRes.out) {
+                    var items = parseKeyValueLines(showRes.out)
+                    let versionSQL = "SELECT VERSION()"
+                    let versionRes = await run("\(base) -B -N -e \(ShellQuote.quote(versionSQL)) 2>&1", timeout: queryTimeout)
+                    if versionRes.exit == 0 {
+                        let v = versionRes.out.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !v.isEmpty { items.insert(DatabaseStatusItem(id: "Version", key: "Version", value: v), at: 0) }
+                    }
+                    snapshot.items = items
+                }
+            }
+
+            // 进程列表：SHOW FULL PROCESSLIST，-B 制表符输出。
+            let procRes = await run("\(base) -B -e \(ShellQuote.quote("SHOW FULL PROCESSLIST")) 2>&1", timeout: queryTimeout)
+            if procRes.exit == 0 && !looksLikeError(procRes.out) {
+                let table = parseTable(procRes.out)
+                snapshot.processColumns = table.columns
+                snapshot.processRows = table.rows
+            }
+
+            // 慢查询探测：先读开关，再尝试读 mysql.slow_log（默认 log_output=FILE 时表不存在，如实返回指引）。
+            snapshot.slowQueries = await detectMySQLSlowQueries(base)
+
+        case .postgresql:
+            let base = psqlBase(conn, database: database.isEmpty ? "postgres" : database)
+
+            // 摘要：version() + 连接数 + 活动连接（固定 SQL）。
+            let statusSQL = """
+            SELECT 'Version', (SELECT version())
+            UNION ALL SELECT 'Connections', (SELECT count(*)::text FROM pg_stat_activity)
+            UNION ALL SELECT 'Active', (SELECT count(*)::text FROM pg_stat_activity WHERE state='active')
+            UNION ALL SELECT 'Databases', (SELECT count(*)::text FROM pg_database)
+            """
+            let statusRes = await run("\(base) -At -c \(ShellQuote.quote(statusSQL)) 2>&1", timeout: queryTimeout)
+            if statusRes.exit == 0 && !looksLikeError(statusRes.out) {
+                snapshot.items = parseKeyValueLines(statusRes.out)
+            }
+
+            // 进程列表：pg_stat_activity。
+            let procSQL = "SELECT pid, usename, datname, state, wait_event_type, left(query, 120) AS query FROM pg_stat_activity ORDER BY pid"
+            let procRes = await run("\(base) -c \(ShellQuote.quote(procSQL)) 2>&1", timeout: queryTimeout)
+            if procRes.exit == 0 && !looksLikeError(procRes.out) {
+                let table = parseTable(procRes.out)
+                snapshot.processColumns = table.columns
+                snapshot.processRows = table.rows
+            }
+
+            // 慢查询探测：pg_stat_statements 扩展默认不装，探不到给出安装指引。
+            snapshot.slowQueries = await detectPostgreSQLSlowQueries(base)
+
+        default:
+            break
+        }
+        return .success(snapshot)
+    }
+
+    /// MySQL 慢查询探测：先确认 slow_query_log 开关，再尝试读 mysql.slow_log 表。
+    /// 表不存在（log_output=FILE 默认）或无权限时，返回如实指引而非失败。
+    private func detectMySQLSlowQueries(_ base: String) async -> SlowQueryAvailability {
+        let flagSQL = "SHOW GLOBAL VARIABLES LIKE 'slow_query_log'"
+        let flagRes = await run("\(base) -B -N -e \(ShellQuote.quote(flagSQL)) 2>&1", timeout: queryTimeout)
+        let flagLine = flagRes.out.trimmingCharacters(in: .whitespacesAndNewlines)
+        if flagRes.exit != 0 || flagLine.isEmpty {
+            return .unavailable(reason: L10n.t("Could not read slow query setting. Check server permissions."))
+        }
+        let enabled = flagLine.lowercased().contains("on")
+        guard enabled else {
+            return .unavailable(reason: L10n.t("Slow query log is off. Enable slow_query_log on the server to record slow queries."))
+        }
+        // 开关已开：尝试读表（log_output 需为 TABLE 才有记录）。
+        let sql = "SELECT start_time, user_host, query_time, rows_sent, left(sql_text, 200) AS sql_text FROM mysql.slow_log ORDER BY start_time DESC LIMIT 20"
+        let res = await run("\(base) -B -e \(ShellQuote.quote(sql)) 2>&1", timeout: queryTimeout)
+        guard res.exit == 0, !looksLikeError(res.out) else {
+            return .unavailable(reason: L10n.t("Slow query log is on, but the mysql.slow_log table is unavailable. Set log_output=TABLE on the server to view records here."))
+        }
+        let table = parseTable(res.out)
+        return .available(rows: table.rows)
+    }
+
+    /// PostgreSQL 慢查询探测：尝试查 pg_stat_statements 视图；扩展未安装时给安装指引。
+    private func detectPostgreSQLSlowQueries(_ base: String) async -> SlowQueryAvailability {
+        let sql = "SELECT calls, round(total_exec_time::numeric, 1) AS total_ms, round(mean_exec_time::numeric, 1) AS avg_ms, left(query, 160) AS query FROM pg_stat_statements ORDER BY total_exec_time DESC LIMIT 20"
+        let res = await run("\(base) -c \(ShellQuote.quote(sql)) 2>&1", timeout: queryTimeout)
+        guard res.exit == 0, !looksLikeError(res.out) else {
+            return .unavailable(reason: L10n.t("pg_stat_statements is not available. Install the extension on the server (CREATE EXTENSION pg_stat_statements) and add it to shared_preload_libraries to view slow queries."))
+        }
+        let table = parseTable(res.out)
+        return .available(rows: table.rows)
+    }
+
+    /// 解析「key\tvalue」或「key|value」两列输出为状态项。
+    private func parseKeyValueLines(_ text: String) -> [DatabaseStatusItem] {
+        var items: [DatabaseStatusItem] = []
+        for line in text.split(separator: "\n") {
+            let s = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !s.isEmpty else { continue }
+            let parts = s.contains("\t") ? s.split(separator: "\t", maxSplits: 1) : s.split(separator: "|", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            let key = cleanCell(String(parts[0]))
+            let value = cleanCell(String(parts[1]))
+            items.append(DatabaseStatusItem(id: key, key: key, value: value))
+        }
+        return items
+    }
+
     // MARK: - Redis 配置与持久化
 
     /// 读取 Redis 配置与状态：CONFIG GET 关键项 + INFO。

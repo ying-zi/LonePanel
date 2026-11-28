@@ -891,6 +891,23 @@ enum BuiltinPacks {
         d["This removes all saved statements on this device. It cannot be undone."] = "将删除本机保存的所有语句，且无法撤销。"
         d["%@ rows"] = "%@ 行"
         d["%@ ms"] = "%@ 毫秒"
+        // t1.98：MySQL / PostgreSQL 服务器状态 + 进程 + 慢查询探测
+        d["Server status is available only for MySQL and PostgreSQL"] = "服务器状态仅支持 MySQL 与 PostgreSQL"
+        d["Could not read slow query setting. Check server permissions."] = "无法读取慢查询设置，请检查服务器权限。"
+        d["Slow query log is off. Enable slow_query_log on the server to record slow queries."] = "慢查询日志未开启。需在服务器上启用 slow_query_log 才会记录慢查询。"
+        d["Slow query log is on, but the mysql.slow_log table is unavailable. Set log_output=TABLE on the server to view records here."] = "慢查询日志已开启，但 mysql.slow_log 表不可用。需在服务器上设置 log_output=TABLE 才能在此查看记录。"
+        d["pg_stat_statements is not available. Install the extension on the server (CREATE EXTENSION pg_stat_statements) and add it to shared_preload_libraries to view slow queries."] = "pg_stat_statements 不可用。需在服务器上安装扩展（CREATE EXTENSION pg_stat_statements）并加入 shared_preload_libraries 后才能查看慢查询。"
+        d["Loading server status…"] = "正在加载服务器状态…"
+        d["No status data returned by the server"] = "服务器未返回状态数据"
+        d["No processes to display"] = "没有可显示的进程"
+        d["%@ shown"] = "显示 %@ 条"
+        d["Slow queries"] = "慢查询"
+        d["No slow query records yet"] = "暂无慢查询记录"
+        d["Slow queries are not supported for this database type"] = "该数据库类型不支持慢查询"
+        d["Time"] = "时间"
+        d["Calls"] = "调用次数"
+        d["Process list"] = "进程列表"
+        d["Query"] = "查询"
         return d
     }()
 }

@@ -22,7 +22,7 @@
 | 依赖（SPM） | `swift-nio-ssh`、`swift-crypto`、`SwiftTerm` |
 | 仓库 | `ying-zi/LonePanel`，工作分支 `feature/module-architecture` |
 | 凭据存储 | iOS 钥匙串 `KeychainStore`（密码永不落明文、不进命令行） |
-| 当前基线 | tag `t1.97.1`，版本 1.97.1（详见第 8.5 节） |
+| 当前基线 | tag `t1.98.0`，版本 1.98.0（详见第 8.5 节） |
 
 ---
 
@@ -338,7 +338,7 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 2. **新增一个可插拔模块**：建 `<Name>/<Name>Tab.swift`（导出 `TabModule`）+ View；在 `TabRegistry.modules` 加一行；如需开关，`ModuleID` 加 case（`isCore=false`）；如需设置项，填 `settingsSection`。删模块反过来即可。
 3. **加悬浮终端的宿主模块**：在模块 TabModule 里设 `showsFloatingTerminal: true`。
 4. **改终端行为**：动 `TerminalSession` / `TerminalView` 前，先读 6.1 与踩坑表；终端是底座，任何"模块级终端开关"都不能加。
-5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前基线 t1.96.0）。
+5. **发版**：本地改完 → API 推送 → 新 `t*` tag → 等 CI → asset API 下载 → zip 校验 → `present_files` 交付。**版本号按 t1.N+1.0 递增**（当前基线 t1.98.0）。
 
 ### 当前待办 / 方向（供参考）
 
@@ -369,7 +369,12 @@ unzip -t /workspace/LonePanel-<ver>-testing-unsigned.ipa | tail -2   # zip 校�
 - **结果导出**：TSV/CSV 写临时文件走 `SharePresenter` 系统分享面板（本版把 `SharePresenter` 从 private 放开为 internal 供跨文件复用）；CSV 含逗号/引号/换行字段用双引号包裹+内部引号加倍。
 - **耗时统计**：`QueryResultStatsView` 显示「N 行 · N 毫秒」，执行前后计时。复制入口从平铺收进 ⋯（右上只留 ⋯ + ⌄）。补 11 个本地化 key（Delete 已存在），校验 0 缺失。
 
-*最后更新：2026-11-28，基线 t1.97.1。文档随版本演进同步更新。*
+### t1.98.0 MySQL/PostgreSQL 服务器状态页
+- **范围收窄**：S2-04 原写「配置/状态/慢查询/远程服务器管理」，摸底发现 Redis 配置/状态（t1.85）与远程连接管理（CRUD+测试+客户端探测）均已完成，实质只补 MySQL/PG 状态页。
+- **能力**：`DatabaseService.fetchDatabaseStatus` 只读查询——MySQL 版本/运行时间/连接数（information_schema.GLOBAL_STATUS，MySQL 8 回退 SHOW GLOBAL STATUS）+ SHOW FULL PROCESSLIST；PG version()/pg_stat_activity/pg_database。`DatabaseStatusView` 挂 InstanceAdminSection，容器实例与远程连接共用入口、仅 MySQL/PG 显示（Redis 走已有 RedisConfigView）。
+- **慢查询降级**：MySQL 读 slow_query_log 开关 + 试读 mysql.slow_log（默认 log_output=FILE 无表）；PG 探测 pg_stat_statements 扩展（默认不装）。探不到给如实开启/安装指引，不伪造成功——**失败如实告知铁律**。补 16 个本地化 key 双写。
+
+*最后更新：2026-11-28，基线 t1.98.0。文档随版本演进同步更新。*
 
 ### t1.94.0 保存为模板改为「快照」：展开变量成实值
 
